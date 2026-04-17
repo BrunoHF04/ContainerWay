@@ -1,0 +1,85 @@
+package hostfs
+
+import (
+	"context"
+	"os"
+	"path"
+	"strings"
+
+	"github.com/pkg/sftp"
+
+	"containerway/internal/fsutil"
+)
+
+// FS acessa o sistema de ficheiros do host remoto via SFTP.
+type FS struct {
+	Client *sftp.Client
+}
+
+func (f *FS) List(ctx context.Context, dir string) ([]fsutil.DirEntry, error) {
+	_ = ctx
+	p := normalize(dir)
+	infos, err := f.Client.ReadDir(p)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]fsutil.DirEntry, 0, len(infos)+1)
+	if p != "/" {
+		parent := path.Dir(p)
+		if parent == "" || parent == "." {
+			parent = "/"
+		}
+		out = append(out, fsutil.DirEntry{Name: "..", Path: parent, IsDir: true})
+	}
+	for _, fi := range infos {
+		name := fi.Name()
+		if name == "." || name == ".." {
+			continue
+		}
+		full := path.Join(p, name)
+		out = append(out, fsutil.DirEntry{
+			Name:    name,
+			Path:    full,
+			IsDir:   fi.IsDir(),
+			Size:    fi.Size(),
+			ModTime: fi.ModTime(),
+		})
+	}
+	return out, nil
+}
+
+func normalize(dir string) string {
+	d := strings.TrimSpace(dir)
+	if d == "" || d == "." {
+		return "/"
+	}
+	if !strings.HasPrefix(d, "/") {
+		d = "/" + d
+	}
+	return path.Clean(d)
+}
+
+// OpenReader abre um ficheiro remoto para leitura.
+func (f *FS) OpenReader(path string) (*sftp.File, error) {
+	return f.Client.Open(normalize(path))
+}
+
+// CreateWriter cria ou trunca um ficheiro remoto.
+func (f *FS) CreateWriter(p string) (*sftp.File, error) {
+	p = normalize(p)
+	dir := path.Dir(p)
+	if dir != "" && dir != "/" && dir != "." {
+		_ = f.Client.MkdirAll(dir)
+	}
+	return f.Client.Create(p)
+}
+
+// Mkdir cria um diretório no host.
+func (f *FS) Mkdir(p string) error {
+	return f.Client.Mkdir(normalize(p))
+}
+
+// Stat devolve metadados SFTP.
+func (f *FS) Stat(p string) (os.FileInfo, error) {
+	return f.Client.Stat(normalize(p))
+}
