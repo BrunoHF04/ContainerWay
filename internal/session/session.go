@@ -65,7 +65,7 @@ func authMethods(c Credentials) ([]ssh.AuthMethod, error) {
 	if strings.TrimSpace(c.KeyPath) != "" {
 		pemData, err := os.ReadFile(c.KeyPath)
 		if err != nil {
-			return nil, fmt.Errorf("ler chave: %w", err)
+			return nil, fmt.Errorf("erro ao ler a chave: %w", err)
 		}
 		signer, err := parsePrivateKey(pemData, c.KeyPass)
 		if err != nil {
@@ -74,7 +74,7 @@ func authMethods(c Credentials) ([]ssh.AuthMethod, error) {
 		methods = append(methods, ssh.PublicKeys(signer))
 	}
 	if len(methods) == 0 {
-		return nil, fmt.Errorf("informe senha ou arquivo de chave PEM/OpenSSH")
+		return nil, fmt.Errorf("informe a senha ou o arquivo de chave PEM/OpenSSH")
 	}
 	return methods, nil
 }
@@ -106,19 +106,19 @@ func Connect(ctx context.Context, c Credentials) (*Session, error) {
 	d := net.Dialer{Timeout: 30 * time.Second}
 	conn, err := d.DialContext(ctx, "tcp", addr)
 	if err != nil {
-		return nil, fmt.Errorf("tcp: %w", err)
+		return nil, fmt.Errorf("conexão TCP: %w", err)
 	}
 	cc, chans, reqs, err := ssh.NewClientConn(conn, addr, cfg)
 	if err != nil {
 		_ = conn.Close()
-		return nil, fmt.Errorf("ssh: %w", err)
+		return nil, fmt.Errorf("SSH: %w", err)
 	}
 	sshClient := ssh.NewClient(cc, chans, reqs)
 
 	sftpClient, err := sftp.NewClient(sshClient)
 	if err != nil {
 		_ = sshClient.Close()
-		return nil, fmt.Errorf("sftp: %w", err)
+		return nil, fmt.Errorf("SFTP: %w", err)
 	}
 
 	sshDial := func(ctx context.Context, _, _ string) (net.Conn, error) {
@@ -133,7 +133,7 @@ func Connect(ctx context.Context, c Credentials) (*Session, error) {
 	if err != nil {
 		_ = sftpClient.Close()
 		_ = sshClient.Close()
-		return nil, fmt.Errorf("docker: %w", err)
+		return nil, fmt.Errorf("Docker: %w", err)
 	}
 
 	// Ping na API (negocia versão).
@@ -143,7 +143,7 @@ func Connect(ctx context.Context, c Credentials) (*Session, error) {
 		_ = dockerClient.Close()
 		_ = sftpClient.Close()
 		_ = sshClient.Close()
-		return nil, fmt.Errorf("docker ping (permissão em /var/run/docker.sock?): %w", err)
+		return nil, fmt.Errorf("docker (permissão em /var/run/docker.sock?): %w", err)
 	}
 
 	return &Session{

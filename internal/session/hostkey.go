@@ -32,7 +32,7 @@ func buildHostKeyCallback(c Credentials) (ssh.HostKeyCallback, error) {
 		}
 	}
 	if len(files) == 0 {
-		return nil, fmt.Errorf("known_hosts: defina o caminho (separador |) ou marque 'Ignorar chave de host'")
+		return nil, fmt.Errorf("known_hosts: informe um ou mais caminhos (separados por |) ou marque \"Ignorar chave de host SSH\"")
 	}
 	return knownhosts.New(files...)
 }

@@ -98,7 +98,7 @@ func posixRel(root, full string) (string, error) {
 	}
 	prefix := root + "/"
 	if !strings.HasPrefix(full, prefix) {
-		return "", fmt.Errorf("caminho fora da raiz remota")
+		return "", fmt.Errorf("caminho fora da pasta raiz no servidor")
 	}
 	return strings.TrimPrefix(full, prefix), nil
 }

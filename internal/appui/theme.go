@@ -49,9 +49,9 @@ func (m *modernTheme) Icon(n fyne.ThemeIconName) fyne.Resource {
 func (m *modernTheme) Size(n fyne.ThemeSizeName) float32 {
 	switch n {
 	case theme.SizeNamePadding:
-		return m.base.Size(n) * 1.2
+		return m.base.Size(n) * 1.05
 	case theme.SizeNameInnerPadding:
-		return m.base.Size(n) * 1.15
+		return m.base.Size(n) * 1.05
 	case theme.SizeNameSeparatorThickness:
 		t := m.base.Size(n)
 		if t < 1 {

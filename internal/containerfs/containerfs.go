@@ -136,7 +136,7 @@ func (f *FS) OpenFileReader(ctx context.Context, filePath string) (io.ReadCloser
 		return nil, 0, err
 	}
 	if stat.Mode.IsDir() {
-		return nil, 0, fmt.Errorf("é um diretório: %s", p)
+		return nil, 0, fmt.Errorf("é uma pasta: %s", p)
 	}
 	rc, _, err := f.Docker.CopyFromContainer(ctx, f.ID, p)
 	if err != nil {
@@ -150,7 +150,7 @@ func (f *FS) OpenFileReader(ctx context.Context, filePath string) (io.ReadCloser
 	}
 	if hdr.FileInfo().IsDir() {
 		_ = rc.Close()
-		return nil, 0, fmt.Errorf("esperado ficheiro, obtido diretório")
+		return nil, 0, fmt.Errorf("esperava-se um arquivo, mas veio uma pasta")
 	}
 	return &tarFileReader{rc: rc, tr: tr}, hdr.Size, nil
 }

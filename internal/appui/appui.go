@@ -35,60 +35,79 @@ import (
 func Run() {
 	a := app.NewWithID("io.containerway.app")
 	a.Settings().SetTheme(newModernTheme())
+	if ico := appWindowIcon(); ico != nil {
+		a.SetIcon(ico)
+	}
 	w := a.NewWindow("ContainerWay")
-	w.Resize(fyne.NewSize(1040, 740))
+	if ico := appWindowIcon(); ico != nil {
+		w.SetIcon(ico)
+	}
 	w.SetContent(buildLogin(w))
+	setLoginWindow(w)
 	w.ShowAndRun()
+}
+
+func setLoginWindow(w fyne.Window) {
+	w.Resize(fyne.NewSize(500, 600))
+}
+
+func setExplorerWindow(w fyne.Window) {
+	w.Resize(fyne.NewSize(1100, 720))
+}
+
+func goToLogin(w fyne.Window) {
+	setLoginWindow(w)
+	w.SetContent(buildLogin(w))
 }
 
 func buildLogin(w fyne.Window) fyne.CanvasObject {
 	host := widget.NewEntry()
 	host.SetPlaceHolder("ex.: 192.168.1.10 ou servidor:22")
 	user := widget.NewEntry()
-	user.SetPlaceHolder("utilizador SSH")
+	user.SetPlaceHolder("usuário no servidor (SSH)")
 	pass := widget.NewPasswordEntry()
 	pass.SetPlaceHolder("senha (opcional se usar chave)")
 	keyPath := widget.NewEntry()
 	keyPath.SetPlaceHolder("caminho para .pem / id_rsa (OpenSSH)")
 	keyPass := widget.NewPasswordEntry()
-	keyPass.SetPlaceHolder("passphrase da chave (se aplicável)")
+	keyPass.SetPlaceHolder("senha da chave privada (se houver)")
 	knownHosts := widget.NewEntry()
 	knownHosts.SetPlaceHolder("known_hosts (opcional); vários: caminho1|caminho2")
 	insecureHost := widget.NewCheck("Ignorar chave de host SSH (inseguro)", nil)
 	insecureHost.SetChecked(true)
 	parallelJobsEntry := widget.NewEntry()
 	parallelJobsEntry.SetText("3")
-	parallelJobsEntry.SetPlaceHolder("jobs paralelos (1–16)")
+	parallelJobsEntry.SetPlaceHolder("transferências em paralelo (1–16)")
 	status := widget.NewLabel("")
 	status.Wrapping = fyne.TextWrapWord
 
 	formConn := &widget.Form{
 		Items: []*widget.FormItem{
 			{Text: "Host", Widget: host},
-			{Text: "Utilizador", Widget: user},
+			{Text: "Usuário", Widget: user},
 			{Text: "Senha", Widget: pass},
 		},
 	}
 	formAdv := &widget.Form{
 		Items: []*widget.FormItem{
 			{Text: "Chave PEM / PPK", Widget: keyPath},
-			{Text: "Passphrase", Widget: keyPass},
+			{Text: "Senha da chave", Widget: keyPass},
 			{Text: "known_hosts", Widget: knownHosts},
 			{Text: "", Widget: insecureHost},
-			{Text: "Paralelo", Widget: parallelJobsEntry},
+			{Text: "Paralelismo", Widget: parallelJobsEntry},
 		},
 	}
 
 	body := fynecontainer.NewVBox(
-		widget.NewLabelWithStyle("Ligação", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewLabelWithStyle("Conexão", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		formConn,
 		widget.NewSeparator(),
 		widget.NewLabelWithStyle("Chave e segurança", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		formAdv,
 	)
 
-	connect := widget.NewButtonWithIcon("Ligar", theme.LoginIcon(), func() {
-		status.SetText("A ligar…")
+	connect := widget.NewButtonWithIcon("Conectar", theme.LoginIcon(), func() {
+		status.SetText("Conectando…")
 		creds := session.Credentials{
 			Host:              host.Text,
 			User:              user.Text,
@@ -112,6 +131,7 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 			}
 			fyne.Do(func() {
 				w.SetContent(buildExplorer(w, sess, pJobs))
+				setExplorerWindow(w)
 			})
 		}()
 	})
@@ -120,8 +140,8 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 	cardInner := fynecontainer.NewVBox(
 		body,
 		widget.NewSeparator(),
-		fynecontainer.NewPadded(connect),
-		fynecontainer.NewPadded(status),
+		connect,
+		status,
 	)
 	card := widget.NewCard(
 		"ContainerWay",
@@ -129,15 +149,7 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 		cardInner,
 	)
 
-	return fynecontainer.NewVBox(
-		layout.NewSpacer(),
-		fynecontainer.NewHBox(
-			layout.NewSpacer(),
-			fynecontainer.NewPadded(fynecontainer.NewGridWrap(fyne.NewSize(480, 800), card)),
-			layout.NewSpacer(),
-		),
-		layout.NewSpacer(),
-	)
+	return fynecontainer.NewCenter(fynecontainer.NewPadded(card))
 }
 
 type explorer struct {
@@ -196,15 +208,15 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 	defer cancel()
 	list, err := s.Docker.ContainerList(ctx, dcontainer.ListOptions{All: true})
 	if err != nil {
-		errLabel := widget.NewLabel(fmt.Sprintf("Não foi possível usar o Docker no host: %v", err))
+		errLabel := widget.NewLabel(fmt.Sprintf("Não foi possível usar o Docker neste servidor: %v", err))
 		errLabel.Wrapping = fyne.TextWrapWord
-		closeBtn := widget.NewButtonWithIcon("Terminar sessão", theme.LogoutIcon(), func() {
+		closeBtn := widget.NewButtonWithIcon("Encerrar sessão", theme.LogoutIcon(), func() {
 			s.Close()
-			w.SetContent(buildLogin(w))
+			goToLogin(w)
 		})
 		closeBtn.Importance = widget.DangerImportance
 		inner := fynecontainer.NewVBox(errLabel, widget.NewSeparator(), closeBtn)
-		return fynecontainer.NewPadded(widget.NewCard("Docker", "Verifique permissões em /var/run/docker.sock", inner))
+		return fynecontainer.NewPadded(widget.NewCard("Docker", "Verifique as permissões em /var/run/docker.sock", inner))
 	}
 
 	ui := &explorer{
@@ -214,7 +226,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 		leftPath:      homeOrRoot(),
 		rightPath:     "/",
 		hostMode:      true,
-		containerOpts: []string{"Host (SFTP)"},
+		containerOpts: []string{"Servidor (SFTP)"},
 		containerIDs:  []string{""},
 		leftSel:        -1,
 		rightSel:       -1,
@@ -280,9 +292,9 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 		func() fyne.CanvasObject {
 			return fynecontainer.NewHBox(
 				widget.NewIcon(nil),
-				widget.NewLabel("nome"),
+				widget.NewLabel("Nome"),
 				layout.NewSpacer(),
-				widget.NewLabel("tamanho"),
+				widget.NewLabel("Tamanho"),
 			)
 		},
 		func(id widget.ListItemID, o fyne.CanvasObject) {
@@ -313,9 +325,9 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 		func() fyne.CanvasObject {
 			return fynecontainer.NewHBox(
 				widget.NewIcon(nil),
-				widget.NewLabel("nome"),
+				widget.NewLabel("Nome"),
 				layout.NewSpacer(),
-				widget.NewLabel("tamanho"),
+				widget.NewLabel("Tamanho"),
 			)
 		},
 		func(id widget.ListItemID, o fyne.CanvasObject) {
@@ -354,7 +366,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 	})
 	btnDisconnect := widget.NewButtonWithIcon("Sair", theme.LogoutIcon(), func() {
 		s.Close()
-		w.SetContent(buildLogin(w))
+		goToLogin(w)
 	})
 	btnDisconnect.Importance = widget.DangerImportance
 
@@ -372,7 +384,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 
 	leftHead := fynecontainer.NewHBox(
 		widget.NewIcon(theme.HomeIcon()),
-		widget.NewLabelWithStyle("Este PC", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewLabelWithStyle("Computador local", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		layout.NewSpacer(),
 		btnOpenLocal,
 	)
@@ -385,7 +397,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 	rightHead := fynecontainer.NewVBox(
 		fynecontainer.NewHBox(
 			widget.NewIcon(theme.StorageIcon()),
-			widget.NewLabelWithStyle("Remoto", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+			widget.NewLabelWithStyle("Servidor remoto", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 			layout.NewSpacer(),
 			btnOpenRemote,
 		),
@@ -434,7 +446,7 @@ func sizeLabel(e fsutil.DirEntry) string {
 
 func (ui *explorer) updateBreadcrumb() {
 	if ui.hostMode {
-		ui.breadcrumb.SetText(fmt.Sprintf("Host: %s", ui.rightPath))
+		ui.breadcrumb.SetText(fmt.Sprintf("Servidor: %s", ui.rightPath))
 		return
 	}
 	short := ui.cfs.ID
@@ -504,12 +516,12 @@ func (ui *explorer) onRightActivate() {
 
 func (ui *explorer) upload() {
 	if ui.leftSel < 0 || ui.leftSel >= len(ui.leftRows) {
-		dialog.ShowInformation("ContainerWay", "Selecione um ficheiro ou pasta no painel local.", ui.win)
+		dialog.ShowInformation("ContainerWay", "Selecione um arquivo ou pasta no painel local.", ui.win)
 		return
 	}
 	src := ui.leftRows[ui.leftSel]
 	if src.Name == ".." {
-		dialog.ShowInformation("ContainerWay", "Selecione um ficheiro ou pasta válida.", ui.win)
+		dialog.ShowInformation("ContainerWay", "Selecione um arquivo ou pasta válidos.", ui.win)
 		return
 	}
 	dstName := filepath.Base(src.Path)
@@ -518,7 +530,7 @@ func (ui *explorer) upload() {
 		if ui.hostMode {
 			remoteBase := path.Join(ui.rightPath, dstName)
 			ui.tm.Enqueue(transfer.Job{
-				Name: fmt.Sprintf("Enviar pasta %s → host:%s", src.Path, remoteBase),
+				Name: fmt.Sprintf("Enviar pasta %s → servidor:%s", src.Path, remoteBase),
 				Run: func(ctx context.Context, on transfer.Progress) error {
 					if on != nil {
 						on(0, -1)
@@ -532,7 +544,7 @@ func (ui *explorer) upload() {
 			})
 		} else {
 			ui.tm.Enqueue(transfer.Job{
-				Name: fmt.Sprintf("Enviar pasta %s → contentor:%s", src.Path, ui.rightPath),
+				Name: fmt.Sprintf("Enviar pasta %s → contêiner:%s", src.Path, ui.rightPath),
 				Run: func(ctx context.Context, on transfer.Progress) error {
 					if on != nil {
 						on(0, -1)
@@ -552,7 +564,7 @@ func (ui *explorer) upload() {
 	if ui.hostMode {
 		dst := path.Join(ui.rightPath, dstName)
 		ui.tm.Enqueue(transfer.Job{
-			Name: fmt.Sprintf("Enviar %s → host:%s", src.Path, dst),
+			Name: fmt.Sprintf("Enviar %s → servidor:%s", src.Path, dst),
 			Run: func(ctx context.Context, on transfer.Progress) error {
 				f, err := os.Open(src.Path)
 				if err != nil {
@@ -596,7 +608,7 @@ func (ui *explorer) upload() {
 		})
 	} else {
 		ui.tm.Enqueue(transfer.Job{
-			Name: fmt.Sprintf("Enviar %s → contentor:%s", src.Path, ui.rightPath),
+			Name: fmt.Sprintf("Enviar %s → contêiner:%s", src.Path, ui.rightPath),
 			Run: func(ctx context.Context, on transfer.Progress) error {
 				f, err := os.Open(src.Path)
 				if err != nil {
@@ -639,12 +651,12 @@ func (ui *explorer) upload() {
 
 func (ui *explorer) download() {
 	if ui.rightSel < 0 || ui.rightSel >= len(ui.rightRows) {
-		dialog.ShowInformation("ContainerWay", "Selecione um ficheiro ou pasta no painel remoto.", ui.win)
+		dialog.ShowInformation("ContainerWay", "Selecione um arquivo ou pasta no painel remoto.", ui.win)
 		return
 	}
 	src := ui.rightRows[ui.rightSel]
 	if src.Name == ".." {
-		dialog.ShowInformation("ContainerWay", "Selecione um ficheiro ou pasta válida.", ui.win)
+		dialog.ShowInformation("ContainerWay", "Selecione um arquivo ou pasta válidos.", ui.win)
 		return
 	}
 	dstPath := filepath.Join(ui.leftPath, src.Name)
@@ -652,7 +664,7 @@ func (ui *explorer) download() {
 	if src.IsDir {
 		if ui.hostMode {
 			ui.tm.Enqueue(transfer.Job{
-				Name: fmt.Sprintf("Receber pasta host:%s → %s", src.Path, dstPath),
+				Name: fmt.Sprintf("Receber pasta servidor:%s → %s", src.Path, dstPath),
 				Run: func(ctx context.Context, on transfer.Progress) error {
 					if on != nil {
 						on(0, -1)
@@ -666,7 +678,7 @@ func (ui *explorer) download() {
 			})
 		} else {
 			ui.tm.Enqueue(transfer.Job{
-				Name: fmt.Sprintf("Receber pasta contentor:%s → %s", src.Path, dstPath),
+				Name: fmt.Sprintf("Receber pasta contêiner:%s → %s", src.Path, dstPath),
 				Run: func(ctx context.Context, on transfer.Progress) error {
 					if on != nil {
 						on(0, -1)
@@ -685,7 +697,7 @@ func (ui *explorer) download() {
 
 	if ui.hostMode {
 		ui.tm.Enqueue(transfer.Job{
-			Name: fmt.Sprintf("Receber host:%s → %s", src.Path, dstPath),
+			Name: fmt.Sprintf("Receber servidor:%s → %s", src.Path, dstPath),
 			Run: func(ctx context.Context, on transfer.Progress) error {
 				rf, err := ui.hfs.OpenReader(src.Path)
 				if err != nil {
@@ -729,7 +741,7 @@ func (ui *explorer) download() {
 		})
 	} else {
 		ui.tm.Enqueue(transfer.Job{
-			Name: fmt.Sprintf("Receber contentor:%s → %s", src.Path, dstPath),
+			Name: fmt.Sprintf("Receber contêiner:%s → %s", src.Path, dstPath),
 			Run: func(ctx context.Context, on transfer.Progress) error {
 				rc, total, err := ui.cfs.OpenFileReader(ctx, src.Path)
 				if err != nil {
@@ -778,7 +790,7 @@ func (ui *explorer) startDrain() {
 				ui.progress.Show()
 				ui.progress.SetValue(0)
 				ui.lastJobText.SetText(j.Name)
-				ui.status.SetText("A transferir…")
+				ui.status.SetText("Transferindo…")
 			})
 		},
 		func(j transfer.Job, err error) {
