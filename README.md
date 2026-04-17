@@ -57,14 +57,14 @@ go build -tags ci -o containerway_ci.exe ./cmd/containerway/
 
 1. Preencha host (ex.: `192.168.1.10` ou `servidor:22`), usuário e credenciais; opcionalmente `known_hosts`, desmarque **Ignorar chave de host** em produção, e defina **Paralelismo** (número de transferências simultâneas).
 2. Após conectar, no menu do lado direito escolha **pastas do servidor** ou um **contêiner em execução** (só os ligados aparecem).
-3. Use **Abrir pasta** em cada painel para **entrar** na pasta selecionada (ou em `..` para subir); **Enviar** / **Receber** para **arquivos ou pastas** selecionados.
+3. **Duplo clique** numa pasta na lista (o mesmo gesto do Explorador de Arquivos) ou o botão **Abrir pasta** para **entrar** (ou em `..` para subir); **Enviar** / **Receber** para **arquivos ou pastas** selecionados (um clique só seleciona a linha).
 
 ### No explorador (uso simples)
 
 - **Esquerda**: arquivos do seu **computador local**.
 - **Direita**: um texto de ajuda indica que só aparecem **contêineres ligados** (em execução). A primeira opção do menu são as **pastas do servidor fora dos contêineres** (SFTP no Linux remoto); abaixo vêm os contêineres, cada um como **`nome (ID curto)`** (nomes muito longos são encurtados com `…`).
 - A barra abaixo do menu mostra a **pasta atual** no servidor ou **dentro do contêiner** (com o ID), para saber sempre onde está.
-- Depois de **mudar de pasta** ou de contexto (menu servidor/contêiner), a lista **limpa a seleção** para o índice não ficar desalinhado: **clique outra vez na linha** e depois em **Abrir pasta** para continuar a navegar.
+- Depois de **mudar de pasta** ou de contexto (menu servidor/contêiner), a lista **limpa a seleção** para o índice não ficar desalinhado: use **duplo clique** na pasta ou **Abrir pasta** para continuar.
 
 ## Estrutura do código
 

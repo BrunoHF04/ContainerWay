@@ -274,7 +274,6 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 		tm:             &transfer.Manager{},
 		parallelJobs:   parallelJobs,
 	}
-
 	for _, c := range list {
 		// Reforço no cliente: só o que está “vivo” (como no docker ps sem -a).
 		if c.State != dcontainer.StateRunning && c.State != dcontainer.StateRestarting {
@@ -304,6 +303,67 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 	ui.progress.Hide()
 	ui.lastJobText = widget.NewLabel("")
 
+	ui.leftList = widget.NewList(
+		func() int { return len(ui.leftRows) },
+		func() fyne.CanvasObject {
+			return newDirListRow(ui, true)
+		},
+		func(id widget.ListItemID, o fyne.CanvasObject) {
+			row := o.(*dirListRow)
+			row.itemID = id
+			box := row.box
+			if id < 0 || id >= len(ui.leftRows) {
+				return
+			}
+			e := ui.leftRows[id]
+			ic := box.Objects[0].(*widget.Icon)
+			l1 := box.Objects[1].(*widget.Label)
+			l2 := box.Objects[3].(*widget.Label)
+			switch {
+			case e.Name == "..":
+				ic.SetResource(theme.NavigateBackIcon())
+			case e.IsDir:
+				ic.SetResource(theme.FolderIcon())
+			default:
+				ic.SetResource(theme.DocumentIcon())
+			}
+			l1.SetText(e.Name)
+			l2.SetText(sizeLabel(e))
+		},
+	)
+	ui.leftList.OnSelected = func(id widget.ListItemID) { ui.leftSel = int(id) }
+
+	ui.rightList = widget.NewList(
+		func() int { return len(ui.rightRows) },
+		func() fyne.CanvasObject {
+			return newDirListRow(ui, false)
+		},
+		func(id widget.ListItemID, o fyne.CanvasObject) {
+			row := o.(*dirListRow)
+			row.itemID = id
+			box := row.box
+			if id < 0 || id >= len(ui.rightRows) {
+				return
+			}
+			e := ui.rightRows[id]
+			ic := box.Objects[0].(*widget.Icon)
+			l1 := box.Objects[1].(*widget.Label)
+			l2 := box.Objects[3].(*widget.Label)
+			switch {
+			case e.Name == "..":
+				ic.SetResource(theme.NavigateBackIcon())
+			case e.IsDir:
+				ic.SetResource(theme.FolderIcon())
+			default:
+				ic.SetResource(theme.DocumentIcon())
+			}
+			l1.SetText(e.Name)
+			l2.SetText(sizeLabel(e))
+		},
+	)
+	ui.rightList.OnSelected = func(id widget.ListItemID) { ui.rightSel = int(id) }
+
+	// ctxSelect depois das listas: SetSelectedIndex(0) dispara o callback e usa rightList.UnselectAll().
 	ui.ctxSelect = widget.NewSelect(ui.containerOpts, func(sel string) {
 		idx := -1
 		for i, o := range ui.containerOpts {
@@ -329,72 +389,6 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 		ui.updateBreadcrumb()
 	})
 	ui.ctxSelect.SetSelectedIndex(0)
-
-	ui.leftList = widget.NewList(
-		func() int { return len(ui.leftRows) },
-		func() fyne.CanvasObject {
-			return fynecontainer.NewHBox(
-				widget.NewIcon(nil),
-				widget.NewLabel("Nome"),
-				layout.NewSpacer(),
-				widget.NewLabel("Tamanho"),
-			)
-		},
-		func(id widget.ListItemID, o fyne.CanvasObject) {
-			box := o.(*fyne.Container)
-			if id < 0 || id >= len(ui.leftRows) {
-				return
-			}
-			e := ui.leftRows[id]
-			ic := box.Objects[0].(*widget.Icon)
-			l1 := box.Objects[1].(*widget.Label)
-			l2 := box.Objects[3].(*widget.Label)
-			switch {
-			case e.Name == "..":
-				ic.SetResource(theme.NavigateBackIcon())
-			case e.IsDir:
-				ic.SetResource(theme.FolderIcon())
-			default:
-				ic.SetResource(theme.DocumentIcon())
-			}
-			l1.SetText(e.Name)
-			l2.SetText(sizeLabel(e))
-		},
-	)
-	ui.leftList.OnSelected = func(id widget.ListItemID) { ui.leftSel = int(id) }
-
-	ui.rightList = widget.NewList(
-		func() int { return len(ui.rightRows) },
-		func() fyne.CanvasObject {
-			return fynecontainer.NewHBox(
-				widget.NewIcon(nil),
-				widget.NewLabel("Nome"),
-				layout.NewSpacer(),
-				widget.NewLabel("Tamanho"),
-			)
-		},
-		func(id widget.ListItemID, o fyne.CanvasObject) {
-			box := o.(*fyne.Container)
-			if id < 0 || id >= len(ui.rightRows) {
-				return
-			}
-			e := ui.rightRows[id]
-			ic := box.Objects[0].(*widget.Icon)
-			l1 := box.Objects[1].(*widget.Label)
-			l2 := box.Objects[3].(*widget.Label)
-			switch {
-			case e.Name == "..":
-				ic.SetResource(theme.NavigateBackIcon())
-			case e.IsDir:
-				ic.SetResource(theme.FolderIcon())
-			default:
-				ic.SetResource(theme.DocumentIcon())
-			}
-			l1.SetText(e.Name)
-			l2.SetText(sizeLabel(e))
-		},
-	)
-	ui.rightList.OnSelected = func(id widget.ListItemID) { ui.rightSel = int(id) }
 
 	btnOpenLocal := widget.NewButtonWithIcon("Abrir pasta", theme.FolderOpenIcon(), func() { ui.onLeftActivate() })
 	btnOpenRemote := widget.NewButtonWithIcon("Abrir pasta", theme.FolderOpenIcon(), func() { ui.onRightActivate() })
@@ -437,7 +431,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 		fynecontainer.NewPadded(fynecontainer.NewScroll(ui.leftList)),
 	)
 
-	ctxHelp := widget.NewLabel("Escolha pastas do Linux no servidor ou um contêiner ligado. Na lista só entram contêineres em execução.")
+	ctxHelp := widget.NewLabel("Escolha pastas do Linux no servidor ou um contêiner ligado. Na lista só entram contêineres em execução. Duplo clique numa pasta para entrar (ou use «Abrir pasta»).")
 	ctxHelp.Wrapping = fyne.TextWrapWord
 	ctxHelp.TextStyle = fyne.TextStyle{Italic: true}
 
