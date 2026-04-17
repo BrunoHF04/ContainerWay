@@ -17,6 +17,7 @@ import (
 	fynecontainer "fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	dcontainer "github.com/docker/docker/api/types/container"
@@ -33,8 +34,9 @@ import (
 // Run inicia a aplicação Fyne.
 func Run() {
 	a := app.NewWithID("io.containerway.app")
+	a.Settings().SetTheme(newModernTheme())
 	w := a.NewWindow("ContainerWay")
-	w.Resize(fyne.NewSize(1100, 700))
+	w.Resize(fyne.NewSize(1040, 740))
 	w.SetContent(buildLogin(w))
 	w.ShowAndRun()
 }
@@ -58,21 +60,34 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 	parallelJobsEntry.SetText("3")
 	parallelJobsEntry.SetPlaceHolder("jobs paralelos (1–16)")
 	status := widget.NewLabel("")
+	status.Wrapping = fyne.TextWrapWord
 
-	form := &widget.Form{
+	formConn := &widget.Form{
 		Items: []*widget.FormItem{
 			{Text: "Host", Widget: host},
 			{Text: "Utilizador", Widget: user},
 			{Text: "Senha", Widget: pass},
+		},
+	}
+	formAdv := &widget.Form{
+		Items: []*widget.FormItem{
 			{Text: "Chave PEM / PPK", Widget: keyPath},
-			{Text: "Passphrase chave", Widget: keyPass},
+			{Text: "Passphrase", Widget: keyPass},
 			{Text: "known_hosts", Widget: knownHosts},
 			{Text: "", Widget: insecureHost},
 			{Text: "Paralelo", Widget: parallelJobsEntry},
 		},
 	}
 
-	connect := widget.NewButton("Ligar", func() {
+	body := fynecontainer.NewVBox(
+		widget.NewLabelWithStyle("Ligação", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		formConn,
+		widget.NewSeparator(),
+		widget.NewLabelWithStyle("Chave e segurança", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		formAdv,
+	)
+
+	connect := widget.NewButtonWithIcon("Ligar", theme.LoginIcon(), func() {
 		status.SetText("A ligar…")
 		creds := session.Credentials{
 			Host:              host.Text,
@@ -100,12 +115,28 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 			})
 		}()
 	})
+	connect.Importance = widget.HighImportance
+
+	cardInner := fynecontainer.NewVBox(
+		body,
+		widget.NewSeparator(),
+		fynecontainer.NewPadded(connect),
+		fynecontainer.NewPadded(status),
+	)
+	card := widget.NewCard(
+		"ContainerWay",
+		"SSH · SFTP · Docker remoto sem expor a API em TCP",
+		cardInner,
+	)
 
 	return fynecontainer.NewVBox(
-		widget.NewLabelWithStyle("ContainerWay — SSH + Docker + SFTP", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		form,
-		connect,
-		status,
+		layout.NewSpacer(),
+		fynecontainer.NewHBox(
+			layout.NewSpacer(),
+			fynecontainer.NewPadded(fynecontainer.NewGridWrap(fyne.NewSize(480, 800), card)),
+			layout.NewSpacer(),
+		),
+		layout.NewSpacer(),
 	)
 }
 
@@ -165,12 +196,15 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 	defer cancel()
 	list, err := s.Docker.ContainerList(ctx, dcontainer.ListOptions{All: true})
 	if err != nil {
-		errLabel := widget.NewLabel(fmt.Sprintf("Docker: %v", err))
-		closeBtn := widget.NewButton("Fechar sessão", func() {
+		errLabel := widget.NewLabel(fmt.Sprintf("Não foi possível usar o Docker no host: %v", err))
+		errLabel.Wrapping = fyne.TextWrapWord
+		closeBtn := widget.NewButtonWithIcon("Terminar sessão", theme.LogoutIcon(), func() {
 			s.Close()
 			w.SetContent(buildLogin(w))
 		})
-		return fynecontainer.NewVBox(errLabel, closeBtn)
+		closeBtn.Importance = widget.DangerImportance
+		inner := fynecontainer.NewVBox(errLabel, widget.NewSeparator(), closeBtn)
+		return fynecontainer.NewPadded(widget.NewCard("Docker", "Verifique permissões em /var/run/docker.sock", inner))
 	}
 
 	ui := &explorer{
@@ -210,7 +244,9 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 	}
 
 	ui.breadcrumb = widget.NewLabel("")
+	ui.breadcrumb.Wrapping = fyne.TextWrapWord
 	ui.status = widget.NewLabel("")
+	ui.status.Wrapping = fyne.TextWrapWord
 	ui.progress = widget.NewProgressBar()
 	ui.progress.Hide()
 	ui.lastJobText = widget.NewLabel("")
@@ -242,7 +278,12 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 	ui.leftList = widget.NewList(
 		func() int { return len(ui.leftRows) },
 		func() fyne.CanvasObject {
-			return fynecontainer.NewHBox(widget.NewLabel("nome"), widget.NewLabel("tamanho"))
+			return fynecontainer.NewHBox(
+				widget.NewIcon(nil),
+				widget.NewLabel("nome"),
+				layout.NewSpacer(),
+				widget.NewLabel("tamanho"),
+			)
 		},
 		func(id widget.ListItemID, o fyne.CanvasObject) {
 			box := o.(*fyne.Container)
@@ -250,13 +291,18 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 				return
 			}
 			e := ui.leftRows[id]
-			l1 := box.Objects[0].(*widget.Label)
-			l2 := box.Objects[1].(*widget.Label)
-			suffix := ""
-			if e.IsDir {
-				suffix = " /"
+			ic := box.Objects[0].(*widget.Icon)
+			l1 := box.Objects[1].(*widget.Label)
+			l2 := box.Objects[3].(*widget.Label)
+			switch {
+			case e.Name == "..":
+				ic.SetResource(theme.NavigateBackIcon())
+			case e.IsDir:
+				ic.SetResource(theme.FolderIcon())
+			default:
+				ic.SetResource(theme.DocumentIcon())
 			}
-			l1.SetText(e.Name + suffix)
+			l1.SetText(e.Name)
 			l2.SetText(sizeLabel(e))
 		},
 	)
@@ -265,7 +311,12 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 	ui.rightList = widget.NewList(
 		func() int { return len(ui.rightRows) },
 		func() fyne.CanvasObject {
-			return fynecontainer.NewHBox(widget.NewLabel("nome"), widget.NewLabel("tamanho"))
+			return fynecontainer.NewHBox(
+				widget.NewIcon(nil),
+				widget.NewLabel("nome"),
+				layout.NewSpacer(),
+				widget.NewLabel("tamanho"),
+			)
 		},
 		func(id widget.ListItemID, o fyne.CanvasObject) {
 			box := o.(*fyne.Container)
@@ -273,58 +324,94 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 				return
 			}
 			e := ui.rightRows[id]
-			suffix := ""
-			if e.IsDir {
-				suffix = " /"
+			ic := box.Objects[0].(*widget.Icon)
+			l1 := box.Objects[1].(*widget.Label)
+			l2 := box.Objects[3].(*widget.Label)
+			switch {
+			case e.Name == "..":
+				ic.SetResource(theme.NavigateBackIcon())
+			case e.IsDir:
+				ic.SetResource(theme.FolderIcon())
+			default:
+				ic.SetResource(theme.DocumentIcon())
 			}
-			l1 := box.Objects[0].(*widget.Label)
-			l2 := box.Objects[1].(*widget.Label)
-			l1.SetText(e.Name + suffix)
+			l1.SetText(e.Name)
 			l2.SetText(sizeLabel(e))
 		},
 	)
 	ui.rightList.OnSelected = func(id widget.ListItemID) { ui.rightSel = int(id) }
 
-	btnOpenLocal := widget.NewButton("Abrir pasta (local)", func() { ui.onLeftActivate() })
-	btnOpenRemote := widget.NewButton("Abrir pasta (remoto)", func() { ui.onRightActivate() })
+	btnOpenLocal := widget.NewButtonWithIcon("Abrir", theme.FolderOpenIcon(), func() { ui.onLeftActivate() })
+	btnOpenRemote := widget.NewButtonWithIcon("Abrir", theme.FolderOpenIcon(), func() { ui.onRightActivate() })
 
-	btnUp := widget.NewButton("Enviar → (local para remoto)", func() { ui.upload() })
-	btnDown := widget.NewButton("← Receber (remoto para local)", func() { ui.download() })
-	btnRefresh := widget.NewButton("Atualizar", func() {
+	btnUp := widget.NewButtonWithIcon("Enviar", theme.UploadIcon(), func() { ui.upload() })
+	btnUp.Importance = widget.HighImportance
+	btnDown := widget.NewButtonWithIcon("Receber", theme.DownloadIcon(), func() { ui.download() })
+	btnDown.Importance = widget.HighImportance
+	btnRefresh := widget.NewButtonWithIcon("Atualizar", theme.ViewRefreshIcon(), func() {
 		ui.refreshLeft()
 		ui.refreshRight()
 	})
-	btnDisconnect := widget.NewButton("Desligar", func() {
+	btnDisconnect := widget.NewButtonWithIcon("Sair", theme.LogoutIcon(), func() {
 		s.Close()
 		w.SetContent(buildLogin(w))
 	})
+	btnDisconnect.Importance = widget.DangerImportance
 
-	toolbar := fynecontainer.NewHBox(btnUp, btnDown, btnRefresh, layout.NewSpacer(), btnDisconnect)
+	toolbar := fynecontainer.NewHBox(
+		btnUp,
+		btnDown,
+		btnRefresh,
+		layout.NewSpacer(),
+		btnDisconnect,
+	)
+	top := fynecontainer.NewVBox(
+		fynecontainer.NewPadded(toolbar),
+		widget.NewSeparator(),
+	)
 
+	leftHead := fynecontainer.NewHBox(
+		widget.NewIcon(theme.HomeIcon()),
+		widget.NewLabelWithStyle("Este PC", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		layout.NewSpacer(),
+		btnOpenLocal,
+	)
 	leftPane := fynecontainer.NewBorder(
-		fynecontainer.NewHBox(widget.NewLabel("Local (Windows)"), layout.NewSpacer(), btnOpenLocal),
+		fynecontainer.NewPadded(leftHead),
 		nil, nil, nil,
-		fynecontainer.NewScroll(ui.leftList),
+		fynecontainer.NewPadded(fynecontainer.NewScroll(ui.leftList)),
+	)
+
+	rightHead := fynecontainer.NewVBox(
+		fynecontainer.NewHBox(
+			widget.NewIcon(theme.StorageIcon()),
+			widget.NewLabelWithStyle("Remoto", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+			layout.NewSpacer(),
+			btnOpenRemote,
+		),
+		fynecontainer.NewPadded(ui.ctxSelect),
+		fynecontainer.NewPadded(ui.breadcrumb),
 	)
 	rightPane := fynecontainer.NewBorder(
-		fynecontainer.NewVBox(
-			ui.ctxSelect,
-			fynecontainer.NewHBox(ui.breadcrumb, layout.NewSpacer(), btnOpenRemote),
-		),
+		fynecontainer.NewPadded(rightHead),
 		nil, nil, nil,
-		fynecontainer.NewScroll(ui.rightList),
+		fynecontainer.NewPadded(fynecontainer.NewScroll(ui.rightList)),
 	)
 
 	split := fynecontainer.NewHSplit(leftPane, rightPane)
-	split.SetOffset(0.45)
+	split.SetOffset(0.48)
 
-	bottom := fynecontainer.NewVBox(ui.status, ui.progress, ui.lastJobText)
+	bottom := fynecontainer.NewVBox(
+		fynecontainer.NewPadded(ui.status),
+		fynecontainer.NewPadded(ui.progress),
+		fynecontainer.NewPadded(ui.lastJobText),
+	)
 
 	ui.refreshLeft()
 	ui.refreshRight()
 	ui.updateBreadcrumb()
 
-	return fynecontainer.NewBorder(toolbar, bottom, nil, nil, split)
+	return fynecontainer.NewBorder(top, bottom, nil, nil, split)
 }
 
 func homeOrRoot() string {

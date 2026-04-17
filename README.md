@@ -11,6 +11,7 @@ Gestor de ficheiros com painel duplo (estilo WinSCP) para **Windows**: navega no
 - **Contentores**: listagem de contentores, navegação com `ContainerStatPath` + arquivo em **tar** (`CopyFromContainer` / `CopyToContainer`), transferências em **stream**.
 - **Pastas**: envio/recibo recursivo (tar para contentor; árvore SFTP para host; cópia local recursiva).
 - **Fila de transferências** com barra de progresso e **vários workers em paralelo** (1–16, configurável no login).
+- **Interface**: tema escuro com acento ciano, cartão no login, ícones nas listas e na barra de ferramentas (Fyne).
 
 ## Stack (resumo)
 
