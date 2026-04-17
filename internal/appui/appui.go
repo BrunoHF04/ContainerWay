@@ -203,10 +203,22 @@ func parseParallelWorkers(s string) int {
 	return v
 }
 
+// truncateRunes encurta texto para caber em menus (UTF-8 seguro).
+func truncateRunes(s string, max int) string {
+	r := []rune(s)
+	if len(r) <= max {
+		return s
+	}
+	if max <= 1 {
+		return string(r[:1])
+	}
+	return string(r[:max-1]) + "…"
+}
+
 func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.CanvasObject {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	list, err := s.Docker.ContainerList(ctx, dcontainer.ListOptions{All: true})
+	list, err := s.Docker.ContainerList(ctx, dcontainer.ListOptions{All: false})
 	if err != nil {
 		errLabel := widget.NewLabel(fmt.Sprintf("Não foi possível usar o Docker neste servidor: %v", err))
 		errLabel.Wrapping = fyne.TextWrapWord
@@ -226,7 +238,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 		leftPath:      homeOrRoot(),
 		rightPath:     "/",
 		hostMode:      true,
-		containerOpts: []string{"Servidor (SFTP)"},
+		containerOpts: []string{"Pastas do servidor (fora dos contêineres)"},
 		containerIDs:  []string{""},
 		leftSel:        -1,
 		rightSel:       -1,
@@ -239,18 +251,17 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 		if len(c.Names) > 0 {
 			name = strings.TrimPrefix(c.Names[0], "/")
 		}
-		if name == "" {
-			name = "(sem nome)"
-		}
-		st := c.Status
-		if len(st) > 24 {
-			st = st[:21] + "…"
-		}
-		short := c.ID
+		id := strings.TrimPrefix(c.ID, "sha256:")
+		short := id
 		if len(short) > 12 {
 			short = short[:12]
 		}
-		label := fmt.Sprintf("%s — %s [%s]", short, name, st)
+		var label string
+		if strings.TrimSpace(name) == "" {
+			label = fmt.Sprintf("Contêiner sem nome (ID %s)", short)
+		} else {
+			label = fmt.Sprintf("%s (ID %s)", truncateRunes(name, 52), short)
+		}
 		ui.containerOpts = append(ui.containerOpts, label)
 		ui.containerIDs = append(ui.containerIDs, c.ID)
 	}
@@ -394,14 +405,18 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 		fynecontainer.NewPadded(fynecontainer.NewScroll(ui.leftList)),
 	)
 
+	ctxHelp := widget.NewLabel("Escolha pastas do Linux no servidor ou um contêiner ligado. Na lista só entram contêineres em execução.")
+	ctxHelp.Wrapping = fyne.TextWrapWord
+	ctxHelp.TextStyle = fyne.TextStyle{Italic: true}
+
 	rightHead := fynecontainer.NewVBox(
 		fynecontainer.NewHBox(
 			widget.NewIcon(theme.StorageIcon()),
-			widget.NewLabelWithStyle("Servidor remoto", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+			widget.NewLabelWithStyle("Lado do servidor", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 			layout.NewSpacer(),
 			btnOpenRemote,
 		),
-		fynecontainer.NewPadded(ui.ctxSelect),
+		fynecontainer.NewPadded(fynecontainer.NewVBox(ctxHelp, ui.ctxSelect)),
 		fynecontainer.NewPadded(ui.breadcrumb),
 	)
 	rightPane := fynecontainer.NewBorder(
@@ -446,14 +461,14 @@ func sizeLabel(e fsutil.DirEntry) string {
 
 func (ui *explorer) updateBreadcrumb() {
 	if ui.hostMode {
-		ui.breadcrumb.SetText(fmt.Sprintf("Servidor: %s", ui.rightPath))
+		ui.breadcrumb.SetText(fmt.Sprintf("Pasta no servidor: %s", ui.rightPath))
 		return
 	}
-	short := ui.cfs.ID
+	short := strings.TrimPrefix(ui.cfs.ID, "sha256:")
 	if len(short) > 12 {
 		short = short[:12]
 	}
-	ui.breadcrumb.SetText(fmt.Sprintf("[%s]:%s", short, ui.rightPath))
+	ui.breadcrumb.SetText(fmt.Sprintf("Dentro do contêiner (ID %s): %s", short, ui.rightPath))
 }
 
 func (ui *explorer) refreshLeft() {
@@ -516,7 +531,7 @@ func (ui *explorer) onRightActivate() {
 
 func (ui *explorer) upload() {
 	if ui.leftSel < 0 || ui.leftSel >= len(ui.leftRows) {
-		dialog.ShowInformation("ContainerWay", "Selecione um arquivo ou pasta no painel local.", ui.win)
+		dialog.ShowInformation("ContainerWay", "Selecione um arquivo ou pasta na lista à esquerda (seu computador).", ui.win)
 		return
 	}
 	src := ui.leftRows[ui.leftSel]
@@ -651,7 +666,7 @@ func (ui *explorer) upload() {
 
 func (ui *explorer) download() {
 	if ui.rightSel < 0 || ui.rightSel >= len(ui.rightRows) {
-		dialog.ShowInformation("ContainerWay", "Selecione um arquivo ou pasta no painel remoto.", ui.win)
+		dialog.ShowInformation("ContainerWay", "Selecione um arquivo ou pasta na lista à direita (servidor ou contêiner).", ui.win)
 		return
 	}
 	src := ui.rightRows[ui.rightSel]

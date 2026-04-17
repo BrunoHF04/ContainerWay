@@ -8,7 +8,7 @@ Gestor de arquivos com painel duplo (estilo WinSCP) para **Windows**: navega no 
 - **Chave de host**: `known_hosts` (um ou vários arquivos separados por `|`) ou opção explícita **Ignorar chave de host** (inseguro; por padrão ligada para facilitar testes).
 - **Docker sobre SSH**: o cliente Moby usa um dialer que abre `unix:///var/run/docker.sock` no servidor através do canal SSH (stream local), alinhado com o OpenSSH moderno.
 - **Host remoto**: listagem e transferências via **SFTP** no mesmo túnel SSH.
-- **Contêineres**: listagem de contêineres, navegação com `ContainerStatPath` + arquivo em **tar** (`CopyFromContainer` / `CopyToContainer`), transferências em **stream**.
+- **Contêineres**: no menu aparecem só os **em execução**, com nome em destaque e ID curto; navegação com `ContainerStatPath` + arquivo em **tar** (`CopyFromContainer` / `CopyToContainer`), transferências em **stream**.
 - **Pastas**: envio/recebimento recursivo (tar para contêiner; árvore SFTP para host; cópia local recursiva).
 - **Fila de transferências** com barra de progresso e **vários workers em paralelo** (1–16, configurável no login).
 - **Interface**: tema escuro com acento ciano, cartão no login compacto, ícones nas listas e na barra de ferramentas (Fyne); ícone da aplicação/janela (PNG 64×64 gerado em código).
@@ -55,8 +55,14 @@ go build -tags ci -o containerway_ci.exe ./cmd/containerway/
 ```
 
 1. Preencha host (ex.: `192.168.1.10` ou `servidor:22`), usuário e credenciais; opcionalmente `known_hosts`, desmarque **Ignorar chave de host** em produção, e defina **Paralelismo** (número de transferências simultâneas).
-2. Após conectar, escolha **Servidor (SFTP)** ou um **contêiner** no menu superior do painel direito.
+2. Após conectar, no menu do lado direito escolha **pastas do servidor** ou um **contêiner em execução** (só os ligados aparecem).
 3. Use **Abrir** para entrar em pastas; **Enviar** / **Receber** para **arquivos ou pastas** selecionados.
+
+### No explorador (uso simples)
+
+- **Esquerda**: arquivos do seu **computador local**.
+- **Direita**: um texto de ajuda indica que só aparecem **contêineres ligados** (em execução). A primeira opção do menu são as **pastas do servidor fora dos contêineres** (SFTP no Linux remoto); abaixo vêm os contêineres, cada um como **`nome (ID curto)`** (nomes muito longos são encurtados com `…`).
+- A barra abaixo do menu mostra a **pasta atual** no servidor ou **dentro do contêiner** (com o ID), para saber sempre onde está.
 
 ## Estrutura do código
 
