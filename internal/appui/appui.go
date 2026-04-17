@@ -180,6 +180,9 @@ type explorer struct {
 
 	tm            *transfer.Manager
 	parallelJobs int
+
+	// Evita aplicar listagens antigas se o usuário mudar de pasta/contexto a meio.
+	rightRefreshSeq atomic.Uint64
 }
 
 func splitKnownHostsFiles(s string) []string {
@@ -215,6 +218,32 @@ func truncateRunes(s string, max int) string {
 	return string(r[:max-1]) + "…"
 }
 
+// containerDisplayName devolve um nome curto para o menu (Swarm/Compose ou prefixo do nome).
+func containerDisplayName(c dcontainer.Summary) string {
+	if c.Labels != nil {
+		if v := strings.TrimSpace(c.Labels["com.docker.swarm.service.name"]); v != "" {
+			return v
+		}
+		if v := strings.TrimSpace(c.Labels["com.docker.compose.service"]); v != "" {
+			return v
+		}
+	}
+	name := ""
+	if len(c.Names) > 0 {
+		name = strings.TrimSpace(strings.TrimPrefix(c.Names[0], "/"))
+	}
+	if name == "" {
+		return ""
+	}
+	// Nome longo estilo Swarm (stack_serviço.hash…): usa só o primeiro segmento.
+	if len(name) > 48 {
+		if i := strings.IndexByte(name, '.'); i > 0 {
+			return name[:i]
+		}
+	}
+	return name
+}
+
 func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.CanvasObject {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -247,20 +276,21 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 	}
 
 	for _, c := range list {
-		name := ""
-		if len(c.Names) > 0 {
-			name = strings.TrimPrefix(c.Names[0], "/")
+		// Reforço no cliente: só o que está “vivo” (como no docker ps sem -a).
+		if c.State != dcontainer.StateRunning && c.State != dcontainer.StateRestarting {
+			continue
 		}
+		disp := containerDisplayName(c)
 		id := strings.TrimPrefix(c.ID, "sha256:")
 		short := id
 		if len(short) > 12 {
 			short = short[:12]
 		}
 		var label string
-		if strings.TrimSpace(name) == "" {
+		if disp == "" {
 			label = fmt.Sprintf("Contêiner sem nome (ID %s)", short)
 		} else {
-			label = fmt.Sprintf("%s (ID %s)", truncateRunes(name, 52), short)
+			label = fmt.Sprintf("%s (ID %s)", truncateRunes(disp, 52), short)
 		}
 		ui.containerOpts = append(ui.containerOpts, label)
 		ui.containerIDs = append(ui.containerIDs, c.ID)
@@ -293,6 +323,8 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 			ui.cfs = &containerfs.FS{Docker: s.Docker, ID: id}
 		}
 		ui.rightPath = "/"
+		ui.rightSel = -1
+		ui.rightList.UnselectAll()
 		ui.refreshRight()
 		ui.updateBreadcrumb()
 	})
@@ -364,8 +396,8 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 	)
 	ui.rightList.OnSelected = func(id widget.ListItemID) { ui.rightSel = int(id) }
 
-	btnOpenLocal := widget.NewButtonWithIcon("Abrir", theme.FolderOpenIcon(), func() { ui.onLeftActivate() })
-	btnOpenRemote := widget.NewButtonWithIcon("Abrir", theme.FolderOpenIcon(), func() { ui.onRightActivate() })
+	btnOpenLocal := widget.NewButtonWithIcon("Abrir pasta", theme.FolderOpenIcon(), func() { ui.onLeftActivate() })
+	btnOpenRemote := widget.NewButtonWithIcon("Abrir pasta", theme.FolderOpenIcon(), func() { ui.onRightActivate() })
 
 	btnUp := widget.NewButtonWithIcon("Enviar", theme.UploadIcon(), func() { ui.upload() })
 	btnUp.Importance = widget.HighImportance
@@ -478,33 +510,79 @@ func (ui *explorer) refreshLeft() {
 		return
 	}
 	ui.leftRows = rows
+	ui.leftSel = -1
+	ui.leftList.UnselectAll()
 	ui.leftList.Refresh()
+	ui.leftList.ScrollToTop()
 }
 
 func (ui *explorer) refreshRight() {
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-	var rows []fsutil.DirEntry
-	var err error
-	if ui.hostMode {
-		rows, err = ui.hfs.List(ctx, ui.rightPath)
-	} else {
-		if ui.cfs == nil {
+	ui.refreshRightImpl(true)
+}
+
+// refreshRightQuiet atualiza a lista direita sem alterar a barra de estado (ex.: após transferência, para não apagar "Concluído:").
+func (ui *explorer) refreshRightQuiet() {
+	ui.refreshRightImpl(false)
+}
+
+func (ui *explorer) refreshRightImpl(showLoading bool) {
+	seq := ui.rightRefreshSeq.Add(1)
+	hostMode := ui.hostMode
+	p := ui.rightPath
+	hfs := ui.hfs
+	var cfs *containerfs.FS
+	if !hostMode {
+		cfs = ui.cfs
+	}
+
+	if showLoading {
+		ui.status.SetText("Carregando pastas…")
+	}
+
+	go func(seq uint64) {
+		if !hostMode && cfs == nil {
+			if showLoading {
+				fyne.Do(func() {
+					if seq != ui.rightRefreshSeq.Load() {
+						return
+					}
+					ui.status.SetText("")
+				})
+			}
 			return
 		}
-		rows, err = ui.cfs.List(ctx, ui.rightPath)
-	}
-	if err != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		var rows []fsutil.DirEntry
+		var err error
+		if hostMode {
+			rows, err = hfs.List(ctx, p)
+		} else {
+			rows, err = cfs.List(ctx, p)
+		}
 		fyne.Do(func() {
-			ui.status.SetText(err.Error())
+			if seq != ui.rightRefreshSeq.Load() {
+				return
+			}
+			if err != nil {
+				ui.status.SetText(fmt.Sprintf("Erro ao listar: %v", err))
+				ui.rightRows = nil
+				ui.rightSel = -1
+				ui.rightList.UnselectAll()
+				ui.rightList.Refresh()
+				return
+			}
+			ui.rightRows = rows
+			ui.rightSel = -1
+			ui.rightList.UnselectAll()
+			ui.rightList.Refresh()
+			ui.rightList.ScrollToTop()
+			ui.updateBreadcrumb()
+			if showLoading {
+				ui.status.SetText("")
+			}
 		})
-		return
-	}
-	ui.rightRows = rows
-	fyne.Do(func() {
-		ui.rightList.Refresh()
-		ui.updateBreadcrumb()
-	})
+	}(seq)
 }
 
 func (ui *explorer) onLeftActivate() {
@@ -525,6 +603,7 @@ func (ui *explorer) onRightActivate() {
 	e := ui.rightRows[ui.rightSel]
 	if e.IsDir {
 		ui.rightPath = e.Path
+		ui.updateBreadcrumb()
 		ui.refreshRight()
 	}
 }
@@ -819,7 +898,7 @@ func (ui *explorer) startDrain() {
 					ui.status.SetText("Concluído: " + j.Name)
 				}
 				ui.refreshLeft()
-				ui.refreshRight()
+				ui.refreshRightQuiet()
 			})
 		},
 		func(done, total int64) {

@@ -12,6 +12,7 @@ Gestor de arquivos com painel duplo (estilo WinSCP) para **Windows**: navega no 
 - **Pastas**: envio/recebimento recursivo (tar para contêiner; árvore SFTP para host; cópia local recursiva).
 - **Fila de transferências** com barra de progresso e **vários workers em paralelo** (1–16, configurável no login).
 - **Interface**: tema escuro com acento ciano, cartão no login compacto, ícones nas listas e na barra de ferramentas (Fyne); ícone da aplicação/janela (PNG 64×64 gerado em código).
+- **Responsividade**: a listagem do painel direito (SFTP ou Docker) corre **em segundo plano**; aparece “Carregando pastas…” e a janela **não deve congelar** ao trocar de contêiner ou pasta.
 
 ## Stack (resumo)
 
@@ -40,7 +41,7 @@ A interface da aplicação está em **português do Brasil (pt-BR)**.
 .\build.ps1
 ```
 
-Gera `containerway.exe` na raiz do repositório (`CGO_ENABLED=1`).
+Gera `containerway.exe` na raiz do repositório (`CGO_ENABLED=1`). **Sempre use este `.exe` recém-gerado** depois de atualizar o código; uma cópia antiga no Ambiente de trabalho ou outra pasta continua com o comportamento antigo.
 
 Para validar apenas a compilação do código **sem** GUI (CI / máquina sem GCC):
 
@@ -56,13 +57,14 @@ go build -tags ci -o containerway_ci.exe ./cmd/containerway/
 
 1. Preencha host (ex.: `192.168.1.10` ou `servidor:22`), usuário e credenciais; opcionalmente `known_hosts`, desmarque **Ignorar chave de host** em produção, e defina **Paralelismo** (número de transferências simultâneas).
 2. Após conectar, no menu do lado direito escolha **pastas do servidor** ou um **contêiner em execução** (só os ligados aparecem).
-3. Use **Abrir** para entrar em pastas; **Enviar** / **Receber** para **arquivos ou pastas** selecionados.
+3. Use **Abrir pasta** em cada painel para **entrar** na pasta selecionada (ou em `..` para subir); **Enviar** / **Receber** para **arquivos ou pastas** selecionados.
 
 ### No explorador (uso simples)
 
 - **Esquerda**: arquivos do seu **computador local**.
 - **Direita**: um texto de ajuda indica que só aparecem **contêineres ligados** (em execução). A primeira opção do menu são as **pastas do servidor fora dos contêineres** (SFTP no Linux remoto); abaixo vêm os contêineres, cada um como **`nome (ID curto)`** (nomes muito longos são encurtados com `…`).
 - A barra abaixo do menu mostra a **pasta atual** no servidor ou **dentro do contêiner** (com o ID), para saber sempre onde está.
+- Depois de **mudar de pasta** ou de contexto (menu servidor/contêiner), a lista **limpa a seleção** para o índice não ficar desalinhado: **clique outra vez na linha** e depois em **Abrir pasta** para continuar a navegar.
 
 ## Estrutura do código
 
