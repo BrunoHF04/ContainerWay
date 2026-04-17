@@ -4,11 +4,23 @@ Gestor de ficheiros com painel duplo (estilo WinSCP) para **Windows**: navega no
 
 ## Funcionalidades
 
-- **Ligação SSH**: utilizador, senha e/ou chave privada **OpenSSH/PEM** (com passphrase opcional). Ficheiros **PPK** do PuTTY não são suportados diretamente; converta com `puttygen key.ppk -O private-openssh -o key.pem`.
+- **Ligação SSH**: utilizador, senha e/ou chave **OpenSSH/PEM** ou **PPK** (PuTTY), via [`github.com/kayrus/putty`](https://github.com/kayrus/putty), com passphrase opcional.
+- **Chave de host**: `known_hosts` (um ou vários ficheiros separados por `|`) ou opção explícita **Ignorar chave de host** (inseguro; por omissão ligada para facilitar testes).
 - **Docker sobre SSH**: o cliente Moby usa um dialer que abre `unix:///var/run/docker.sock` no servidor através do canal SSH (stream local), alinhado com o OpenSSH moderno.
 - **Host remoto**: listagem e transferências via **SFTP** no mesmo túnel SSH.
-- **Contentores**: listagem de contentores, navegação com `ContainerStatPath` + arquivo em **tar** (`CopyFromContainer` / `CopyToContainer`), transferências em **stream** (sem pastas temporárias no host para o fluxo principal de ficheiros).
-- **Fila de transferências** com barra de progresso (sequencial).
+- **Contentores**: listagem de contentores, navegação com `ContainerStatPath` + arquivo em **tar** (`CopyFromContainer` / `CopyToContainer`), transferências em **stream**.
+- **Pastas**: envio/recibo recursivo (tar para contentor; árvore SFTP para host; cópia local recursiva).
+- **Fila de transferências** com barra de progresso e **vários workers em paralelo** (1–16, configurável no login).
+
+## Stack (resumo)
+
+| Área | Pacotes |
+|------|---------|
+| UI | [fyne.io/fyne/v2](https://fyne.io/) |
+| SSH / known_hosts | `golang.org/x/crypto/ssh`, `golang.org/x/crypto/ssh/knownhosts` |
+| SFTP | `github.com/pkg/sftp` |
+| PPK | `github.com/kayrus/putty` |
+| Docker API | `github.com/docker/docker` (client Moby) |
 
 ## Requisitos
 
@@ -36,9 +48,9 @@ go build -tags ci -o containerway_ci.exe ./cmd/containerway/
 .\containerway.exe
 ```
 
-1. Preencha host (ex.: `192.168.1.10` ou `servidor:22`), utilizador e credenciais.
+1. Preencha host (ex.: `192.168.1.10` ou `servidor:22`), utilizador e credenciais; opcionalmente `known_hosts`, desmarque **Ignorar chave de host** em produção, e defina **Paralelo** (número de jobs simultâneos).
 2. Após ligar, escolha **Host (SFTP)** ou um **contentor** no menu superior do painel direito.
-3. Use **Abrir pasta** para entrar em diretórios; **Enviar →** / **← Receber** para ficheiros selecionados (nesta versão, apenas ficheiros, não pastas inteiras).
+3. Use **Abrir pasta** para entrar em diretórios; **Enviar →** / **← Receber** para **ficheiros ou pastas** selecionados.
 
 ## Estrutura do código
 
@@ -46,12 +58,13 @@ go build -tags ci -o containerway_ci.exe ./cmd/containerway/
 |--------|-----------|
 | `cmd/containerway` | Entrada da aplicação |
 | `internal/appui` | Interface Fyne (login, explorador, transferências) |
-| `internal/session` | SSH, SFTP e cliente Docker sobre socket Unix remoto |
+| `internal/session` | SSH, SFTP, cliente Docker; `hostkey.go` para `known_hosts` |
 | `internal/hostfs` | Operações SFTP no host |
 | `internal/containerfs` | Operações Docker (tar / API de arquivo) |
 | `internal/localfs` | Listagem do sistema de ficheiros local |
-| `internal/transfer` | Fila e progresso |
+| `internal/tarxfer` | Tar recursivo (local ↔ contentor / SFTP) |
+| `internal/transfer` | Fila, progresso e workers paralelos |
 
 ## Segurança (nota)
 
-A verificação de chave de host SSH está desativada para protótipo (`InsecureIgnoreHostKey`). Para uso real, configure `known_hosts` ou equivalente.
+Com **Ignorar chave de host** desligado, o cliente usa `golang.org/x/crypto/ssh/knownhosts` sobre os ficheiros indicados (ou `%USERPROFILE%\.ssh\known_hosts` se existir). Se não houver ficheiros válidos, a ligação falha até indicar caminhos ou voltar a ignorar a verificação.

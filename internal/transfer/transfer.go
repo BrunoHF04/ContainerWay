@@ -17,7 +17,7 @@ type Job struct {
 	Run  func(ctx context.Context, on Progress) error
 }
 
-// Manager fila jobs e drena sequencialmente (uma cadeia por Lock).
+// Manager fila jobs e drena com um ou mais workers em paralelo.
 type Manager struct {
 	mu     sync.Mutex
 	queue  []Job
@@ -42,24 +42,53 @@ func (m *Manager) pop() (Job, bool) {
 	return j, true
 }
 
-// DrainAsync processa todos os jobs pendentes; chamadas concorrentes serializam-se.
-func (m *Manager) DrainAsync(ctx context.Context, onStart func(Job), onDone func(Job, error), onProgress Progress) {
+// DrainAsync processa jobs pendentes. parallel < 2 é estritamente sequencial.
+func (m *Manager) DrainAsync(ctx context.Context, parallel int, onStart func(Job), onDone func(Job, error), onProgress Progress) {
+	if parallel < 1 {
+		parallel = 1
+	}
 	go func() {
 		m.workMu.Lock()
 		defer m.workMu.Unlock()
+		if parallel == 1 {
+			for {
+				j, ok := m.pop()
+				if !ok {
+					return
+				}
+				if onStart != nil {
+					onStart(j)
+				}
+				err := j.Run(ctx, onProgress)
+				if onDone != nil {
+					onDone(j, err)
+				}
+			}
+		}
+		sem := make(chan struct{}, parallel)
+		var wg sync.WaitGroup
 		for {
 			j, ok := m.pop()
 			if !ok {
-				return
+				break
 			}
-			if onStart != nil {
-				onStart(j)
-			}
-			err := j.Run(ctx, onProgress)
-			if onDone != nil {
-				onDone(j, err)
-			}
+			sem <- struct{}{}
+			wg.Add(1)
+			go func(job Job) {
+				defer func() {
+					<-sem
+					wg.Done()
+				}()
+				if onStart != nil {
+					onStart(job)
+				}
+				err := job.Run(ctx, onProgress)
+				if onDone != nil {
+					onDone(job, err)
+				}
+			}(j)
 		}
+		wg.Wait()
 	}()
 }
 

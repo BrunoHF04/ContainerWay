@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -25,6 +26,7 @@ import (
 	"containerway/internal/hostfs"
 	"containerway/internal/localfs"
 	"containerway/internal/session"
+	"containerway/internal/tarxfer"
 	"containerway/internal/transfer"
 )
 
@@ -48,6 +50,13 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 	keyPath.SetPlaceHolder("caminho para .pem / id_rsa (OpenSSH)")
 	keyPass := widget.NewPasswordEntry()
 	keyPass.SetPlaceHolder("passphrase da chave (se aplicável)")
+	knownHosts := widget.NewEntry()
+	knownHosts.SetPlaceHolder("known_hosts (opcional); vários: caminho1|caminho2")
+	insecureHost := widget.NewCheck("Ignorar chave de host SSH (inseguro)", nil)
+	insecureHost.SetChecked(true)
+	parallelJobsEntry := widget.NewEntry()
+	parallelJobsEntry.SetText("3")
+	parallelJobsEntry.SetPlaceHolder("jobs paralelos (1–16)")
 	status := widget.NewLabel("")
 
 	form := &widget.Form{
@@ -55,20 +64,26 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 			{Text: "Host", Widget: host},
 			{Text: "Utilizador", Widget: user},
 			{Text: "Senha", Widget: pass},
-			{Text: "Chave PEM", Widget: keyPath},
+			{Text: "Chave PEM / PPK", Widget: keyPath},
 			{Text: "Passphrase chave", Widget: keyPass},
+			{Text: "known_hosts", Widget: knownHosts},
+			{Text: "", Widget: insecureHost},
+			{Text: "Paralelo", Widget: parallelJobsEntry},
 		},
 	}
 
 	connect := widget.NewButton("Ligar", func() {
 		status.SetText("A ligar…")
 		creds := session.Credentials{
-			Host:     host.Text,
-			User:     user.Text,
-			Password: pass.Text,
-			KeyPath:  strings.TrimSpace(keyPath.Text),
-			KeyPass:  keyPass.Text,
+			Host:              host.Text,
+			User:              user.Text,
+			Password:          pass.Text,
+			KeyPath:           strings.TrimSpace(keyPath.Text),
+			KeyPass:           keyPass.Text,
+			KnownHostsFiles:   splitKnownHostsFiles(knownHosts.Text),
+			InsecureHostKey:   insecureHost.Checked,
 		}
+		pJobs := parseParallelWorkers(parallelJobsEntry.Text)
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 			defer cancel()
@@ -81,7 +96,7 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 				return
 			}
 			fyne.Do(func() {
-				w.SetContent(buildExplorer(w, sess))
+				w.SetContent(buildExplorer(w, sess, pJobs))
 			})
 		}()
 	})
@@ -120,10 +135,32 @@ type explorer struct {
 	progress    *widget.ProgressBar
 	lastJobText *widget.Label
 
-	tm *transfer.Manager
+	tm            *transfer.Manager
+	parallelJobs int
 }
 
-func buildExplorer(w fyne.Window, s *session.Session) fyne.CanvasObject {
+func splitKnownHostsFiles(s string) []string {
+	var out []string
+	for _, part := range strings.Split(s, "|") {
+		if t := strings.TrimSpace(part); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+func parseParallelWorkers(s string) int {
+	v, err := strconv.Atoi(strings.TrimSpace(s))
+	if err != nil || v < 1 {
+		return 3
+	}
+	if v > 16 {
+		return 16
+	}
+	return v
+}
+
+func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.CanvasObject {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	list, err := s.Docker.ContainerList(ctx, dcontainer.ListOptions{All: true})
@@ -145,9 +182,10 @@ func buildExplorer(w fyne.Window, s *session.Session) fyne.CanvasObject {
 		hostMode:      true,
 		containerOpts: []string{"Host (SFTP)"},
 		containerIDs:  []string{""},
-		leftSel:       -1,
-		rightSel:      -1,
-		tm:            &transfer.Manager{},
+		leftSel:        -1,
+		rightSel:       -1,
+		tm:             &transfer.Manager{},
+		parallelJobs:   parallelJobs,
 	}
 
 	for _, c := range list {
@@ -379,15 +417,51 @@ func (ui *explorer) onRightActivate() {
 
 func (ui *explorer) upload() {
 	if ui.leftSel < 0 || ui.leftSel >= len(ui.leftRows) {
-		dialog.ShowInformation("ContainerWay", "Selecione um ficheiro no painel local.", ui.win)
+		dialog.ShowInformation("ContainerWay", "Selecione um ficheiro ou pasta no painel local.", ui.win)
 		return
 	}
 	src := ui.leftRows[ui.leftSel]
-	if src.IsDir || src.Name == ".." {
-		dialog.ShowInformation("ContainerWay", "Apenas ficheiros (não pastas) nesta versão.", ui.win)
+	if src.Name == ".." {
+		dialog.ShowInformation("ContainerWay", "Selecione um ficheiro ou pasta válida.", ui.win)
 		return
 	}
 	dstName := filepath.Base(src.Path)
+
+	if src.IsDir {
+		if ui.hostMode {
+			remoteBase := path.Join(ui.rightPath, dstName)
+			ui.tm.Enqueue(transfer.Job{
+				Name: fmt.Sprintf("Enviar pasta %s → host:%s", src.Path, remoteBase),
+				Run: func(ctx context.Context, on transfer.Progress) error {
+					if on != nil {
+						on(0, -1)
+					}
+					n, err := tarxfer.SFTPUploadLocalTree(ctx, src.Path, remoteBase, ui.hfs.Client)
+					if on != nil {
+						on(n, max(n, int64(1)))
+					}
+					return err
+				},
+			})
+		} else {
+			ui.tm.Enqueue(transfer.Job{
+				Name: fmt.Sprintf("Enviar pasta %s → contentor:%s", src.Path, ui.rightPath),
+				Run: func(ctx context.Context, on transfer.Progress) error {
+					if on != nil {
+						on(0, -1)
+					}
+					err := tarxfer.UploadLocalDirToContainer(ctx, ui.s.Docker, ui.cfs.ID, src.Path, ui.rightPath)
+					if on != nil {
+						on(1, 1)
+					}
+					return err
+				},
+			})
+		}
+		ui.startDrain()
+		return
+	}
+
 	if ui.hostMode {
 		dst := path.Join(ui.rightPath, dstName)
 		ui.tm.Enqueue(transfer.Job{
@@ -478,15 +552,49 @@ func (ui *explorer) upload() {
 
 func (ui *explorer) download() {
 	if ui.rightSel < 0 || ui.rightSel >= len(ui.rightRows) {
-		dialog.ShowInformation("ContainerWay", "Selecione um ficheiro no painel remoto.", ui.win)
+		dialog.ShowInformation("ContainerWay", "Selecione um ficheiro ou pasta no painel remoto.", ui.win)
 		return
 	}
 	src := ui.rightRows[ui.rightSel]
-	if src.IsDir || src.Name == ".." {
-		dialog.ShowInformation("ContainerWay", "Apenas ficheiros (não pastas) nesta versão.", ui.win)
+	if src.Name == ".." {
+		dialog.ShowInformation("ContainerWay", "Selecione um ficheiro ou pasta válida.", ui.win)
 		return
 	}
 	dstPath := filepath.Join(ui.leftPath, src.Name)
+
+	if src.IsDir {
+		if ui.hostMode {
+			ui.tm.Enqueue(transfer.Job{
+				Name: fmt.Sprintf("Receber pasta host:%s → %s", src.Path, dstPath),
+				Run: func(ctx context.Context, on transfer.Progress) error {
+					if on != nil {
+						on(0, -1)
+					}
+					n, err := tarxfer.SFTPDownloadTree(ctx, ui.hfs.Client, src.Path, dstPath)
+					if on != nil {
+						on(n, max(n, int64(1)))
+					}
+					return err
+				},
+			})
+		} else {
+			ui.tm.Enqueue(transfer.Job{
+				Name: fmt.Sprintf("Receber pasta contentor:%s → %s", src.Path, dstPath),
+				Run: func(ctx context.Context, on transfer.Progress) error {
+					if on != nil {
+						on(0, -1)
+					}
+					n, err := tarxfer.ExtractContainerDirToLocal(ctx, ui.s.Docker, ui.cfs.ID, src.Path, dstPath)
+					if on != nil {
+						on(n, max(n, int64(1)))
+					}
+					return err
+				},
+			})
+		}
+		ui.startDrain()
+		return
+	}
 
 	if ui.hostMode {
 		ui.tm.Enqueue(transfer.Job{
@@ -577,7 +685,7 @@ func (ui *explorer) download() {
 
 func (ui *explorer) startDrain() {
 	ctx := context.Background()
-	ui.tm.DrainAsync(ctx,
+	ui.tm.DrainAsync(ctx, ui.parallelJobs,
 		func(j transfer.Job) {
 			fyne.Do(func() {
 				ui.progress.Show()
@@ -604,6 +712,8 @@ func (ui *explorer) startDrain() {
 			fyne.Do(func() {
 				if total > 0 {
 					ui.progress.SetValue(float64(done) / float64(total))
+				} else if total < 0 {
+					ui.progress.SetValue(0.1)
 				}
 			})
 		},

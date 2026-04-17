@@ -16,11 +16,13 @@ import (
 
 // Credentials dados de autenticação SSH.
 type Credentials struct {
-	Host     string
-	User     string
-	Password string
-	KeyPath  string
-	KeyPass  string
+	Host              string
+	User              string
+	Password          string
+	KeyPath           string
+	KeyPass           string
+	KnownHostsFiles   []string // caminhos absolutos; separados na UI por |
+	InsecureHostKey   bool     // se true, ignora known_hosts (inseguro)
 }
 
 // Session mantém SSH, SFTP e API Docker sobre o socket Unix remoto.
@@ -89,10 +91,15 @@ func Connect(ctx context.Context, c Credentials) (*Session, error) {
 		return nil, err
 	}
 
+	hostKeyCB, err := buildHostKeyCallback(c)
+	if err != nil {
+		return nil, err
+	}
+
 	cfg := &ssh.ClientConfig{
 		User:            c.User,
 		Auth:            methods,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: hostKeyCB,
 		Timeout:         30 * time.Second,
 	}
 

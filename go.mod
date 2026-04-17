@@ -5,6 +5,7 @@ go 1.26.1
 require (
 	fyne.io/fyne/v2 v2.7.3
 	github.com/docker/docker v28.5.2+incompatible
+	github.com/kayrus/putty v1.0.5
 	github.com/pkg/sftp v1.13.10
 	golang.org/x/crypto v0.50.0
 )
