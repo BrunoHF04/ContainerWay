@@ -47,10 +47,17 @@ var (
 	loginSessionSecrets = map[string]transientSecret{}
 )
 
+const (
+	themePreferenceKey = "ui.theme.mode"
+	themeModeSystem    = "system"
+	themeModeLight     = "light"
+	themeModeDark      = "dark"
+)
+
 // Run inicia a aplicação Fyne.
 func Run() {
 	a := app.NewWithID("io.containerway.app")
-	a.Settings().SetTheme(newModernTheme())
+	applyThemeMode(a, loadThemeMode(a))
 	if ico := appWindowIcon(); ico != nil {
 		a.SetIcon(ico)
 	}
@@ -89,6 +96,14 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 	keyPass.SetPlaceHolder("senha da chave (se houver)")
 	knownHosts := widget.NewEntry()
 	knownHosts.SetPlaceHolder("known_hosts: caminho1|caminho2")
+	themeSelect := widget.NewSelect([]string{"Padrão do sistema", "Claro", "Escuro"}, nil)
+	themeSelect.SetSelected(themeLabelForMode(loadThemeMode(fyne.CurrentApp())))
+	themeSelect.OnChanged = func(selected string) {
+		mode := themeModeFromLabel(selected)
+		app := fyne.CurrentApp()
+		app.Preferences().SetString(themePreferenceKey, mode)
+		applyThemeMode(app, mode)
+	}
 	insecureHost := widget.NewCheck("Ignorar chave de host SSH (inseguro)", nil)
 	insecureHost.SetChecked(true)
 	parallelJobsEntry := widget.NewEntry()
@@ -317,6 +332,7 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 		fynecontainer.NewTabItem("Chave e segurança", formAdv),
 	)
 	tabs.SetTabLocation(fynecontainer.TabLocationTop)
+	themeRow := fynecontainer.NewBorder(nil, nil, widget.NewLabel("Tema"), nil, themeSelect)
 
 	connect = widget.NewButtonWithIcon("Conectar", theme.LoginIcon(), func() {
 		status.SetText("Conectando…")
@@ -387,6 +403,7 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 	})
 
 	cardInner := fynecontainer.NewVBox(
+		themeRow,
 		tabs,
 		rememberSession,
 		validationHint,
@@ -408,6 +425,49 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 	)
 
 	return fynecontainer.NewCenter(card)
+}
+
+func loadThemeMode(a fyne.App) string {
+	mode := strings.TrimSpace(a.Preferences().StringWithFallback(themePreferenceKey, themeModeSystem))
+	switch mode {
+	case themeModeSystem, themeModeLight, themeModeDark:
+		return mode
+	default:
+		return themeModeSystem
+	}
+}
+
+func applyThemeMode(a fyne.App, mode string) {
+	switch mode {
+	case themeModeLight:
+		a.Settings().SetTheme(theme.LightTheme())
+	case themeModeDark:
+		a.Settings().SetTheme(newModernTheme())
+	default:
+		a.Settings().SetTheme(theme.DefaultTheme())
+	}
+}
+
+func themeLabelForMode(mode string) string {
+	switch mode {
+	case themeModeLight:
+		return "Claro"
+	case themeModeDark:
+		return "Escuro"
+	default:
+		return "Padrão do sistema"
+	}
+}
+
+func themeModeFromLabel(label string) string {
+	switch strings.TrimSpace(label) {
+	case "Claro":
+		return themeModeLight
+	case "Escuro":
+		return themeModeDark
+	default:
+		return themeModeSystem
+	}
 }
 
 type explorer struct {
