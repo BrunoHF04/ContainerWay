@@ -167,16 +167,23 @@ type explorer struct {
 
 	leftRows  []fsutil.DirEntry
 	rightRows []fsutil.DirEntry
+	leftAll   []fsutil.DirEntry
+	rightAll  []fsutil.DirEntry
 	leftSel   int
 	rightSel  int
 
 	leftList    *widget.List
 	rightList   *widget.List
+	leftPathLbl *widget.Label
 	breadcrumb  *widget.Label
 	ctxSelect   *widget.Select
 	status      *widget.Label
 	progress    *widget.ProgressBar
 	lastJobText *widget.Label
+	leftSearch  *widget.Entry
+	rightSearch *widget.Entry
+	leftBack    []string
+	rightBack   []string
 
 	tm            *transfer.Manager
 	parallelJobs int
@@ -297,11 +304,17 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 
 	ui.breadcrumb = widget.NewLabel("")
 	ui.breadcrumb.Wrapping = fyne.TextWrapWord
+	ui.leftPathLbl = widget.NewLabel("")
+	ui.leftPathLbl.Wrapping = fyne.TextWrapWord
 	ui.status = widget.NewLabel("")
 	ui.status.Wrapping = fyne.TextWrapWord
 	ui.progress = widget.NewProgressBar()
 	ui.progress.Hide()
 	ui.lastJobText = widget.NewLabel("")
+	ui.leftSearch = widget.NewEntry()
+	ui.leftSearch.SetPlaceHolder("Pesquisar no computador local")
+	ui.rightSearch = widget.NewEntry()
+	ui.rightSearch.SetPlaceHolder("Pesquisar no lado do servidor")
 
 	ui.leftList = widget.NewList(
 		func() int { return len(ui.leftRows) },
@@ -392,6 +405,14 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 
 	btnOpenLocal := widget.NewButtonWithIcon("Abrir pasta", theme.FolderOpenIcon(), func() { ui.onLeftActivate() })
 	btnOpenRemote := widget.NewButtonWithIcon("Abrir pasta", theme.FolderOpenIcon(), func() { ui.onRightActivate() })
+	btnBackLocal := widget.NewButtonWithIcon("", theme.NavigateBackIcon(), func() { ui.goLeftBack() })
+	btnUpLocal := widget.NewButtonWithIcon("", theme.MoveUpIcon(), func() { ui.goLeftUp() })
+	btnHomeLocal := widget.NewButtonWithIcon("", theme.HomeIcon(), func() { ui.goLeftHome() })
+	btnReloadLocal := widget.NewButtonWithIcon("", theme.ViewRefreshIcon(), func() { ui.refreshLeft() })
+	btnBackRemote := widget.NewButtonWithIcon("", theme.NavigateBackIcon(), func() { ui.goRightBack() })
+	btnUpRemote := widget.NewButtonWithIcon("", theme.MoveUpIcon(), func() { ui.goRightUp() })
+	btnHomeRemote := widget.NewButtonWithIcon("", theme.HomeIcon(), func() { ui.goRightHome() })
+	btnReloadRemote := widget.NewButtonWithIcon("", theme.ViewRefreshIcon(), func() { ui.refreshRight() })
 
 	btnUp := widget.NewButtonWithIcon("Enviar", theme.UploadIcon(), func() { ui.upload() })
 	btnUp.Importance = widget.HighImportance
@@ -419,11 +440,19 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 		widget.NewSeparator(),
 	)
 
-	leftHead := fynecontainer.NewHBox(
-		widget.NewIcon(theme.HomeIcon()),
-		widget.NewLabelWithStyle("Computador local", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		layout.NewSpacer(),
-		btnOpenLocal,
+	leftHead := fynecontainer.NewVBox(
+		fynecontainer.NewHBox(
+			widget.NewIcon(theme.HomeIcon()),
+			widget.NewLabelWithStyle("Computador local", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+			layout.NewSpacer(),
+			btnBackLocal,
+			btnUpLocal,
+			btnHomeLocal,
+			btnReloadLocal,
+			btnOpenLocal,
+		),
+		ui.leftPathLbl,
+		ui.leftSearch,
 	)
 	leftPane := fynecontainer.NewBorder(
 		fynecontainer.NewPadded(leftHead),
@@ -440,10 +469,15 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 			widget.NewIcon(theme.StorageIcon()),
 			widget.NewLabelWithStyle("Lado do servidor", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 			layout.NewSpacer(),
+			btnBackRemote,
+			btnUpRemote,
+			btnHomeRemote,
+			btnReloadRemote,
 			btnOpenRemote,
 		),
 		fynecontainer.NewPadded(fynecontainer.NewVBox(ctxHelp, ui.ctxSelect)),
 		fynecontainer.NewPadded(ui.breadcrumb),
+		ui.rightSearch,
 	)
 	rightPane := fynecontainer.NewBorder(
 		fynecontainer.NewPadded(rightHead),
@@ -462,6 +496,8 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 
 	ui.refreshLeft()
 	ui.refreshRight()
+	ui.leftSearch.OnChanged = func(_ string) { ui.applyLeftFilter() }
+	ui.rightSearch.OnChanged = func(_ string) { ui.applyRightFilter() }
 	ui.updateBreadcrumb()
 
 	return fynecontainer.NewBorder(top, bottom, nil, nil, split)
@@ -486,6 +522,7 @@ func sizeLabel(e fsutil.DirEntry) string {
 }
 
 func (ui *explorer) updateBreadcrumb() {
+	ui.leftPathLbl.SetText(fmt.Sprintf("Pasta local: %s", ui.leftPath))
 	if ui.hostMode {
 		ui.breadcrumb.SetText(fmt.Sprintf("Pasta no servidor: %s", ui.rightPath))
 		return
@@ -503,11 +540,28 @@ func (ui *explorer) refreshLeft() {
 		dialog.ShowError(err, ui.win)
 		return
 	}
-	ui.leftRows = rows
+	ui.leftAll = rows
+	ui.applyLeftFilter()
+}
+
+func (ui *explorer) applyLeftFilter() {
+	term := strings.ToLower(strings.TrimSpace(ui.leftSearch.Text))
+	if term == "" {
+		ui.leftRows = append([]fsutil.DirEntry(nil), ui.leftAll...)
+	} else {
+		filtered := make([]fsutil.DirEntry, 0, len(ui.leftAll))
+		for _, e := range ui.leftAll {
+			if e.Name == ".." || strings.Contains(strings.ToLower(e.Name), term) {
+				filtered = append(filtered, e)
+			}
+		}
+		ui.leftRows = filtered
+	}
 	ui.leftSel = -1
 	ui.leftList.UnselectAll()
 	ui.leftList.Refresh()
 	ui.leftList.ScrollToTop()
+	ui.updateBreadcrumb()
 }
 
 func (ui *explorer) refreshRight() {
@@ -560,23 +614,115 @@ func (ui *explorer) refreshRightImpl(showLoading bool) {
 			}
 			if err != nil {
 				ui.status.SetText(fmt.Sprintf("Erro ao listar: %v", err))
+				ui.rightAll = nil
 				ui.rightRows = nil
 				ui.rightSel = -1
 				ui.rightList.UnselectAll()
 				ui.rightList.Refresh()
 				return
 			}
-			ui.rightRows = rows
-			ui.rightSel = -1
-			ui.rightList.UnselectAll()
-			ui.rightList.Refresh()
-			ui.rightList.ScrollToTop()
-			ui.updateBreadcrumb()
+			ui.rightAll = rows
+			ui.applyRightFilter()
 			if showLoading {
 				ui.status.SetText("")
 			}
 		})
 	}(seq)
+}
+
+func (ui *explorer) applyRightFilter() {
+	term := strings.ToLower(strings.TrimSpace(ui.rightSearch.Text))
+	if term == "" {
+		ui.rightRows = append([]fsutil.DirEntry(nil), ui.rightAll...)
+	} else {
+		filtered := make([]fsutil.DirEntry, 0, len(ui.rightAll))
+		for _, e := range ui.rightAll {
+			if e.Name == ".." || strings.Contains(strings.ToLower(e.Name), term) {
+				filtered = append(filtered, e)
+			}
+		}
+		ui.rightRows = filtered
+	}
+	ui.rightSel = -1
+	ui.rightList.UnselectAll()
+	ui.rightList.Refresh()
+	ui.rightList.ScrollToTop()
+	ui.updateBreadcrumb()
+}
+
+func (ui *explorer) goLeftBack() {
+	n := len(ui.leftBack)
+	if n == 0 {
+		return
+	}
+	prev := ui.leftBack[n-1]
+	ui.leftBack = ui.leftBack[:n-1]
+	ui.leftPath = prev
+	ui.refreshLeft()
+}
+
+func (ui *explorer) goRightBack() {
+	n := len(ui.rightBack)
+	if n == 0 {
+		return
+	}
+	prev := ui.rightBack[n-1]
+	ui.rightBack = ui.rightBack[:n-1]
+	ui.rightPath = prev
+	ui.refreshRight()
+}
+
+func (ui *explorer) goLeftUp() {
+	parent := filepath.Dir(ui.leftPath)
+	if parent == ui.leftPath {
+		return
+	}
+	ui.leftBack = append(ui.leftBack, ui.leftPath)
+	ui.leftPath = parent
+	ui.refreshLeft()
+}
+
+func (ui *explorer) goRightUp() {
+	parent := path.Dir(ui.rightPath)
+	if parent == "" || parent == "." {
+		parent = "/"
+	}
+	if parent == ui.rightPath {
+		return
+	}
+	ui.rightBack = append(ui.rightBack, ui.rightPath)
+	ui.rightPath = parent
+	ui.refreshRight()
+}
+
+func (ui *explorer) goLeftHome() {
+	if ui.leftPath == homeOrRoot() {
+		return
+	}
+	ui.leftBack = append(ui.leftBack, ui.leftPath)
+	ui.leftPath = homeOrRoot()
+	ui.refreshLeft()
+}
+
+func (ui *explorer) goRightHome() {
+	if ui.rightPath == "/" {
+		return
+	}
+	ui.rightBack = append(ui.rightBack, ui.rightPath)
+	ui.rightPath = "/"
+	ui.refreshRight()
+}
+
+func (ui *explorer) pushLeftHistory(next string) {
+	if next != "" && next != ui.leftPath {
+		ui.leftBack = append(ui.leftBack, ui.leftPath)
+	}
+}
+
+func (ui *explorer) pushRightHistory(next string) {
+	if next != "" && next != ui.rightPath {
+		ui.rightBack = append(ui.rightBack, ui.rightPath)
+	}
 }
 
 func (ui *explorer) onLeftActivate() {
@@ -585,6 +731,7 @@ func (ui *explorer) onLeftActivate() {
 	}
 	e := ui.leftRows[ui.leftSel]
 	if e.IsDir {
+		ui.pushLeftHistory(e.Path)
 		ui.leftPath = e.Path
 		ui.refreshLeft()
 	}
@@ -596,6 +743,7 @@ func (ui *explorer) onRightActivate() {
 	}
 	e := ui.rightRows[ui.rightSel]
 	if e.IsDir {
+		ui.pushRightHistory(e.Path)
 		ui.rightPath = e.Path
 		ui.updateBreadcrumb()
 		ui.refreshRight()
