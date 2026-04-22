@@ -200,6 +200,65 @@ func (f *FS) listDirDirect(ctx context.Context, p string) ([]fsutil.DirEntry, er
 	return out, nil
 }
 
+func (f *FS) runExec(ctx context.Context, cmd []string) error {
+	execCfg := container.ExecOptions{
+		AttachStdout: true,
+		AttachStderr: true,
+		Cmd:          cmd,
+	}
+	created, err := f.Docker.ContainerExecCreate(ctx, f.ID, execCfg)
+	if err != nil {
+		return err
+	}
+	resp, err := f.Docker.ContainerExecAttach(ctx, created.ID, container.ExecStartOptions{})
+	if err != nil {
+		return err
+	}
+	defer resp.Close()
+
+	// Consome o stream para evitar bloqueios.
+	_, _ = io.Copy(io.Discard, resp.Reader)
+	inspected, err := f.Docker.ContainerExecInspect(ctx, created.ID)
+	if err != nil {
+		return err
+	}
+	if inspected.ExitCode != 0 {
+		return fmt.Errorf("comando no contêiner falhou (exit %d): %s", inspected.ExitCode, strings.Join(cmd, " "))
+	}
+	return nil
+}
+
+func (f *FS) Mkdir(ctx context.Context, p string) error {
+	target := path.Clean(p)
+	if !strings.HasPrefix(target, "/") {
+		target = "/" + target
+	}
+	return f.runExec(ctx, []string{"mkdir", target})
+}
+
+func (f *FS) Rename(ctx context.Context, oldPath, newPath string) error {
+	oldTarget := path.Clean(oldPath)
+	newTarget := path.Clean(newPath)
+	if !strings.HasPrefix(oldTarget, "/") {
+		oldTarget = "/" + oldTarget
+	}
+	if !strings.HasPrefix(newTarget, "/") {
+		newTarget = "/" + newTarget
+	}
+	return f.runExec(ctx, []string{"mv", oldTarget, newTarget})
+}
+
+func (f *FS) Remove(ctx context.Context, p string, recursive bool) error {
+	target := path.Clean(p)
+	if !strings.HasPrefix(target, "/") {
+		target = "/" + target
+	}
+	if recursive {
+		return f.runExec(ctx, []string{"rm", "-rf", target})
+	}
+	return f.runExec(ctx, []string{"rm", "-f", target})
+}
+
 // OpenFileReader lê um ficheiro regular do contentor (primeiro membro do tar).
 func (f *FS) OpenFileReader(ctx context.Context, filePath string) (io.ReadCloser, int64, error) {
 	p := path.Clean(filePath)

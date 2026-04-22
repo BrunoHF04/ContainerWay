@@ -19,6 +19,7 @@ import (
 	"fyne.io/fyne/v2/app"
 	fynecontainer "fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -1529,10 +1530,20 @@ func (ui *explorer) registerExplorerShortcuts() {
 			} else {
 				ui.download()
 			}
+		case fyne.KeyF2:
+			ui.renameActive()
+		case fyne.KeyDelete:
+			ui.deleteActive()
 		case fyne.KeyF5:
 			ui.refreshLeft()
 			ui.refreshRight()
 		}
+	})
+	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyF, Modifier: fyne.KeyModifierControl}, func(fyne.Shortcut) {
+		ui.focusActiveSearch()
+	})
+	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyN, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}, func(fyne.Shortcut) {
+		ui.createFolderActive()
 	})
 }
 
@@ -1542,6 +1553,164 @@ func (ui *explorer) focusActiveSearch() {
 		return
 	}
 	ui.win.Canvas().Focus(ui.rightSearch)
+}
+
+func (ui *explorer) renameActive() {
+	if ui.activePane == "left" {
+		e, ok := ui.selectedLeftEntry()
+		if !ok || e.Name == ".." {
+			dialog.ShowInformation("Renomear", "Selecione um item válido no painel local.", ui.win)
+			return
+		}
+		name := widget.NewEntry()
+		name.SetText(e.Name)
+		dialog.ShowForm("Renomear (local)", "Salvar", "Cancelar", []*widget.FormItem{
+			widget.NewFormItem("Novo nome", name),
+		}, func(confirm bool) {
+			if !confirm {
+				return
+			}
+			newName := strings.TrimSpace(name.Text)
+			if newName == "" || newName == e.Name {
+				return
+			}
+			target := filepath.Join(filepath.Dir(e.Path), newName)
+			if err := localfs.Rename(e.Path, target); err != nil {
+				dialog.ShowError(fmt.Errorf("não foi possível renomear item local: %w", err), ui.win)
+				return
+			}
+			ui.status.SetText("Item local renomeado com sucesso.")
+			ui.refreshLeft()
+		}, ui.win)
+		return
+	}
+	e, ok := ui.selectedRightEntry()
+	if !ok || e.Name == ".." {
+		dialog.ShowInformation("Renomear", "Selecione um item válido no painel do servidor.", ui.win)
+		return
+	}
+	name := widget.NewEntry()
+	name.SetText(e.Name)
+	dialog.ShowForm("Renomear (servidor)", "Salvar", "Cancelar", []*widget.FormItem{
+		widget.NewFormItem("Novo nome", name),
+	}, func(confirm bool) {
+		if !confirm {
+			return
+		}
+		newName := strings.TrimSpace(name.Text)
+		if newName == "" || newName == e.Name {
+			return
+		}
+		target := path.Join(path.Dir(e.Path), newName)
+		var err error
+		if ui.hostMode {
+			err = ui.hfs.Rename(e.Path, target)
+		} else {
+			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+			defer cancel()
+			err = ui.cfs.Rename(ctx, e.Path, target)
+		}
+		if err != nil {
+			dialog.ShowError(fmt.Errorf("não foi possível renomear item remoto: %w", err), ui.win)
+			return
+		}
+		ui.status.SetText("Item remoto renomeado com sucesso.")
+		ui.refreshRight()
+	}, ui.win)
+}
+
+func (ui *explorer) deleteActive() {
+	if ui.activePane == "left" {
+		e, ok := ui.selectedLeftEntry()
+		if !ok || e.Name == ".." {
+			dialog.ShowInformation("Excluir", "Selecione um item válido no painel local.", ui.win)
+			return
+		}
+		msg := fmt.Sprintf("Deseja excluir \"%s\" do computador local?", e.Name)
+		dialog.ShowConfirm("Confirmar exclusão", msg, func(confirm bool) {
+			if !confirm {
+				ui.status.SetText("Exclusão cancelada.")
+				return
+			}
+			if err := localfs.Remove(e.Path, e.IsDir); err != nil {
+				dialog.ShowError(fmt.Errorf("não foi possível excluir item local: %w", err), ui.win)
+				return
+			}
+			ui.status.SetText("Item local excluído com sucesso.")
+			ui.refreshLeft()
+		}, ui.win)
+		return
+	}
+	e, ok := ui.selectedRightEntry()
+	if !ok || e.Name == ".." {
+		dialog.ShowInformation("Excluir", "Selecione um item válido no painel do servidor.", ui.win)
+		return
+	}
+	msg := fmt.Sprintf("Deseja excluir \"%s\" do servidor?", e.Name)
+	dialog.ShowConfirm("Confirmar exclusão", msg, func(confirm bool) {
+		if !confirm {
+			ui.status.SetText("Exclusão cancelada.")
+			return
+		}
+		var err error
+		if ui.hostMode {
+			err = ui.hfs.Remove(e.Path, e.IsDir)
+		} else {
+			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+			defer cancel()
+			err = ui.cfs.Remove(ctx, e.Path, e.IsDir)
+		}
+		if err != nil {
+			dialog.ShowError(fmt.Errorf("não foi possível excluir item remoto: %w", err), ui.win)
+			return
+		}
+		ui.status.SetText("Item remoto excluído com sucesso.")
+		ui.refreshRight()
+	}, ui.win)
+}
+
+func (ui *explorer) createFolderActive() {
+	name := widget.NewEntry()
+	title := "Nova pasta (local)"
+	if ui.activePane == "right" {
+		title = "Nova pasta (servidor)"
+	}
+	dialog.ShowForm(title, "Criar", "Cancelar", []*widget.FormItem{
+		widget.NewFormItem("Nome da pasta", name),
+	}, func(confirm bool) {
+		if !confirm {
+			return
+		}
+		folderName := strings.TrimSpace(name.Text)
+		if folderName == "" {
+			return
+		}
+		if ui.activePane == "left" {
+			target := filepath.Join(ui.leftPath, folderName)
+			if err := localfs.Mkdir(target); err != nil {
+				dialog.ShowError(fmt.Errorf("não foi possível criar pasta local: %w", err), ui.win)
+				return
+			}
+			ui.status.SetText("Pasta local criada com sucesso.")
+			ui.refreshLeft()
+			return
+		}
+		target := path.Join(ui.rightPath, folderName)
+		var err error
+		if ui.hostMode {
+			err = ui.hfs.Mkdir(target)
+		} else {
+			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+			defer cancel()
+			err = ui.cfs.Mkdir(ctx, target)
+		}
+		if err != nil {
+			dialog.ShowError(fmt.Errorf("não foi possível criar pasta remota: %w", err), ui.win)
+			return
+		}
+		ui.status.SetText("Pasta remota criada com sucesso.")
+		ui.refreshRight()
+	}, ui.win)
 }
 
 func (ui *explorer) makePathButtons(p string, left bool) []fyne.CanvasObject {
@@ -1648,6 +1817,9 @@ func (ui *explorer) showRowContextMenu(left bool, id widget.ListItemID, pos fyne
 		items := []*fyne.MenuItem{
 			fyne.NewMenuItem("Abrir pasta", func() { ui.onLeftActivate() }),
 			fyne.NewMenuItem("Enviar para o servidor", func() { ui.upload() }),
+			fyne.NewMenuItem("Renomear", func() { ui.renameActive() }),
+			fyne.NewMenuItem("Excluir", func() { ui.deleteActive() }),
+			fyne.NewMenuItem("Nova pasta aqui", func() { ui.createFolderActive() }),
 			fyne.NewMenuItemSeparator(),
 			fyne.NewMenuItem("Atualizar lista local", func() { ui.refreshLeft() }),
 		}
@@ -1671,6 +1843,9 @@ func (ui *explorer) showRowContextMenu(left bool, id widget.ListItemID, pos fyne
 	items := []*fyne.MenuItem{
 		fyne.NewMenuItem("Abrir pasta", func() { ui.onRightActivate() }),
 		fyne.NewMenuItem("Receber no computador local", func() { ui.download() }),
+		fyne.NewMenuItem("Renomear", func() { ui.renameActive() }),
+		fyne.NewMenuItem("Excluir", func() { ui.deleteActive() }),
+		fyne.NewMenuItem("Nova pasta aqui", func() { ui.createFolderActive() }),
 		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Atualizar lista remota", func() { ui.refreshRight() }),
 	}

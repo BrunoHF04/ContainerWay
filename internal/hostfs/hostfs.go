@@ -2,6 +2,7 @@ package hostfs
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path"
 	"strings"
@@ -78,6 +79,52 @@ func (f *FS) CreateWriter(p string) (*sftp.File, error) {
 // Mkdir cria um diretório no host.
 func (f *FS) Mkdir(p string) error {
 	return f.Client.Mkdir(normalize(p))
+}
+
+func (f *FS) Rename(oldPath, newPath string) error {
+	return f.Client.Rename(normalize(oldPath), normalize(newPath))
+}
+
+func (f *FS) Remove(p string, recursive bool) error {
+	target := normalize(p)
+	if !recursive {
+		return f.Client.Remove(target)
+	}
+	return f.removeRecursive(target)
+}
+
+func (f *FS) removeRecursive(p string) error {
+	fi, err := f.Client.Stat(p)
+	if err != nil {
+		return err
+	}
+	if !fi.IsDir() {
+		return f.Client.Remove(p)
+	}
+	entries, err := f.Client.ReadDir(p)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		name := e.Name()
+		if name == "." || name == ".." {
+			continue
+		}
+		child := path.Join(p, name)
+		if e.IsDir() {
+			if err := f.removeRecursive(child); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := f.Client.Remove(child); err != nil {
+			return err
+		}
+	}
+	if err := f.Client.RemoveDirectory(p); err != nil {
+		return fmt.Errorf("não foi possível remover pasta %s: %w", p, err)
+	}
+	return nil
 }
 
 // Stat devolve metadados SFTP.

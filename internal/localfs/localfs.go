@@ -45,3 +45,25 @@ func List(dir string) ([]fsutil.DirEntry, error) {
 	fsutil.SortLikeWinSCP(out)
 	return out, nil
 }
+
+func Mkdir(dir string) error {
+	d := strings.TrimSpace(dir)
+	if d == "" {
+		return os.ErrInvalid
+	}
+	return os.Mkdir(filepath.Clean(d), 0o755)
+}
+
+func Rename(oldPath, newPath string) error {
+	oldClean := filepath.Clean(strings.TrimSpace(oldPath))
+	newClean := filepath.Clean(strings.TrimSpace(newPath))
+	return os.Rename(oldClean, newClean)
+}
+
+func Remove(p string, recursive bool) error {
+	clean := filepath.Clean(strings.TrimSpace(p))
+	if recursive {
+		return os.RemoveAll(clean)
+	}
+	return os.Remove(clean)
+}
