@@ -8,6 +8,17 @@ Gestor de arquivos de painel duplo (estilo WinSCP) para **Windows**, com foco em
 
 Toda a interface está em **pt-BR**.
 
+## Acesso local ao aplicativo
+
+Antes da tela de conexão SSH/SFTP, o app pede **login de acesso local** (usuário e senha armazenados nas preferências do app no Windows).
+
+- **Usuário padrão:** `admin`
+- **Senha padrão:** `!q1w2e3r4$`
+- **Cadastro de usuários:** após entrar como `admin`, use o botão **Usuários** na barra superior do explorador para criar, atualizar ou remover usuários de acesso local (o `admin` não pode ser removido).
+- **Logs:** o nome exibido nos logs segue o cadastro de cada usuário.
+
+> Atenção: isso **não** substitui autenticação do servidor SSH; é apenas uma trava local do app. Em ambientes sensíveis, altere a senha do `admin` e cadastre usuários com senhas fortes.
+
 ## Visão geral das funcionalidades
 
 ### Conexão e login

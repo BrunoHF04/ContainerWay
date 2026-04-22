@@ -44,10 +44,20 @@ type transientSecret struct {
 	KeyPass  string
 }
 
+type accessUser struct {
+	Username    string `json:"username"`
+	Password    string `json:"password"`
+	DisplayName string `json:"display_name"`
+}
+
 var (
 	loginSecretMu       sync.Mutex
 	loginSessionSecrets = map[string]transientSecret{}
 	auditLogMu          sync.Mutex
+	auditActorMu        sync.Mutex
+	auditActorName      = "desconhecido"
+	accessUserMu        sync.Mutex
+	currentAccessUserName = ""
 )
 
 const (
@@ -55,7 +65,10 @@ const (
 	leftFavoritesPreferenceKey  = "explorer.left.favorites"
 	rightFavoritesPreferenceKey = "explorer.right.favorites"
 	operationHistoryPreferenceKey = "explorer.operation.history"
+	accessUsersPreferenceKey      = "access.users"
 	auditLogFileName             = "containerway-activity.log"
+	defaultAccessUser            = "admin"
+	defaultAccessPass            = "!q1w2e3r4$"
 	themeModeSystem    = "system"
 	themeModeLight     = "light"
 	themeModeDark      = "dark"
@@ -72,9 +85,13 @@ func Run() {
 	if ico := appWindowIcon(); ico != nil {
 		w.SetIcon(ico)
 	}
-	w.SetContent(buildLogin(w))
-	setLoginWindow(w)
+	w.SetContent(buildAccessLogin(w))
+	setAccessLoginWindow(w)
 	w.ShowAndRun()
+}
+
+func setAccessLoginWindow(w fyne.Window) {
+	w.Resize(fyne.NewSize(480, 360))
 }
 
 func setLoginWindow(w fyne.Window) {
@@ -86,8 +103,56 @@ func setExplorerWindow(w fyne.Window) {
 }
 
 func goToLogin(w fyne.Window) {
-	setLoginWindow(w)
-	w.SetContent(buildLogin(w))
+	setAccessLoginWindow(w)
+	w.SetContent(buildAccessLogin(w))
+}
+
+func buildAccessLogin(w fyne.Window) fyne.CanvasObject {
+	username := widget.NewEntry()
+	username.SetPlaceHolder("Usuário")
+	password := widget.NewPasswordEntry()
+	password.SetPlaceHolder("Senha")
+	status := widget.NewLabel("")
+	status.Wrapping = fyne.TextWrapWord
+	accounts := loadAccessAccounts()
+
+	tryLogin := func() {
+		u := normalizeAccessUsername(username.Text)
+		p := strings.TrimSpace(password.Text)
+		if u == "" || p == "" {
+			status.SetText("Informe usuário e senha.")
+			return
+		}
+		acc, ok := findAccessAccount(accounts, u)
+		if ok && strings.TrimSpace(acc.Password) == p {
+			setAuditActor(acc.DisplayName)
+			setCurrentAccessUser(acc.Username)
+			appendAuditLog("acesso", "Login de acesso autorizado")
+			setLoginWindow(w)
+			w.SetContent(buildLogin(w))
+			return
+		}
+		appendAuditLog("acesso", "Tentativa de login de acesso inválida")
+		status.SetText("Usuário ou senha inválidos.")
+	}
+
+	enterBtn := widget.NewButtonWithIcon("Entrar", theme.LoginIcon(), tryLogin)
+	enterBtn.Importance = widget.HighImportance
+	password.OnSubmitted = func(string) { tryLogin() }
+
+	content := fynecontainer.NewVBox(
+		widget.NewLabelWithStyle("Acesso ao sistema", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewLabel("Entre com seu usuário e senha. O admin pode cadastrar outros usuários."),
+		widget.NewSeparator(),
+		widget.NewForm(
+			widget.NewFormItem("Usuário", username),
+			widget.NewFormItem("Senha", password),
+		),
+		status,
+		enterBtn,
+	)
+	card := widget.NewCard("ContainerWay", "Login de acesso", content)
+	return fynecontainer.NewCenter(card)
 }
 
 func buildLogin(w fyne.Window) fyne.CanvasObject {
@@ -947,8 +1012,12 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	btnHistory := widget.NewButtonWithIcon("Histórico", theme.HistoryIcon(), func() { ui.showOperationHistory() })
 	btnManual := widget.NewButton("?", func() { ui.showUserManual() })
 	btnManual.Importance = widget.MediumImportance
+	btnManageUsers := widget.NewButtonWithIcon("Usuários", theme.AccountIcon(), func() { ui.showAccessUserManager() })
+	btnManageUsers.Importance = widget.MediumImportance
 	btnDisconnect := widget.NewButtonWithIcon("Sair", theme.LogoutIcon(), func() {
 		appendAuditLog("sessao", "Sessão encerrada pelo usuário")
+		setAuditActor("desconhecido")
+		setCurrentAccessUser("")
 		s.Close()
 		goToLogin(w)
 	})
@@ -956,17 +1025,23 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	ui.lblSudoState = widget.NewLabel("Sudo: inativo")
 	ui.btnDisableSudo = widget.NewButtonWithIcon("Desativar sudo", theme.CancelIcon(), func() { ui.disableSudoMode() })
 
-	toolbar := fynecontainer.NewHBox(
+	toolbarItems := []fyne.CanvasObject{
 		ui.btnUp,
 		ui.btnDown,
 		btnHistory,
 		btnManual,
+	}
+	if isCurrentAccessAdmin() {
+		toolbarItems = append(toolbarItems, btnManageUsers)
+	}
+	toolbarItems = append(toolbarItems,
 		layout.NewSpacer(),
 		ui.lblSudoState,
 		ui.btnDisableSudo,
 		layout.NewSpacer(),
 		btnDisconnect,
 	)
+	toolbar := fynecontainer.NewHBox(toolbarItems...)
 	top := fynecontainer.NewVBox(
 		fynecontainer.NewPadded(toolbar),
 		widget.NewSeparator(),
@@ -1470,8 +1545,7 @@ func (ui *explorer) maybePromptRootAccess(listErr error) {
 	if listErr == nil || !ui.hostMode {
 		return
 	}
-	msg := strings.ToLower(listErr.Error())
-	if !strings.Contains(msg, "permission denied") {
+	if !isPermissionDeniedError(listErr) {
 		return
 	}
 	if ui.rootPromptOpen.Load() {
@@ -1513,6 +1587,14 @@ func (ui *explorer) maybePromptRootAccess(listErr error) {
 			ui.status.SetText("Acesso elevado cancelado.")
 		},
 	)
+}
+
+func isPermissionDeniedError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(strings.TrimSpace(err.Error()))
+	return strings.Contains(msg, "permission denied")
 }
 
 func (ui *explorer) enableSudoMode(user, password string) {
@@ -3691,6 +3773,161 @@ func saveOperationHistoryPreference(values []string) {
 	saveStringSlicePreference(operationHistoryPreferenceKey, values)
 }
 
+func defaultAccessAccounts() []accessUser {
+	return []accessUser{
+		{
+			Username:    defaultAccessUser,
+			Password:    defaultAccessPass,
+			DisplayName: "Administrador",
+		},
+	}
+}
+
+func normalizeAccessUsername(username string) string {
+	return strings.ToLower(strings.TrimSpace(username))
+}
+
+func loadAccessAccounts() []accessUser {
+	app := fyne.CurrentApp()
+	if app == nil {
+		return defaultAccessAccounts()
+	}
+	raw := strings.TrimSpace(app.Preferences().StringWithFallback(accessUsersPreferenceKey, ""))
+	if raw == "" {
+		return defaultAccessAccounts()
+	}
+	var users []accessUser
+	if err := json.Unmarshal([]byte(raw), &users); err != nil {
+		return defaultAccessAccounts()
+	}
+	seen := map[string]struct{}{}
+	out := make([]accessUser, 0, len(users)+1)
+	for _, u := range users {
+		name := normalizeAccessUsername(u.Username)
+		pass := strings.TrimSpace(u.Password)
+		if name == "" || pass == "" {
+			continue
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		display := strings.TrimSpace(u.DisplayName)
+		if display == "" {
+			display = u.Username
+		}
+		out = append(out, accessUser{Username: name, Password: pass, DisplayName: display})
+	}
+	adminName := normalizeAccessUsername(defaultAccessUser)
+	if _, ok := seen[adminName]; !ok {
+		out = append(out, defaultAccessAccounts()...)
+	} else {
+		for i := range out {
+			if out[i].Username == adminName {
+				out[i].Password = defaultAccessPass
+				if strings.TrimSpace(out[i].DisplayName) == "" {
+					out[i].DisplayName = "Administrador"
+				}
+				break
+			}
+		}
+	}
+	return out
+}
+
+func saveAccessAccounts(users []accessUser) {
+	app := fyne.CurrentApp()
+	if app == nil {
+		return
+	}
+	normalized := make([]accessUser, 0, len(users))
+	seen := map[string]struct{}{}
+	for _, u := range users {
+		name := normalizeAccessUsername(u.Username)
+		pass := strings.TrimSpace(u.Password)
+		if name == "" || pass == "" {
+			continue
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		display := strings.TrimSpace(u.DisplayName)
+		if display == "" {
+			display = u.Username
+		}
+		normalized = append(normalized, accessUser{Username: name, Password: pass, DisplayName: display})
+	}
+	if _, ok := seen[normalizeAccessUsername(defaultAccessUser)]; !ok {
+		normalized = append(normalized, defaultAccessAccounts()...)
+	}
+	buf, err := json.Marshal(normalized)
+	if err != nil {
+		return
+	}
+	app.Preferences().SetString(accessUsersPreferenceKey, string(buf))
+}
+
+func findAccessAccount(users []accessUser, username string) (accessUser, bool) {
+	key := normalizeAccessUsername(username)
+	for _, u := range users {
+		if normalizeAccessUsername(u.Username) == key {
+			return u, true
+		}
+	}
+	return accessUser{}, false
+}
+
+func upsertAccessAccount(users []accessUser, user accessUser) []accessUser {
+	key := normalizeAccessUsername(user.Username)
+	if key == "" || strings.TrimSpace(user.Password) == "" {
+		return users
+	}
+	user.Username = key
+	if strings.TrimSpace(user.DisplayName) == "" {
+		user.DisplayName = user.Username
+	}
+	for i := range users {
+		if normalizeAccessUsername(users[i].Username) == key {
+			users[i] = user
+			return users
+		}
+	}
+	return append(users, user)
+}
+
+func setAuditActor(name string) {
+	auditActorMu.Lock()
+	defer auditActorMu.Unlock()
+	clean := strings.TrimSpace(name)
+	if clean == "" {
+		clean = "desconhecido"
+	}
+	auditActorName = clean
+}
+
+func setCurrentAccessUser(username string) {
+	accessUserMu.Lock()
+	defer accessUserMu.Unlock()
+	currentAccessUserName = normalizeAccessUsername(username)
+}
+
+func currentAccessUser() string {
+	accessUserMu.Lock()
+	defer accessUserMu.Unlock()
+	return currentAccessUserName
+}
+
+func isCurrentAccessAdmin() bool {
+	return currentAccessUser() == normalizeAccessUsername(defaultAccessUser)
+}
+
+func currentAuditActor() string {
+	auditActorMu.Lock()
+	defer auditActorMu.Unlock()
+	return auditActorName
+}
+
 func auditLogPath() string {
 	base, err := os.UserConfigDir()
 	if err != nil || strings.TrimSpace(base) == "" {
@@ -3711,7 +3948,14 @@ func appendAuditLog(scope, message string) {
 	if strings.Contains(lower, "erro") || strings.Contains(lower, "falha") {
 		level = "ERROR"
 	}
-	line := fmt.Sprintf("%s | %s | %s | %s\n", time.Now().Format("2006-01-02 15:04:05"), level, strings.TrimSpace(scope), msg)
+	line := fmt.Sprintf(
+		"%s | %s | %s | operador=%s | %s\n",
+		time.Now().Format("2006-01-02 15:04:05"),
+		level,
+		strings.TrimSpace(scope),
+		currentAuditActor(),
+		msg,
+	)
 	auditLogMu.Lock()
 	defer auditLogMu.Unlock()
 	f, err := os.OpenFile(auditLogPath(), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
@@ -4234,6 +4478,120 @@ func (ui *explorer) showUserManual() {
 	).Show()
 }
 
+func (ui *explorer) showAccessUserManager() {
+	if !isCurrentAccessAdmin() {
+		dialog.ShowInformation("Usuários", "Somente o usuário admin pode gerenciar usuários.", ui.win)
+		return
+	}
+	newUser := widget.NewEntry()
+	newUser.SetPlaceHolder("novo usuário")
+	newPass := widget.NewPasswordEntry()
+	newPass.SetPlaceHolder("senha (mínimo 4 caracteres)")
+	newName := widget.NewEntry()
+	newName.SetPlaceHolder("nome exibido nos logs")
+	removeUser := widget.NewEntry()
+	removeUser.SetPlaceHolder("usuário para remover")
+	info := widget.NewLabel("Crie ou atualize usuários de acesso local.")
+	info.Wrapping = fyne.TextWrapWord
+	usersList := widget.NewMultiLineEntry()
+	usersList.Disable()
+	usersList.Wrapping = fyne.TextWrapWord
+	usersList.SetMinRowsVisible(7)
+
+	refreshUsersList := func() {
+		users := loadAccessAccounts()
+		if len(users) == 0 {
+			usersList.SetText("Nenhum usuário cadastrado.")
+			return
+		}
+		lines := make([]string, 0, len(users)+1)
+		lines = append(lines, "Usuários cadastrados:")
+		for _, u := range users {
+			lines = append(lines, fmt.Sprintf("- %s (nome: %s)", u.Username, strings.TrimSpace(u.DisplayName)))
+		}
+		usersList.SetText(strings.Join(lines, "\n"))
+	}
+	refreshUsersList()
+
+	btnSave := widget.NewButtonWithIcon("Salvar usuário", theme.DocumentSaveIcon(), func() {
+		u := normalizeAccessUsername(newUser.Text)
+		p := strings.TrimSpace(newPass.Text)
+		n := strings.TrimSpace(newName.Text)
+		if u == "" || p == "" {
+			info.SetText("Informe usuário e senha.")
+			return
+		}
+		if len(p) < 4 {
+			info.SetText("A senha precisa ter pelo menos 4 caracteres.")
+			return
+		}
+		if n == "" {
+			n = u
+		}
+		users := loadAccessAccounts()
+		users = upsertAccessAccount(users, accessUser{
+			Username:    u,
+			Password:    p,
+			DisplayName: n,
+		})
+		saveAccessAccounts(users)
+		refreshUsersList()
+		appendAuditLog("acesso", "Usuário cadastrado/atualizado: "+u)
+		info.SetText("Usuário salvo: " + u)
+	})
+
+	btnRemove := widget.NewButtonWithIcon("Remover usuário", theme.DeleteIcon(), func() {
+		target := normalizeAccessUsername(removeUser.Text)
+		if target == "" {
+			info.SetText("Informe o usuário que deseja remover.")
+			return
+		}
+		if target == normalizeAccessUsername(defaultAccessUser) {
+			info.SetText("O usuário admin não pode ser removido.")
+			return
+		}
+		users := loadAccessAccounts()
+		filtered := make([]accessUser, 0, len(users))
+		removed := false
+		for _, u := range users {
+			if normalizeAccessUsername(u.Username) == target {
+				removed = true
+				continue
+			}
+			filtered = append(filtered, u)
+		}
+		if !removed {
+			info.SetText("Usuário não encontrado.")
+			return
+		}
+		saveAccessAccounts(filtered)
+		refreshUsersList()
+		appendAuditLog("acesso", "Usuário removido: "+target)
+		info.SetText("Usuário removido: " + target)
+	})
+
+	body := fynecontainer.NewVBox(
+		widget.NewForm(
+			widget.NewFormItem("Novo usuário", newUser),
+			widget.NewFormItem("Senha", newPass),
+			widget.NewFormItem("Nome", newName),
+		),
+		fynecontainer.NewHBox(btnSave),
+		widget.NewSeparator(),
+		widget.NewForm(
+			widget.NewFormItem("Remover usuário", removeUser),
+		),
+		fynecontainer.NewHBox(btnRemove),
+		widget.NewSeparator(),
+		usersList,
+		widget.NewSeparator(),
+		info,
+	)
+	dlg := dialog.NewCustom("Gerenciar usuários", "Fechar", body, ui.win)
+	dlg.Resize(fyne.NewSize(560, 420))
+	dlg.Show()
+}
+
 func (ui *explorer) openRemoteForEdit(e fsutil.DirEntry) {
 	go func() {
 		fyne.Do(func() {
@@ -4268,6 +4626,15 @@ func (ui *explorer) openRemoteForEdit(e fsutil.DirEntry) {
 				rf, err := ui.hfs.OpenReader(e.Path)
 				if err != nil {
 					fyne.Do(func() {
+						if isPermissionDeniedError(err) {
+							ui.maybePromptRootAccess(err)
+							dialog.ShowInformation(
+								"Permissão negada",
+								"Este arquivo requer acesso elevado. Preencha as credenciais de sudo para continuar e tente abrir novamente.",
+								ui.win,
+							)
+							return
+						}
 						dialog.ShowError(fmt.Errorf("não foi possível ler arquivo remoto: %w", err), ui.win)
 					})
 					return
