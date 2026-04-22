@@ -324,6 +324,7 @@ type explorer struct {
 	remoteEditSessions map[string]*remoteEditSession
 	rootPromptOpen     atomic.Bool
 	sudoEnabled        bool
+	sudoUser           string
 	sudoPass           string
 }
 
@@ -558,6 +559,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 			ui.cfs = &containerfs.FS{Docker: s.Docker, ID: id}
 		}
 		ui.rightPath = "/"
+		ui.resetRightSearch()
 		ui.rightSel = -1
 		ui.rightList.UnselectAll()
 		ui.refreshRight()
@@ -614,6 +616,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 		}
 		ui.pushLeftHistory(p)
 		ui.leftPath = p
+		ui.resetLeftSearch()
 		ui.refreshLeft()
 	})
 	ui.leftQuick.SetSelected("Diretório inicial")
@@ -626,6 +629,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 		}
 		ui.pushRightHistory(p)
 		ui.rightPath = p
+		ui.resetRightSearch()
 		ui.refreshRight()
 	})
 	ui.rightQuick.SetSelected("/")
@@ -887,7 +891,6 @@ func (ui *explorer) maybePromptRootAccess(listErr error) {
 
 	userEntry := widget.NewEntry()
 	userEntry.SetText(ui.connCreds.User)
-	userEntry.Disable()
 	passEntry := widget.NewPasswordEntry()
 	passEntry.SetPlaceHolder("senha do usuário da sessão com sudo")
 	userEntry.Resize(fyne.NewSize(260, userEntry.MinSize().Height))
@@ -911,7 +914,12 @@ func (ui *explorer) maybePromptRootAccess(listErr error) {
 				dialog.ShowInformation("Credenciais obrigatórias", "Informe a senha para tentar acesso elevado via sudo.", ui.win)
 				return
 			}
-			ui.enableSudoMode(passEntry.Text)
+			user := strings.TrimSpace(userEntry.Text)
+			if user == "" {
+				dialog.ShowInformation("Credenciais obrigatórias", "Informe o usuário para sudo.", ui.win)
+				return
+			}
+			ui.enableSudoMode(user, passEntry.Text)
 		},
 		ui.win,
 	)
@@ -919,12 +927,13 @@ func (ui *explorer) maybePromptRootAccess(listErr error) {
 	prompt.Show()
 }
 
-func (ui *explorer) enableSudoMode(password string) {
+func (ui *explorer) enableSudoMode(user, password string) {
 	ui.status.SetText("Validando sudo no servidor…")
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
 		defer cancel()
-		if err := ui.testSudoAccess(ctx, password); err != nil {
+		resolvedUser, err := ui.testSudoAccess(ctx, user, password)
+		if err != nil {
 			fyne.Do(func() {
 				ui.status.SetText("Falha ao validar sudo.")
 				dialog.ShowError(fmt.Errorf("não foi possível elevar com sudo: %w\n\nLog de diagnóstico: %s", err, filepath.Join(os.TempDir(), "containerway-sudo-debug.log")), ui.win)
@@ -933,8 +942,9 @@ func (ui *explorer) enableSudoMode(password string) {
 		}
 		fyne.Do(func() {
 			ui.sudoEnabled = true
+			ui.sudoUser = resolvedUser
 			ui.sudoPass = password
-			ui.status.SetText("Sudo ativo (root). Recarregando pasta…")
+			ui.status.SetText(fmt.Sprintf("Sudo ativo (%s). Recarregando pasta…", resolvedUser))
 			ui.refreshRight()
 		})
 	}()
@@ -1040,7 +1050,11 @@ func (ui *explorer) copyHostFileWithSudoToLocal(ctx context.Context, remotePath,
 		return err
 	}
 
-	cmd := fmt.Sprintf("sudo -k -S -p '' sh -lc %s", shellQuote("cat -- "+shellQuote(path.Clean(remotePath))))
+	cmd := fmt.Sprintf(
+		"sudo -k -S -p '' -u %s sh -lc %s",
+		shellQuote(ui.sudoUser),
+		shellQuote("cat -- "+shellQuote(path.Clean(remotePath))),
+	)
 	if err := sess.Start(cmd); err != nil {
 		return err
 	}
@@ -1088,7 +1102,11 @@ func (ui *explorer) copyLocalFileToHostWithSudo(ctx context.Context, localPath, 
 	}
 
 	target := path.Clean(remotePath)
-	cmd := fmt.Sprintf("sudo -k -S -p '' sh -lc %s", shellQuote("cat > "+shellQuote(target)))
+	cmd := fmt.Sprintf(
+		"sudo -k -S -p '' -u %s sh -lc %s",
+		shellQuote(ui.sudoUser),
+		shellQuote("cat > "+shellQuote(target)),
+	)
 	if err := sess.Start(cmd); err != nil {
 		return err
 	}
@@ -1119,27 +1137,58 @@ func (ui *explorer) copyLocalFileToHostWithSudo(ctx context.Context, localPath, 
 	return nil
 }
 
-func (ui *explorer) testSudoAccess(ctx context.Context, password string) error {
-	cmd := "sudo -k -S -p '' sh -lc 'id -u >/dev/null'"
-	_, stderr, err := ui.runSSHCommandWithInput(ctx, cmd, password)
+func (ui *explorer) testSudoAccess(ctx context.Context, user, password string) (string, error) {
+	target := strings.TrimSpace(user)
+	if target == "" {
+		target = "root"
+	}
+	// Primeiro tenta com o usuário informado.
+	uid, err := ui.sudoUID(ctx, target, password)
+	if err == nil && uid == "0" {
+		return target, nil
+	}
+	// Se não elevou e não era root, tenta automaticamente root.
+	if !strings.EqualFold(target, "root") {
+		uidRoot, errRoot := ui.sudoUID(ctx, "root", password)
+		if errRoot == nil && uidRoot == "0" {
+			return "root", nil
+		}
+		if errRoot != nil {
+			return "", errRoot
+		}
+		return "", fmt.Errorf("sudo não elevou privilégios (uid=%s) nem com root", uidRoot)
+	}
+	if err != nil {
+		return "", err
+	}
+	return "", fmt.Errorf("sudo não elevou privilégios (uid=%s)", uid)
+}
+
+func (ui *explorer) sudoUID(ctx context.Context, user, password string) (string, error) {
+	cmd := fmt.Sprintf("sudo -k -S -p '' -u %s sh -lc 'id -u'", shellQuote(user))
+	stdout, stderr, err := ui.runSSHCommandWithInput(ctx, cmd, password)
 	if err != nil {
 		if strings.TrimSpace(stderr) != "" {
-			return fmt.Errorf("%s", strings.TrimSpace(stderr))
+			return "", fmt.Errorf("%s", strings.TrimSpace(stderr))
 		}
-		return err
+		return "", err
 	}
-	return nil
+	return strings.TrimSpace(stdout), nil
 }
 
 func (ui *explorer) listHostWithSudo(ctx context.Context, p string) ([]fsutil.DirEntry, error) {
-	if !ui.sudoEnabled || strings.TrimSpace(ui.sudoPass) == "" {
+	if !ui.sudoEnabled || strings.TrimSpace(ui.sudoUser) == "" || strings.TrimSpace(ui.sudoPass) == "" {
 		return nil, fmt.Errorf("sudo não configurado")
 	}
 	clean := path.Clean(strings.TrimSpace(p))
 	if !strings.HasPrefix(clean, "/") {
 		clean = "/" + clean
 	}
-	listCmd := fmt.Sprintf("sudo -k -S -p '' sh -lc %s", shellQuote("id -u; id -un; ls -1Ap -- "+shellQuote(clean)))
+	listCmd := fmt.Sprintf(
+		"sudo -k -S -p '' -u %s sh -lc %s",
+		shellQuote(ui.sudoUser),
+		shellQuote("id -u; id -un; ls -1Ap -- "+shellQuote(clean)),
+	)
 	stdout, stderr, err := ui.runSSHCommandWithInput(ctx, listCmd, ui.sudoPass)
 	if err != nil {
 		msg := strings.TrimSpace(stderr)
@@ -1242,6 +1291,7 @@ func (ui *explorer) goLeftBack() {
 	prev := ui.leftBack[n-1]
 	ui.leftBack = ui.leftBack[:n-1]
 	ui.leftPath = prev
+	ui.resetLeftSearch()
 	ui.refreshLeft()
 }
 
@@ -1253,6 +1303,7 @@ func (ui *explorer) goRightBack() {
 	prev := ui.rightBack[n-1]
 	ui.rightBack = ui.rightBack[:n-1]
 	ui.rightPath = prev
+	ui.resetRightSearch()
 	ui.refreshRight()
 }
 
@@ -1263,6 +1314,7 @@ func (ui *explorer) goLeftUp() {
 	}
 	ui.leftBack = append(ui.leftBack, ui.leftPath)
 	ui.leftPath = parent
+	ui.resetLeftSearch()
 	ui.refreshLeft()
 }
 
@@ -1276,6 +1328,7 @@ func (ui *explorer) goRightUp() {
 	}
 	ui.rightBack = append(ui.rightBack, ui.rightPath)
 	ui.rightPath = parent
+	ui.resetRightSearch()
 	ui.refreshRight()
 }
 
@@ -1285,6 +1338,7 @@ func (ui *explorer) goLeftHome() {
 	}
 	ui.leftBack = append(ui.leftBack, ui.leftPath)
 	ui.leftPath = homeOrRoot()
+	ui.resetLeftSearch()
 	ui.refreshLeft()
 }
 
@@ -1294,6 +1348,7 @@ func (ui *explorer) goRightHome() {
 	}
 	ui.rightBack = append(ui.rightBack, ui.rightPath)
 	ui.rightPath = "/"
+	ui.resetRightSearch()
 	ui.refreshRight()
 }
 
@@ -1318,6 +1373,7 @@ func (ui *explorer) onLeftActivate() {
 	if e.IsDir {
 		ui.pushLeftHistory(e.Path)
 		ui.leftPath = e.Path
+		ui.resetLeftSearch()
 		ui.refreshLeft()
 		ui.status.SetText("Pasta local aberta: " + e.Path)
 	}
@@ -1352,6 +1408,7 @@ func (ui *explorer) onRightActivate() {
 	if e.IsDir {
 		ui.pushRightHistory(e.Path)
 		ui.rightPath = e.Path
+		ui.resetRightSearch()
 		ui.updateBreadcrumb()
 		ui.refreshRight()
 		ui.status.SetText("Pasta remota aberta: " + e.Path)
@@ -1914,6 +1971,26 @@ func (ui *explorer) focusActiveSearch() {
 	ui.win.Canvas().Focus(ui.rightSearch)
 }
 
+func (ui *explorer) resetLeftSearch() {
+	if ui.leftSearch == nil {
+		return
+	}
+	if strings.TrimSpace(ui.leftSearch.Text) == "" {
+		return
+	}
+	ui.leftSearch.SetText("")
+}
+
+func (ui *explorer) resetRightSearch() {
+	if ui.rightSearch == nil {
+		return
+	}
+	if strings.TrimSpace(ui.rightSearch.Text) == "" {
+		return
+	}
+	ui.rightSearch.SetText("")
+}
+
 func (ui *explorer) renameActive() {
 	if ui.activePane == "left" {
 		e, ok := ui.selectedLeftEntry()
@@ -2101,6 +2178,7 @@ func (ui *explorer) makePathButtons(p string, left bool) []fyne.CanvasObject {
 			btn := widget.NewButton(lbl, func() {
 				ui.pushLeftHistory(target)
 				ui.leftPath = target
+				ui.resetLeftSearch()
 				ui.refreshLeft()
 			})
 			btn.Importance = widget.LowImportance
@@ -2120,6 +2198,7 @@ func (ui *explorer) makePathButtons(p string, left bool) []fyne.CanvasObject {
 	rootBtn := widget.NewButton("/", func() {
 		ui.pushRightHistory("/")
 		ui.rightPath = "/"
+		ui.resetRightSearch()
 		ui.refreshRight()
 	})
 	rootBtn.Importance = widget.LowImportance
@@ -2135,6 +2214,7 @@ func (ui *explorer) makePathButtons(p string, left bool) []fyne.CanvasObject {
 		btn := widget.NewButton(part, func() {
 			ui.pushRightHistory(target)
 			ui.rightPath = target
+			ui.resetRightSearch()
 			ui.refreshRight()
 		})
 		btn.Importance = widget.LowImportance
