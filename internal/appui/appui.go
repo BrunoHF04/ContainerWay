@@ -508,6 +508,8 @@ type explorer struct {
 	rightFooterInfo *widget.Label
 	leftSearch  *widget.Entry
 	rightSearch *widget.Entry
+	leftTypeFilter  *widget.Select
+	rightTypeFilter *widget.Select
 	leftBack    []string
 	rightBack   []string
 
@@ -740,9 +742,17 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	ui.progress.Hide()
 	ui.lastJobText = widget.NewLabel("")
 	ui.leftSearch = widget.NewEntry()
-	ui.leftSearch.SetPlaceHolder("Pesquisar no computador local")
+	ui.leftSearch.SetPlaceHolder("Pesquisar no computador local (nome, ext:log, tipo:pasta)")
+	ui.leftTypeFilter = widget.NewSelect([]string{"Tudo", "Pastas", "Arquivos"}, func(_ string) {
+		ui.applyLeftFilter()
+	})
+	ui.leftTypeFilter.SetSelected("Tudo")
 	ui.rightSearch = widget.NewEntry()
-	ui.rightSearch.SetPlaceHolder("Pesquisar no lado do servidor")
+	ui.rightSearch.SetPlaceHolder("Pesquisar no lado do servidor (nome, ext:log, tipo:pasta)")
+	ui.rightTypeFilter = widget.NewSelect([]string{"Tudo", "Pastas", "Arquivos"}, func(_ string) {
+		ui.applyRightFilter()
+	})
+	ui.rightTypeFilter.SetSelected("Tudo")
 	ui.leftFooterInfo = widget.NewLabel("Local: selecione um item.")
 	ui.leftFooterInfo.Wrapping = fyne.TextWrapWord
 	ui.rightFooterInfo = widget.NewLabel("Servidor: selecione um item.")
@@ -920,11 +930,14 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	const (
 		quickSelectWidth = float32(170)
 		ctxSelectWidth   = float32(185)
+		typeSelectWidth  = float32(130)
 		navBtnWidth      = float32(36)
 	)
 	leftQuickWrap := fynecontainer.NewGridWrap(fyne.NewSize(quickSelectWidth, ui.leftQuick.MinSize().Height), ui.leftQuick)
 	rightQuickWrap := fynecontainer.NewGridWrap(fyne.NewSize(quickSelectWidth, ui.rightQuick.MinSize().Height), ui.rightQuick)
 	ctxSelectWrap := fynecontainer.NewGridWrap(fyne.NewSize(ctxSelectWidth, ui.ctxSelect.MinSize().Height), ui.ctxSelect)
+	leftTypeFilterWrap := fynecontainer.NewGridWrap(fyne.NewSize(typeSelectWidth, ui.leftTypeFilter.MinSize().Height), ui.leftTypeFilter)
+	rightTypeFilterWrap := fynecontainer.NewGridWrap(fyne.NewSize(typeSelectWidth, ui.rightTypeFilter.MinSize().Height), ui.rightTypeFilter)
 	leftBackWrap := fynecontainer.NewGridWrap(fyne.NewSize(navBtnWidth, btnBackLocal.MinSize().Height), btnBackLocal)
 	leftUpWrap := fynecontainer.NewGridWrap(fyne.NewSize(navBtnWidth, btnUpLocal.MinSize().Height), btnUpLocal)
 	leftHomeWrap := fynecontainer.NewGridWrap(fyne.NewSize(navBtnWidth, btnHomeLocal.MinSize().Height), btnHomeLocal)
@@ -948,7 +961,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 			layout.NewSpacer(),
 			leftQuickWrap,
 		),
-		ui.leftSearch,
+		fynecontainer.NewBorder(nil, nil, nil, leftTypeFilterWrap, ui.leftSearch),
 		fynecontainer.NewHBox(
 			ui.btnOpenLocal,
 			ui.btnLeftSend,
@@ -977,7 +990,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 			rightQuickWrap,
 			ctxSelectWrap,
 		),
-		ui.rightSearch,
+		fynecontainer.NewBorder(nil, nil, nil, rightTypeFilterWrap, ui.rightSearch),
 		fynecontainer.NewHBox(
 			ui.btnOpenRemote,
 			ui.btnRightRecv,
@@ -1249,17 +1262,24 @@ func (ui *explorer) refreshLeft() {
 }
 
 func (ui *explorer) applyLeftFilter() {
+	if ui.leftList == nil {
+		return
+	}
 	selectedPath := ""
 	if ui.leftSel >= 0 && ui.leftSel < len(ui.leftRows) {
 		selectedPath = ui.leftRows[ui.leftSel].Path
 	}
-	term := strings.ToLower(strings.TrimSpace(ui.leftSearch.Text))
-	if term == "" {
+	criteria := parseRightFilterCriteria(ui.leftSearch.Text)
+	typeChoice := "Tudo"
+	if ui.leftTypeFilter != nil {
+		typeChoice = strings.TrimSpace(ui.leftTypeFilter.Selected)
+	}
+	if criteria.term == "" && criteria.ext == "" && typeChoice == "Tudo" {
 		ui.leftRows = append([]fsutil.DirEntry(nil), ui.leftAll...)
 	} else {
 		filtered := make([]fsutil.DirEntry, 0, len(ui.leftAll))
 		for _, e := range ui.leftAll {
-			if e.Name == ".." || strings.Contains(strings.ToLower(e.Name), term) {
+			if e.Name == ".." || rightEntryMatches(e, criteria, typeChoice) {
 				filtered = append(filtered, e)
 			}
 		}
@@ -1278,6 +1298,17 @@ func (ui *explorer) applyLeftFilter() {
 	}
 	ui.leftList.Refresh()
 	ui.leftList.ScrollToTop()
+	if criteria.term != "" || criteria.ext != "" || typeChoice != "Tudo" {
+		matches := 0
+		for _, e := range ui.leftRows {
+			if e.Name != ".." {
+				matches++
+			}
+		}
+		if matches == 0 {
+			ui.status.SetText(fmt.Sprintf("Nenhum resultado para o filtro atual em %s.", ui.leftPath))
+		}
+	}
 	ui.updateBreadcrumb()
 	ui.updateActionState()
 	ui.updateSummaryInfo()
@@ -1944,17 +1975,24 @@ func (ui *explorer) listHostWithSudo(ctx context.Context, p string) ([]fsutil.Di
 }
 
 func (ui *explorer) applyRightFilter() {
+	if ui.rightList == nil {
+		return
+	}
 	selectedPath := ""
 	if ui.rightSel >= 0 && ui.rightSel < len(ui.rightRows) {
 		selectedPath = ui.rightRows[ui.rightSel].Path
 	}
-	term := strings.ToLower(strings.TrimSpace(ui.rightSearch.Text))
-	if term == "" {
+	criteria := parseRightFilterCriteria(ui.rightSearch.Text)
+	typeChoice := "Tudo"
+	if ui.rightTypeFilter != nil {
+		typeChoice = strings.TrimSpace(ui.rightTypeFilter.Selected)
+	}
+	if criteria.term == "" && criteria.ext == "" && typeChoice == "Tudo" {
 		ui.rightRows = append([]fsutil.DirEntry(nil), ui.rightAll...)
 	} else {
 		filtered := make([]fsutil.DirEntry, 0, len(ui.rightAll))
 		for _, e := range ui.rightAll {
-			if e.Name == ".." || strings.Contains(strings.ToLower(e.Name), term) {
+			if e.Name == ".." || rightEntryMatches(e, criteria, typeChoice) {
 				filtered = append(filtered, e)
 			}
 		}
@@ -1973,7 +2011,7 @@ func (ui *explorer) applyRightFilter() {
 	}
 	ui.rightList.Refresh()
 	ui.rightList.ScrollToTop()
-	if term != "" {
+	if criteria.term != "" || criteria.ext != "" || typeChoice != "Tudo" {
 		matches := 0
 		for _, e := range ui.rightRows {
 			if e.Name != ".." {
@@ -1981,12 +2019,80 @@ func (ui *explorer) applyRightFilter() {
 			}
 		}
 		if matches == 0 {
-			ui.status.SetText(fmt.Sprintf("Nenhum resultado para \"%s\" em %s.", term, ui.rightPath))
+			ui.status.SetText(fmt.Sprintf("Nenhum resultado para o filtro atual em %s.", ui.rightPath))
 		}
 	}
 	ui.updateBreadcrumb()
 	ui.updateActionState()
 	ui.updateSummaryInfo()
+}
+
+type rightFilterCriteria struct {
+	term string
+	ext  string
+	kind string
+}
+
+func parseRightFilterCriteria(raw string) rightFilterCriteria {
+	out := rightFilterCriteria{}
+	parts := strings.Fields(strings.TrimSpace(raw))
+	terms := make([]string, 0, len(parts))
+	for _, p := range parts {
+		t := strings.TrimSpace(strings.ToLower(p))
+		switch {
+		case strings.HasPrefix(t, "ext:"):
+			out.ext = strings.TrimPrefix(t, "ext:")
+			out.ext = strings.TrimPrefix(out.ext, ".")
+		case strings.HasPrefix(t, "tipo:"):
+			v := strings.TrimPrefix(t, "tipo:")
+			if v == "pasta" || v == "arquivo" {
+				out.kind = v
+			}
+		case strings.HasPrefix(t, "type:"):
+			v := strings.TrimPrefix(t, "type:")
+			if v == "folder" {
+				out.kind = "pasta"
+			}
+			if v == "file" {
+				out.kind = "arquivo"
+			}
+		default:
+			terms = append(terms, t)
+		}
+	}
+	out.term = strings.Join(terms, " ")
+	return out
+}
+
+func rightEntryMatches(e fsutil.DirEntry, c rightFilterCriteria, typeChoice string) bool {
+	name := strings.ToLower(e.Name)
+	if c.term != "" && !strings.Contains(name, c.term) {
+		return false
+	}
+	requiredKind := strings.ToLower(strings.TrimSpace(typeChoice))
+	switch requiredKind {
+	case "pastas":
+		if !e.IsDir {
+			return false
+		}
+	case "arquivos":
+		if e.IsDir {
+			return false
+		}
+	}
+	if c.kind == "pasta" && !e.IsDir {
+		return false
+	}
+	if c.kind == "arquivo" && e.IsDir {
+		return false
+	}
+	if c.ext != "" {
+		if e.IsDir {
+			return false
+		}
+		return strings.HasSuffix(name, "."+c.ext)
+	}
+	return true
 }
 
 func (ui *explorer) goLeftBack() {
@@ -3166,23 +3272,21 @@ func (ui *explorer) focusActiveSearch() {
 }
 
 func (ui *explorer) resetLeftSearch() {
-	if ui.leftSearch == nil {
-		return
+	if ui.leftSearch != nil && strings.TrimSpace(ui.leftSearch.Text) != "" {
+		ui.leftSearch.SetText("")
 	}
-	if strings.TrimSpace(ui.leftSearch.Text) == "" {
-		return
+	if ui.leftTypeFilter != nil && strings.TrimSpace(ui.leftTypeFilter.Selected) != "Tudo" {
+		ui.leftTypeFilter.SetSelected("Tudo")
 	}
-	ui.leftSearch.SetText("")
 }
 
 func (ui *explorer) resetRightSearch() {
-	if ui.rightSearch == nil {
-		return
+	if ui.rightSearch != nil && strings.TrimSpace(ui.rightSearch.Text) != "" {
+		ui.rightSearch.SetText("")
 	}
-	if strings.TrimSpace(ui.rightSearch.Text) == "" {
-		return
+	if ui.rightTypeFilter != nil && strings.TrimSpace(ui.rightTypeFilter.Selected) != "Tudo" {
+		ui.rightTypeFilter.SetSelected("Tudo")
 	}
-	ui.rightSearch.SetText("")
 }
 
 func (ui *explorer) renameActive() {
