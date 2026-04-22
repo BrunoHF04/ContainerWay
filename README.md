@@ -14,10 +14,34 @@ Antes da tela de conexão SSH/SFTP, o app pede **login de acesso local** (usuár
 
 - **Usuário padrão:** `admin`
 - **Senha padrão:** `!q1w2e3r4$`
-- **Cadastro de usuários:** após entrar como `admin`, use o botão **Usuários** na barra superior do explorador para criar, atualizar ou remover usuários de acesso local (o `admin` não pode ser removido).
+- **Cadastro de usuários:** após entrar como `admin`, use o botão **Usuários** na barra superior do explorador para criar, atualizar ou remover usuários de acesso local (o `admin` não pode ser removido). No mesmo diálogo há o atalho **Abrir configuração de alertas por e-mail…**.
 - **Logs:** o nome exibido nos logs segue o cadastro de cada usuário.
 
 > Atenção: isso **não** substitui autenticação do servidor SSH; é apenas uma trava local do app. Em ambientes sensíveis, altere a senha do `admin` e cadastre usuários com senhas fortes.
+
+## Alertas por e-mail (admin)
+
+Somente o usuário **admin** vê o botão **E-mail** na barra superior do explorador (ao lado de **Usuários**). Ali é possível:
+
+- ativar o envio e cadastrar **vários destinatários** (lista com adicionar/remover);
+- configurar **SMTP** (servidor, porta, usuário, senha, remetente **From**);
+- **Salvar**, **Enviar teste** (para todos os destinatários) e **Teste só no remetente (Gmail)** (útil se o e-mail corporativo bloquear o teste geral);
+- o diálogo tem **área rolável** e barra de ações fixa na parte inferior (inclui **Fechar**).
+
+**Quando o app envia e-mails**
+
+1. **Após o login de acesso local** com sucesso: aviso de quem entrou (conta, nome exibido, computador, data/hora).
+2. **Ao encerrar a sessão do explorador** (botão **Sair**, fechar a janela no explorador ou encerrar após erro ao listar Docker): mensagem com o **registro daquela sessão** (mesmo formato do log de atividades). O corpo pode ser **truncado** (últimas linhas) se a sessão for muito longa; o arquivo completo continua no log em disco.
+
+**Dicas (Gmail / Microsoft 365)**
+
+- Gmail costuma usar `smtp.gmail.com`, porta **587**, conta com verificação em duas etapas e **senha de app** (pode colar com espaços; o app remove na hora de autenticar).
+- O **From** deve ser coerente com a conta usada no SMTP.
+- Mensagens para domínios corporativos (`@empresa`) podem ir para **spam**, **lixo** ou **quarentena** do Exchange; o teste só no remetente ajuda a ver se o Gmail aceita o envio.
+
+**Privacidade:** usuário, senha SMTP e destinatários ficam nas **preferências locais** do aplicativo no Windows (como as credenciais de acesso local), não no repositório do projeto.
+
+> Encerrar o processo pelo Gerenciador de Tarefas ou fechar o app na tela de login pode impedir o envio do resumo de sessão.
 
 ## Visão geral das funcionalidades
 
@@ -56,7 +80,8 @@ Antes da tela de conexão SSH/SFTP, o app pede **login de acesso local** (usuár
   - `Enviar`;
   - `Receber`;
   - `Histórico`;
-  - `?` (manual completo do sistema).
+  - `?` (manual completo do sistema);
+  - **Usuários** e **E-mail** (somente para o usuário `admin`).
 - Barra de navegação por painel com:
   - voltar;
   - subir nível;
@@ -177,6 +202,7 @@ Antes da tela de conexão SSH/SFTP, o app pede **login de acesso local** (usuár
 | Host key (`known_hosts`) | `golang.org/x/crypto/ssh/knownhosts` |
 | SFTP | `github.com/pkg/sftp` |
 | Chave PPK (PuTTY) | [`github.com/kayrus/putty`](https://github.com/kayrus/putty) |
+| E-mail (SMTP) | `net/smtp` (pacote interno `internal/mailnotify`) |
 | Docker remoto | `github.com/docker/docker` (cliente Moby) |
 | Concorrência | goroutines, `sync`, `sync/atomic` |
 

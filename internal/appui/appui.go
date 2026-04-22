@@ -83,6 +83,7 @@ const (
 	themeModeSystem    = "system"
 	themeModeLight     = "light"
 	themeModeDark      = "dark"
+	sessionEmailMaxLines = 1500 // máx. de linhas do registro no e-mail de fim de sessão
 )
 
 // Run inicia a aplicação Fyne.
@@ -141,7 +142,9 @@ func buildAccessLogin(w fyne.Window) fyne.CanvasObject {
 			setAuditActor(acc.DisplayName)
 			setCurrentAccessUser(acc.Username)
 			appendAuditLog("acesso", "Login de acesso autorizado")
-			go sendNotifyLoginEmail(acc)
+			if cfg := loadMailNotifySettings(); cfg.Valid() {
+				go sendNotifyLoginEmailWithConfig(copyMailNotifySettingsForAsync(cfg), acc)
+			}
 			setLoginWindow(w)
 			w.SetContent(buildLogin(w))
 			return
@@ -4054,8 +4057,13 @@ func saveMailNotifySettings(s mailnotify.Settings) {
 	p.SetString(notifySMTPFromPreferenceKey, strings.TrimSpace(s.From))
 }
 
-func sendNotifyLoginEmail(acc accessUser) {
-	cfg := loadMailNotifySettings()
+func copyMailNotifySettingsForAsync(s mailnotify.Settings) mailnotify.Settings {
+	out := s
+	out.Recipients = append([]string(nil), s.Recipients...)
+	return out
+}
+
+func sendNotifyLoginEmailWithConfig(cfg mailnotify.Settings, acc accessUser) {
 	if !cfg.Valid() {
 		return
 	}
@@ -4076,17 +4084,34 @@ func sendNotifyLoginEmail(acc accessUser) {
 	}
 }
 
-func sendNotifySessionEndEmail(lines []string) {
-	cfg := loadMailNotifySettings()
+func clipSessionLinesForEmail(lines []string, maxLines int) ([]string, bool) {
+	if maxLines < 1 {
+		maxLines = sessionEmailMaxLines
+	}
+	if len(lines) <= maxLines {
+		return lines, false
+	}
+	return lines[len(lines)-maxLines:], true
+}
+
+func sendNotifySessionEndWithConfig(cfg mailnotify.Settings, lines []string) {
 	if !cfg.Valid() {
 		return
 	}
 	host, _ := os.Hostname()
+	lines, clipped := clipSessionLinesForEmail(lines, sessionEmailMaxLines)
 	body := fmt.Sprintf(
-		"Sessão do ContainerWay encerrada neste computador.\n\nComputador: %s\nData/hora: %s\n\n--- Registro desta sessão ---\n",
+		"Sessão do ContainerWay encerrada neste computador.\n\nComputador: %s\nData/hora: %s\n\n",
 		host,
 		time.Now().Format(time.RFC3339),
 	)
+	if clipped {
+		body += fmt.Sprintf(
+			"[Atenção: o e-mail inclui só as últimas %d linhas do registro da sessão; o arquivo completo continua no log de atividades do aplicativo.]\n\n",
+			sessionEmailMaxLines,
+		)
+	}
+	body += "--- Registro desta sessão ---\n"
 	if len(lines) == 0 {
 		body += "(Nenhuma linha adicional no registro da sessão.)\n"
 	} else {
@@ -4094,13 +4119,22 @@ func sendNotifySessionEndEmail(lines []string) {
 	}
 	if err := cfg.Send("ContainerWay: fim de sessão e registro de atividades", body); err != nil {
 		appendAuditLog("email", "Falha ao enviar resumo de sessão por e-mail: "+err.Error())
+		return
 	}
+	appendAuditLog("email", "Resumo de sessão enviado por e-mail aos destinatários configurados")
 }
 
 func finalizeLocalAccessSession(w fyne.Window, s *session.Session, endMsg string) {
 	appendAuditLog("sessao", endMsg)
 	lines := snapshotSessionAuditLines()
-	go sendNotifySessionEndEmail(lines)
+	cfg := loadMailNotifySettings()
+	if !cfg.Valid() {
+		appendAuditLog("email", "Resumo de sessão por e-mail não enviado: ative os alertas, cadastre destinatários e configure o SMTP.")
+	} else {
+		// Envio síncrono na thread da UI: evita a goroutine terminar depois que a janela já mudou
+		// e garante que o SMTP conclua antes de fechar a sessão SSH.
+		sendNotifySessionEndWithConfig(copyMailNotifySettingsForAsync(cfg), append([]string(nil), lines...))
+	}
 	if s != nil {
 		s.Close()
 	}

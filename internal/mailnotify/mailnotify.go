@@ -118,13 +118,29 @@ func formatFromHeader(envelopeEmail string) string {
 	return fmt.Sprintf("ContainerWay <%s>", email)
 }
 
+// smtpDotStuffCRLF aplica RFC 5321 (DATA): qualquer linha do corpo que comece com '.' deve
+// ser prefixada com outro '.'; caso contrário o servidor pode truncar a mensagem ou rejeitar.
+func smtpDotStuffCRLF(body string) string {
+	body = strings.ReplaceAll(strings.ReplaceAll(body, "\r\n", "\n"), "\n", "\r\n")
+	if body == "" {
+		return ""
+	}
+	lines := strings.Split(body, "\r\n")
+	for i, line := range lines {
+		if strings.HasPrefix(line, ".") {
+			lines[i] = "." + line
+		}
+	}
+	return strings.Join(lines, "\r\n")
+}
+
 func buildMessage(envelopeFrom, toHeader, subject, body string) []byte {
 	domain := messageIDDomain(envelopeFrom)
 	idRand := make([]byte, 10)
 	_, _ = rand.Read(idRand)
 	msgID := fmt.Sprintf("<%s-%d@%s>", hex.EncodeToString(idRand), time.Now().UnixNano(), domain)
 
-	bodyCRLF := strings.ReplaceAll(strings.ReplaceAll(body, "\r\n", "\n"), "\n", "\r\n")
+	bodyCRLF := smtpDotStuffCRLF(body)
 
 	var b strings.Builder
 	b.WriteString("From: " + formatFromHeader(envelopeFrom) + "\r\n")
