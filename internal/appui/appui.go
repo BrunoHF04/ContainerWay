@@ -37,6 +37,16 @@ import (
 	"containerway/internal/transfer"
 )
 
+type transientSecret struct {
+	Password string
+	KeyPass  string
+}
+
+var (
+	loginSecretMu       sync.Mutex
+	loginSessionSecrets = map[string]transientSecret{}
+)
+
 // Run inicia a aplicação Fyne.
 func Run() {
 	a := app.NewWithID("io.containerway.app")
@@ -87,6 +97,7 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 	status := widget.NewLabel("")
 	status.Wrapping = fyne.TextWrapWord
 	saveSecrets := widget.NewCheck("Salvar senha/chave nesta conexão (uso local)", nil)
+	rememberSession := widget.NewCheck("Lembrar senha/chave só nesta sessão", nil)
 	connName := widget.NewEntry()
 	connName.SetPlaceHolder("Nome da conexão (ex.: Produção)")
 	profileSelect := widget.NewSelect([]string{"Nova conexão…"}, nil)
@@ -126,6 +137,12 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 			parallelJobsEntry.SetText(c.ParallelJobs)
 		}
 		saveSecrets.SetChecked(c.Password != "" || c.KeyPass != "")
+		rememberSession.SetChecked(false)
+		if sec, ok := getTransientSecret(profileSecretKey(c.Name, c.Host, c.User)); ok {
+			pass.SetText(sec.Password)
+			keyPass.SetText(sec.KeyPass)
+			rememberSession.SetChecked(true)
+		}
 	}
 
 	clearProfileInputs := func() {
@@ -139,6 +156,7 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 		insecureHost.SetChecked(true)
 		parallelJobsEntry.SetText("3")
 		saveSecrets.SetChecked(false)
+		rememberSession.SetChecked(false)
 		status.SetText("")
 	}
 
@@ -206,6 +224,49 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 	deleteProfile.Importance = widget.DangerImportance
 	rebuildProfileOptions("")
 
+	validationHint := widget.NewLabel("")
+	validationHint.Wrapping = fyne.TextWrapWord
+
+	var connect *widget.Button
+	updateLoginValidation := func() {
+		hostVal := strings.TrimSpace(host.Text)
+		userVal := strings.TrimSpace(user.Text)
+		keyVal := strings.TrimSpace(keyPath.Text)
+		parVal := strings.TrimSpace(parallelJobsEntry.Text)
+		msg := ""
+		canConnect := true
+		switch {
+		case hostVal == "":
+			msg = "Informe o host para conectar."
+			canConnect = false
+		case userVal == "":
+			msg = "Informe o usuário SSH."
+			canConnect = false
+		case strings.TrimSpace(pass.Text) == "" && keyVal == "":
+			msg = "Informe senha ou chave PEM/PPK."
+			canConnect = false
+		default:
+			v, err := strconv.Atoi(parVal)
+			if err != nil || v < 1 || v > 16 {
+				msg = "Paralelismo deve ser entre 1 e 16."
+				canConnect = false
+			} else if keyVal != "" {
+				if _, err := os.Stat(keyVal); err != nil {
+					msg = "Arquivo de chave não encontrado no caminho informado."
+					canConnect = false
+				}
+			}
+		}
+		validationHint.SetText(msg)
+		if connect != nil {
+			if canConnect {
+				connect.Enable()
+			} else {
+				connect.Disable()
+			}
+		}
+	}
+
 	formConn := &widget.Form{
 		Items: []*widget.FormItem{
 			{Text: "Host", Widget: host},
@@ -249,7 +310,7 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 	)
 	tabs.SetTabLocation(fynecontainer.TabLocationTop)
 
-	connect := widget.NewButtonWithIcon("Conectar", theme.LoginIcon(), func() {
+	connect = widget.NewButtonWithIcon("Conectar", theme.LoginIcon(), func() {
 		status.SetText("Conectando…")
 		creds := session.Credentials{
 			Host:              host.Text,
@@ -276,16 +337,61 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 				w.SetContent(buildExplorer(w, sess, pJobs, creds))
 				setExplorerWindow(w)
 			})
+			if rememberSession.Checked {
+				setTransientSecret(profileSecretKey(connName.Text, host.Text, user.Text), transientSecret{
+					Password: pass.Text,
+					KeyPass:  keyPass.Text,
+				})
+			} else {
+				deleteTransientSecret(profileSecretKey(connName.Text, host.Text, user.Text))
+			}
 		}()
 	})
 	connect.Importance = widget.HighImportance
+	testConn := widget.NewButtonWithIcon("Testar conexão", theme.ConfirmIcon(), func() {
+		status.SetText("Testando conexão…")
+		creds := session.Credentials{
+			Host:            host.Text,
+			User:            user.Text,
+			Password:        pass.Text,
+			KeyPath:         strings.TrimSpace(keyPath.Text),
+			KeyPass:         keyPass.Text,
+			KnownHostsFiles: splitKnownHostsFiles(knownHosts.Text),
+			InsecureHostKey: insecureHost.Checked,
+		}
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			sess, err := session.Connect(ctx, creds)
+			if err != nil {
+				fyne.Do(func() {
+					status.SetText("Falha no teste: " + err.Error())
+					dialog.ShowError(err, w)
+				})
+				return
+			}
+			sess.Close()
+			fyne.Do(func() {
+				status.SetText("Teste concluído: SSH/SFTP/Docker OK.")
+			})
+		}()
+	})
 
 	cardInner := fynecontainer.NewVBox(
 		tabs,
+		rememberSession,
+		validationHint,
 		status,
 		widget.NewSeparator(),
-		connect,
+		fynecontainer.NewHBox(testConn, connect),
 	)
+
+	host.OnChanged = func(string) { updateLoginValidation() }
+	user.OnChanged = func(string) { updateLoginValidation() }
+	pass.OnChanged = func(string) { updateLoginValidation() }
+	keyPath.OnChanged = func(string) { updateLoginValidation() }
+	parallelJobsEntry.OnChanged = func(string) { updateLoginValidation() }
+	updateLoginValidation()
 	card := widget.NewCard(
 		"ContainerWay",
 		"SSH · SFTP · Docker remoto sem expor a API em TCP",
@@ -395,6 +501,33 @@ func splitKnownHostsFiles(s string) []string {
 		}
 	}
 	return out
+}
+
+func profileSecretKey(name, host, user string) string {
+	n := strings.TrimSpace(name)
+	if n != "" {
+		return "name:" + strings.ToLower(n)
+	}
+	return "hostuser:" + strings.ToLower(strings.TrimSpace(host)) + "|" + strings.ToLower(strings.TrimSpace(user))
+}
+
+func getTransientSecret(key string) (transientSecret, bool) {
+	loginSecretMu.Lock()
+	defer loginSecretMu.Unlock()
+	sec, ok := loginSessionSecrets[key]
+	return sec, ok
+}
+
+func setTransientSecret(key string, sec transientSecret) {
+	loginSecretMu.Lock()
+	defer loginSecretMu.Unlock()
+	loginSessionSecrets[key] = sec
+}
+
+func deleteTransientSecret(key string) {
+	loginSecretMu.Lock()
+	defer loginSecretMu.Unlock()
+	delete(loginSessionSecrets, key)
 }
 
 func parseParallelWorkers(s string) int {
