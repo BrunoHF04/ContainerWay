@@ -41,13 +41,27 @@ Toda a interface está em **pt-BR**.
 - Navegação por dois painéis:
   - esquerda: computador local;
   - direita: host remoto ou contêiner selecionado.
+- Ações principais no topo:
+  - `Enviar`;
+  - `Receber`;
+  - `Histórico`;
+  - `?` (manual completo do sistema).
 - Barra de navegação por painel com:
   - voltar;
   - subir nível;
   - início;
   - atualizar.
 - Breadcrumbs clicáveis para navegação rápida por níveis.
-- Busca por painel (local e remoto) com limpeza automática ao trocar de pasta/contexto.
+- Busca por painel (local e remoto) com:
+  - texto por nome;
+  - filtro por extensão (`ext:log`);
+  - filtro por tipo (`tipo:pasta`, `tipo:arquivo`);
+  - seletor rápido (`Tudo`, `Pastas`, `Arquivos`);
+  - limpeza automática ao trocar de pasta/contexto.
+- Favoritos por painel:
+  - adicionar pasta atual (`+`);
+  - remover pasta atual (`-`);
+  - persistência entre sessões.
 - Duplo clique:
   - pasta abre;
   - arquivo local abre no app padrão do Windows.
@@ -74,10 +88,32 @@ Toda a interface está em **pt-BR**.
 - Suporte recursivo para diretórios.
 - Drag-and-drop entre painéis para iniciar envio/recebimento.
 - Copiar/colar entre painéis pelo menu de contexto.
+- Transferência em lote de itens visíveis:
+  - `Enviar visíveis`;
+  - `Receber visíveis`;
+  - confirmação antes de executar;
+  - progresso por itens concluídos.
 - Fila de transferências com:
   - progresso;
   - status de tarefa;
   - workers paralelos configuráveis (`1` a `16`).
+
+### Histórico, retry e log geral
+
+- Janela de histórico com abas:
+  - `Sessão`;
+  - `Log geral`.
+- Filtro por texto no histórico e no log geral.
+- Exportação de histórico filtrado para `.log`.
+- Ações de recuperação:
+  - tentar novamente última falha;
+  - tentar novamente todas as falhas (com confirmação).
+- Abertura rápida de:
+  - arquivo do log geral;
+  - pasta de logs.
+- Persistência:
+  - histórico de operações salvo entre sessões;
+  - log geral acumulativo em arquivo com níveis `INFO` e `ERROR`.
 
 ### Docker remoto
 
@@ -115,6 +151,7 @@ Toda a interface está em **pt-BR**.
 - `F3` / `Ctrl+F`: focar busca do painel ativo.
 - `F5`: atualizar painéis.
 - `F6`: transferir conforme o painel ativo (`Enviar` / `Receber`).
+- `Ctrl+Shift+F6`: transferir itens visíveis em lote no painel ativo.
 - `F2`: renomear item selecionado.
 - `Del`: excluir item selecionado (com confirmação).
 - `Ctrl+Shift+N`: criar pasta no painel ativo.
@@ -155,7 +192,7 @@ Toda a interface está em **pt-BR**.
 .\build.ps1
 ```
 
-Saída: `containerway.exe` na raiz.
+Saída: `ContainerWay.exe` na raiz.
 
 Build de validação sem GUI (CI/ambiente sem GCC para Fyne):
 
@@ -166,7 +203,7 @@ go build -tags ci -o containerway_ci.exe ./cmd/containerway/
 ## Execução
 
 ```powershell
-.\containerway.exe
+.\ContainerWay.exe
 ```
 
 Fluxo recomendado:
