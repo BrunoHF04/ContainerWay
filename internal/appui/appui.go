@@ -108,22 +108,46 @@ func setAccessLoginWindow(w fyne.Window) {
 }
 
 func setLoginWindow(w fyne.Window) {
-	w.Resize(fyne.NewSize(460, 440))
+	// Tamanho compatível com abas e formulário; evitar ficar menor que o MinSize do conteúdo.
+	w.Resize(fyne.NewSize(520, 640))
 	w.CenterOnScreen()
 }
 
 func setExplorerWindow(w fyne.Window) {
-	w.Resize(fyne.NewSize(1100, 720))
-	maximizeMainWindow(w)
-	if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
+	switch runtime.GOOS {
+	case "windows", "darwin":
+		// Evitar Resize antes da maximização: no Windows isso deixa a janela em estado
+		// restaurado e, após SetContent, a maximização nativa costuma não permanecer.
+		maximizeMainWindow(w)
+	default:
+		w.Resize(fyne.NewSize(1100, 720))
 		w.CenterOnScreen()
 	}
 }
 
+func setSessionHubWindow(w fyne.Window) {
+	// Tela inicial da sessão: compacta e centralizada. Se a janela vinha maximizada (explorador),
+	// é preciso restaurar antes do Resize — senão o Windows mantém estado maximizado e o layout fica inconsistente.
+	const hubW, hubH float32 = 820, 460
+	restoreNormalMainWindow(w)
+	w.Resize(fyne.NewSize(hubW, hubH))
+	w.CenterOnScreen()
+	fyne.Do(func() {
+		w.Resize(fyne.NewSize(hubW, hubH))
+		w.CenterOnScreen()
+	})
+}
+
 func goToLogin(w fyne.Window) {
 	w.SetCloseIntercept(nil)
-	setAccessLoginWindow(w)
+	// Volta do explorador/hub maximizado: restaurar antes de trocar conteúdo e redimensionar (igual tela Início).
+	restoreNormalMainWindow(w)
 	w.SetContent(buildAccessLogin(w))
+	setAccessLoginWindow(w)
+	fyne.Do(func() {
+		w.Resize(fyne.NewSize(480, 360))
+		w.CenterOnScreen()
+	})
 }
 
 func buildAccessLogin(w fyne.Window) fyne.CanvasObject {
@@ -151,8 +175,10 @@ func buildAccessLogin(w fyne.Window) fyne.CanvasObject {
 			if cfg := loadMailNotifySettings(); cfg.Valid() {
 				go sendNotifyLoginEmailWithConfig(copyMailNotifySettingsForAsync(cfg), acc)
 			}
-			setLoginWindow(w)
 			w.SetContent(buildLogin(w))
+			setLoginWindow(w)
+			// Após SetContent o layout pode alterar o tamanho real da janela; recentrar no próximo ciclo.
+			fyne.Do(func() { w.CenterOnScreen() })
 			return
 		}
 		appendAuditLog("acesso", "Tentativa de login de acesso inválida")
@@ -460,7 +486,7 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 			}
 			fyne.Do(func() {
 				w.SetContent(buildExplorer(w, sess, pJobs, creds))
-				setExplorerWindow(w)
+				setSessionHubWindow(w)
 			})
 			appendAuditLog("login", "Conexão estabelecida com sucesso para "+strings.TrimSpace(host.Text))
 			if rememberSession.Checked {
@@ -656,6 +682,10 @@ type explorer struct {
 	batchFailures        []string
 	opHistory            []string
 	failedJobs           []transfer.Job
+
+	explorerMain   fyne.CanvasObject
+	sessionHub     fyne.CanvasObject
+	explorerOnTop  atomic.Bool // true quando a janela mostra o gerenciador (atalhos do explorador ativos)
 }
 
 type copiedItem struct {
@@ -1051,7 +1081,10 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	ui.lblSudoState = widget.NewLabel("Sudo: inativo")
 	ui.btnDisableSudo = widget.NewButtonWithIcon("Desativar sudo", theme.CancelIcon(), func() { ui.disableSudoMode() })
 
+	btnSessionHome := widget.NewButtonWithIcon("Início", theme.HomeIcon(), func() { ui.showSessionHub() })
+	btnSessionHome.Importance = widget.MediumImportance
 	toolbarItems := []fyne.CanvasObject{
+		btnSessionHome,
 		ui.btnUp,
 		ui.btnDown,
 		btnHistory,
@@ -1209,7 +1242,184 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 		finalizeLocalAccessSession(w, s, "Sessão encerrada (fechamento da janela)")
 	})
 
-	return fynecontainer.NewBorder(top, bottom, nil, nil, split)
+	ui.explorerMain = fynecontainer.NewBorder(top, bottom, nil, nil, split)
+	ui.sessionHub = buildSessionHub(ui)
+	ui.explorerOnTop.Store(false)
+	return ui.sessionHub
+}
+
+// hubSessionCard monta um bloco de módulo com texto que respeita a largura da coluna (evita sobreposição de Cards).
+func hubSessionCard(title, description string, footer fyne.CanvasObject) fyne.CanvasObject {
+	titleLbl := widget.NewLabelWithStyle(title, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	titleLbl.Wrapping = fyne.TextWrapWord
+	descLbl := widget.NewLabel(description)
+	descLbl.Wrapping = fyne.TextWrapWord
+	inner := fynecontainer.NewVBox(
+		titleLbl,
+		descLbl,
+		widget.NewSeparator(),
+		footer,
+	)
+	return panelCard(fynecontainer.NewPadded(inner))
+}
+
+func buildSessionHub(ui *explorer) fyne.CanvasObject {
+	host := strings.TrimSpace(ui.connCreds.Host)
+	if host == "" {
+		host = "(host não informado)"
+	}
+	sub := widget.NewLabel("Conectado a: " + host)
+	sub.Alignment = fyne.TextAlignCenter
+	sub.Wrapping = fyne.TextWrapWord
+
+	search := widget.NewEntry()
+	search.SetPlaceHolder("Pesquisar módulos (ex.: arquivos, docker, e-mail, usuários)…")
+
+	openFiles := widget.NewButtonWithIcon("Abrir", theme.FolderIcon(), func() {
+		ui.win.SetContent(ui.explorerMain)
+		ui.explorerOnTop.Store(true)
+		setExplorerWindow(ui.win)
+	})
+	openFiles.Importance = widget.MediumImportance
+	cardFiles := hubSessionCard(
+		"Gerenciador de arquivos",
+		"Pastas no computador local, no servidor e nos contêineres. Envio e recebimento de arquivos.",
+		fynecontainer.NewPadded(openFiles),
+	)
+
+	openDocker := widget.NewButtonWithIcon("Abrir", theme.StorageIcon(), func() {
+		ui.showDockerContainerManager()
+	})
+	openDocker.Importance = widget.MediumImportance
+	cardDocker := hubSessionCard(
+		"Contêineres Docker",
+		"Lista do que está em execução no host, com opção de reinício unitário ou em lote.",
+		fynecontainer.NewPadded(openDocker),
+	)
+
+	type hubModule struct {
+		wrap fyne.CanvasObject
+		blob string
+	}
+	var mods []hubModule
+	mods = append(mods, hubModule{
+		wrap: fynecontainer.NewPadded(cardFiles),
+		blob: "gerenciador arquivos arquivo pasta servidor sftp transferência local remoto explorador receber enviar",
+	})
+	mods = append(mods, hubModule{
+		wrap: fynecontainer.NewPadded(cardDocker),
+		blob: "docker contêiner container rodando reiniciar host imagem compose",
+	})
+
+	if isCurrentAccessAdmin() {
+		btnUsers := widget.NewButtonWithIcon("Usuários", theme.AccountIcon(), func() { ui.showAccessUserManager() })
+		btnMail := widget.NewButtonWithIcon("Alertas por e-mail", theme.MailComposeIcon(), func() { ui.showMailNotifySettings() })
+		btnUsers.Importance = widget.MediumImportance
+		btnMail.Importance = widget.MediumImportance
+		settingsBody := fynecontainer.NewVBox(
+			fynecontainer.NewPadded(btnUsers),
+			fynecontainer.NewPadded(btnMail),
+		)
+		cardSettings := hubSessionCard(
+			"Configurações",
+			"Contas de acesso ao aplicativo e alertas por SMTP.",
+			settingsBody,
+		)
+		mods = append(mods, hubModule{
+			wrap: fynecontainer.NewPadded(cardSettings),
+			blob: "configurações configuração usuário usuários admin e-mail email smtp alerta notificação destinatário",
+		})
+	}
+
+	hint := widget.NewLabel("")
+	hint.Wrapping = fyne.TextWrapWord
+
+	matchQuery := func(q, blob string) bool {
+		q = strings.TrimSpace(strings.ToLower(q))
+		if q == "" {
+			return true
+		}
+		blob = strings.ToLower(blob)
+		if strings.Contains(blob, q) {
+			return true
+		}
+		for _, w := range strings.Fields(q) {
+			if len(w) < 2 {
+				continue
+			}
+			if strings.Contains(blob, w) {
+				return true
+			}
+		}
+		return false
+	}
+
+	applyFilter := func(q string) {
+		nShown := 0
+		for _, m := range mods {
+			if matchQuery(q, m.blob) {
+				m.wrap.Show()
+				nShown++
+			} else {
+				m.wrap.Hide()
+			}
+		}
+		if nShown == 0 {
+			hint.SetText("Nenhum módulo corresponde à pesquisa. Limpe o campo ou tente outras palavras.")
+		} else {
+			hint.SetText("")
+		}
+	}
+
+	search.OnChanged = func(_ string) {
+		applyFilter(search.Text)
+	}
+
+	ncols := len(mods)
+	if ncols > 3 {
+		ncols = 3
+	}
+	grid := fynecontainer.NewGridWithColumns(ncols)
+	for _, m := range mods {
+		grid.Add(m.wrap)
+	}
+
+	head := widget.NewLabelWithStyle("Início da sessão", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+
+	top := fynecontainer.NewVBox(
+		head,
+		sub,
+		widget.NewSeparator(),
+		search,
+		hint,
+		widget.NewSeparator(),
+	)
+
+	// NewCenter usaria só o MinSize da grade — com 2 colunas (não admin) ficava estreita e “torta”.
+	// NewMax faz a grade usar toda a largura da janela; cada coluna divide o espaço igualmente.
+	moduleRow := fynecontainer.NewMax(grid)
+	fill := fynecontainer.NewVBox(
+		layout.NewSpacer(),
+		moduleRow,
+		layout.NewSpacer(),
+	)
+	root := fynecontainer.NewBorder(
+		fynecontainer.NewPadded(top),
+		nil, nil, nil,
+		fill,
+	)
+
+	applyFilter("")
+	return fynecontainer.NewPadded(root)
+}
+
+func (ui *explorer) showSessionHub() {
+	if ui.sessionHub == nil || ui.explorerMain == nil {
+		return
+	}
+	ui.explorerOnTop.Store(false)
+	ui.win.SetContent(ui.sessionHub)
+	setSessionHubWindow(ui.win)
 }
 
 func homeOrRoot() string {
@@ -3312,6 +3522,9 @@ func (ui *explorer) registerExplorerShortcuts() {
 		if ui.dialogShortcutActive.Load() {
 			return
 		}
+		if !ui.explorerOnTop.Load() {
+			return
+		}
 		if _, ok := ui.win.Canvas().Focused().(*widget.Entry); ok {
 			return
 		}
@@ -3361,12 +3574,21 @@ func (ui *explorer) registerExplorerShortcuts() {
 		}
 	})
 	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyF, Modifier: fyne.KeyModifierControl}, func(fyne.Shortcut) {
+		if !ui.explorerOnTop.Load() {
+			return
+		}
 		ui.focusActiveSearch()
 	})
 	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyN, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}, func(fyne.Shortcut) {
+		if !ui.explorerOnTop.Load() {
+			return
+		}
 		ui.createFolderActive()
 	})
 	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyF6, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}, func(fyne.Shortcut) {
+		if !ui.explorerOnTop.Load() {
+			return
+		}
 		if ui.activePane == "left" {
 			ui.uploadVisibleBatch()
 		} else {
@@ -4611,8 +4833,9 @@ ContainerWay - Manual de uso
 1) Visão geral
 - Painel esquerdo: computador local.
 - Painel direito: servidor remoto (host) ou contêiner selecionado.
-- Barra superior: enviar/receber, histórico, contêineres Docker, manual e sair.
+- Barra superior: início, enviar/receber, histórico, contêineres Docker, manual e sair.
 - Barra de status: mostra ações, progresso e mensagens.
+- Após conectar, aparece a tela "Início da sessão" com atalhos para módulos; use "Início" na barra para voltar a ela.
 
 2) Conexão e login
 - Configure Host, Usuário e Senha (ou chave).
@@ -4655,8 +4878,9 @@ ContainerWay - Manual de uso
 - É possível atualizar a lista, reiniciar o selecionado ou reiniciar todos os da lista (com confirmação).
 
 9) Janela principal (explorador)
-- Após conectar com sucesso, a janela do explorador tenta maximizar automaticamente no Windows e no macOS.
-- Em outros sistemas, a janela permanece redimensionável e centralizada.
+- Após conectar com sucesso, abre-se primeiro a tela inicial da sessão em janela compacta e centralizada.
+- Ao abrir o gerenciador de arquivos, a janela tenta maximizar automaticamente no Windows e no macOS.
+- Em outros sistemas, o gerenciador permanece redimensionável e centralizado.
 
 10) Histórico e log
 - Botão "Histórico" abre:
@@ -4669,6 +4893,7 @@ ContainerWay - Manual de uso
   - tentar novamente última falha ou todas as falhas.
 
 11) Atalhos de teclado
+- Os atalhos abaixo valem com o foco no gerenciador de arquivos (não na tela inicial da sessão).
 - Enter: abrir item/pasta no painel ativo.
 - Backspace: subir nível no painel ativo.
 - Tab: alternar foco entre painéis.

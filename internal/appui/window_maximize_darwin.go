@@ -16,6 +16,14 @@ void containerwayMaximizeWindow(void *ptr) {
 	NSRect frame = [screen visibleFrame];
 	[win setFrame:frame display:YES];
 }
+
+void containerwayRestoreNormalWindow(void *ptr) {
+	if (!ptr) { return; }
+	NSWindow *win = (NSWindow *)ptr;
+	if ([win isZoomed]) {
+		[win zoom:nil];
+	}
+}
 */
 import "C"
 
@@ -40,5 +48,22 @@ func maximizeMainWindow(w fyne.Window) {
 			return
 		}
 		C.containerwayMaximizeWindow(unsafe.Pointer(uintptr(c.NSWindow)))
+	})
+}
+
+func restoreNormalMainWindow(w fyne.Window) {
+	if w == nil {
+		return
+	}
+	nw, ok := w.(driver.NativeWindow)
+	if !ok {
+		return
+	}
+	nw.RunNative(func(ctx any) {
+		c, ok := ctx.(driver.MacWindowContext)
+		if !ok || c.NSWindow == 0 {
+			return
+		}
+		C.containerwayRestoreNormalWindow(unsafe.Pointer(uintptr(c.NSWindow)))
 	})
 }
