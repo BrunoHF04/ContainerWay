@@ -554,6 +554,7 @@ type explorer struct {
 	batchDone            int
 	batchFailures        []string
 	opHistory            []string
+	failedJobs           []transfer.Job
 }
 
 type copiedItem struct {
@@ -2961,6 +2962,9 @@ func (ui *explorer) startDrain() {
 			fyne.Do(func() {
 				batchActive, batchFinished, batchDone, batchTotal, batchProgress, batchSummary, batchErr := ui.consumeBatchResult(j, err)
 				if batchActive {
+					if err != nil {
+						ui.rememberFailedJob(j)
+					}
 					ui.progress.Show()
 					if batchTotal > 0 {
 						ui.progress.SetValue(float64(batchDone) / float64(batchTotal))
@@ -2986,6 +2990,7 @@ func (ui *explorer) startDrain() {
 				ui.progress.SetValue(1)
 				ui.progress.Hide()
 				if err != nil {
+					ui.rememberFailedJob(j)
 					ui.status.SetText(fmt.Sprintf("Erro: %v", err))
 					ui.appendOperationHistory(fmt.Sprintf("Falha: %s | %v", j.Name, err))
 					dialog.ShowError(err, ui.win)
@@ -3817,6 +3822,29 @@ func (ui *explorer) appendOperationHistory(entry string) {
 	}
 }
 
+func (ui *explorer) rememberFailedJob(job transfer.Job) {
+	if job.Run == nil {
+		return
+	}
+	ui.failedJobs = append(ui.failedJobs, job)
+	const maxFailedJobs = 20
+	if len(ui.failedJobs) > maxFailedJobs {
+		ui.failedJobs = ui.failedJobs[len(ui.failedJobs)-maxFailedJobs:]
+	}
+}
+
+func (ui *explorer) retryLastFailedOperation() {
+	if len(ui.failedJobs) == 0 {
+		dialog.ShowInformation("Histórico", "Não há falhas recentes para tentar novamente.", ui.win)
+		return
+	}
+	job := ui.failedJobs[len(ui.failedJobs)-1]
+	ui.tm.Enqueue(job)
+	ui.appendOperationHistory("Reexecução solicitada: " + job.Name)
+	ui.status.SetText("Reexecutando última falha: " + job.Name)
+	ui.startDrain()
+}
+
 func (ui *explorer) showOperationHistory() {
 	content := "Sem operações registradas nesta sessão."
 	if len(ui.opHistory) > 0 {
@@ -3832,17 +3860,22 @@ func (ui *explorer) showOperationHistory() {
 	log.Wrapping = fyne.TextWrapWord
 	scroll := fynecontainer.NewScroll(log)
 	scroll.SetMinSize(fyne.NewSize(820, 360))
-	historyDialog := dialog.NewCustomConfirm(
+	btnRetry := widget.NewButtonWithIcon("Tentar novamente última falha", theme.ViewRefreshIcon(), func() {
+		ui.retryLastFailedOperation()
+	})
+	btnClear := widget.NewButtonWithIcon("Limpar histórico", theme.DeleteIcon(), func() {
+		ui.opHistory = nil
+		ui.status.SetText("Histórico de operações limpo.")
+		log.SetText("Sem operações registradas nesta sessão.")
+	})
+	if len(ui.failedJobs) == 0 {
+		btnRetry.Disable()
+	}
+	contentWrap := fynecontainer.NewBorder(nil, fynecontainer.NewHBox(btnRetry, btnClear), nil, nil, scroll)
+	historyDialog := dialog.NewCustom(
 		"Histórico de operações",
-		"Limpar",
 		"Fechar",
-		scroll,
-		func(clear bool) {
-			if clear {
-				ui.opHistory = nil
-				ui.status.SetText("Histórico de operações limpo.")
-			}
-		},
+		contentWrap,
 		ui.win,
 	)
 	historyDialog.Resize(fyne.NewSize(860, 420))
