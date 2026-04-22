@@ -2,6 +2,7 @@ package appui
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"image/color"
@@ -50,6 +51,8 @@ var (
 
 const (
 	themePreferenceKey = "ui.theme.mode"
+	leftFavoritesPreferenceKey  = "explorer.left.favorites"
+	rightFavoritesPreferenceKey = "explorer.right.favorites"
 	themeModeSystem    = "system"
 	themeModeLight     = "light"
 	themeModeDark      = "dark"
@@ -569,6 +572,47 @@ type remoteEditSession struct {
 	stopped     atomic.Bool
 }
 
+type hintIconButton struct {
+	widget.Button
+	hint    string
+	status  *widget.Label
+	prevMsg string
+	hover   bool
+}
+
+func newHintIconButton(icon fyne.Resource, hint string, status *widget.Label, tapped func()) *hintIconButton {
+	b := &hintIconButton{
+		hint:   strings.TrimSpace(hint),
+		status: status,
+	}
+	b.Text = ""
+	b.Icon = icon
+	b.OnTapped = tapped
+	b.ExtendBaseWidget(b)
+	return b
+}
+
+func (b *hintIconButton) MouseIn(ev *desktop.MouseEvent) {
+	b.Button.MouseIn(ev)
+	if b.status == nil || b.hint == "" {
+		return
+	}
+	b.prevMsg = b.status.Text
+	b.hover = true
+	b.status.SetText(b.hint)
+}
+
+func (b *hintIconButton) MouseOut() {
+	b.Button.MouseOut()
+	if b.status == nil || !b.hover {
+		return
+	}
+	if b.status.Text == b.hint {
+		b.status.SetText(b.prevMsg)
+	}
+	b.hover = false
+}
+
 func splitKnownHostsFiles(s string) []string {
 	var out []string
 	for _, part := range strings.Split(s, "|") {
@@ -866,6 +910,8 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	ui.btnRightRecv.Importance = widget.HighImportance
 	btnLeftSendBatch.Importance = widget.MediumImportance
 	btnRightRecvBatch.Importance = widget.MediumImportance
+	btnAddLeftFavorite := newHintIconButton(theme.ContentAddIcon(), "Salvar pasta atual nos atalhos do computador local", ui.status, func() { ui.addLeftFavoriteCurrentPath() })
+	btnAddRightFavorite := newHintIconButton(theme.ContentAddIcon(), "Salvar pasta atual nos atalhos do servidor", ui.status, func() { ui.addRightFavoriteCurrentPath() })
 	btnBackLocal := widget.NewButtonWithIcon("", theme.NavigateBackIcon(), func() { ui.goLeftBack() })
 	btnUpLocal := widget.NewButtonWithIcon("", theme.MoveUpIcon(), func() { ui.goLeftUp() })
 	btnHomeLocal := widget.NewButtonWithIcon("", theme.HomeIcon(), func() { ui.goLeftHome() })
@@ -901,7 +947,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 		widget.NewSeparator(),
 	)
 
-	leftFavs := ui.defaultLocalShortcuts()
+	leftFavs := ui.localShortcutOptions()
 	ui.leftQuick = widget.NewSelect(leftFavs, func(sel string) {
 		p, ok := ui.resolveLocalShortcut(sel)
 		if !ok || p == "" || p == ui.leftPath {
@@ -914,7 +960,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	})
 	ui.leftQuick.SetSelected("Diretório inicial")
 
-	rightFavs := []string{"/", "/home", "/opt", "/var", "/tmp"}
+	rightFavs := ui.remoteShortcutOptions()
 	ui.rightQuick = widget.NewSelect(rightFavs, func(sel string) {
 		p := strings.TrimSpace(sel)
 		if p == "" || p == ui.rightPath {
@@ -960,6 +1006,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 			leftReloadWrap,
 			layout.NewSpacer(),
 			leftQuickWrap,
+			btnAddLeftFavorite,
 		),
 		fynecontainer.NewBorder(nil, nil, nil, leftTypeFilterWrap, ui.leftSearch),
 		fynecontainer.NewHBox(
@@ -988,6 +1035,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 			rightReloadWrap,
 			layout.NewSpacer(),
 			rightQuickWrap,
+			btnAddRightFavorite,
 			ctxSelectWrap,
 		),
 		fynecontainer.NewBorder(nil, nil, nil, rightTypeFilterWrap, ui.rightSearch),
@@ -3540,6 +3588,122 @@ func (ui *explorer) defaultLocalShortcuts() []string {
 	return []string{"Diretório inicial", "Desktop", "Documentos", "Downloads"}
 }
 
+func defaultRemoteShortcuts() []string {
+	return []string{"/", "/home", "/opt", "/var", "/tmp"}
+}
+
+func uniqueNonEmpty(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, raw := range values {
+		v := strings.TrimSpace(raw)
+		if v == "" {
+			continue
+		}
+		key := strings.ToLower(v)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, v)
+	}
+	return out
+}
+
+func loadStringSlicePreference(key string) []string {
+	app := fyne.CurrentApp()
+	if app == nil {
+		return nil
+	}
+	raw := strings.TrimSpace(app.Preferences().StringWithFallback(key, ""))
+	if raw == "" {
+		return nil
+	}
+	var values []string
+	if err := json.Unmarshal([]byte(raw), &values); err != nil {
+		return nil
+	}
+	return uniqueNonEmpty(values)
+}
+
+func saveStringSlicePreference(key string, values []string) {
+	app := fyne.CurrentApp()
+	if app == nil {
+		return
+	}
+	clean := uniqueNonEmpty(values)
+	if len(clean) == 0 {
+		app.Preferences().SetString(key, "")
+		return
+	}
+	buf, err := json.Marshal(clean)
+	if err != nil {
+		return
+	}
+	app.Preferences().SetString(key, string(buf))
+}
+
+func (ui *explorer) localShortcutOptions() []string {
+	base := ui.defaultLocalShortcuts()
+	saved := loadStringSlicePreference(leftFavoritesPreferenceKey)
+	return uniqueNonEmpty(append(base, saved...))
+}
+
+func (ui *explorer) remoteShortcutOptions() []string {
+	base := defaultRemoteShortcuts()
+	saved := loadStringSlicePreference(rightFavoritesPreferenceKey)
+	return uniqueNonEmpty(append(base, saved...))
+}
+
+func (ui *explorer) refreshLeftShortcutOptions(selectPath string) {
+	if ui.leftQuick == nil {
+		return
+	}
+	ui.leftQuick.Options = ui.localShortcutOptions()
+	ui.leftQuick.Refresh()
+	if strings.TrimSpace(selectPath) != "" {
+		ui.leftQuick.SetSelected(selectPath)
+	}
+}
+
+func (ui *explorer) refreshRightShortcutOptions(selectPath string) {
+	if ui.rightQuick == nil {
+		return
+	}
+	ui.rightQuick.Options = ui.remoteShortcutOptions()
+	ui.rightQuick.Refresh()
+	if strings.TrimSpace(selectPath) != "" {
+		ui.rightQuick.SetSelected(selectPath)
+	}
+}
+
+func (ui *explorer) addLeftFavoriteCurrentPath() {
+	p := strings.TrimSpace(ui.leftPath)
+	if p == "" {
+		return
+	}
+	if _, builtIn := ui.resolveLocalShortcut(p); builtIn {
+		ui.refreshLeftShortcutOptions(p)
+		ui.status.SetText("Atalho local já disponível.")
+		return
+	}
+	saved := append(loadStringSlicePreference(leftFavoritesPreferenceKey), p)
+	saveStringSlicePreference(leftFavoritesPreferenceKey, saved)
+	ui.refreshLeftShortcutOptions(p)
+	ui.status.SetText("Atalho local salvo: " + p)
+}
+
+func (ui *explorer) addRightFavoriteCurrentPath() {
+	p := strings.TrimSpace(ui.rightPath)
+	if p == "" {
+		return
+	}
+	saved := append(loadStringSlicePreference(rightFavoritesPreferenceKey), p)
+	saveStringSlicePreference(rightFavoritesPreferenceKey, saved)
+	ui.refreshRightShortcutOptions(p)
+	ui.status.SetText("Atalho do servidor salvo: " + p)
+}
+
 func (ui *explorer) resolveLocalShortcut(sel string) (string, bool) {
 	home := homeOrRoot()
 	switch sel {
@@ -3552,6 +3716,9 @@ func (ui *explorer) resolveLocalShortcut(sel string) (string, bool) {
 	case "Downloads":
 		return filepath.Join(home, "Downloads"), true
 	default:
+		if strings.TrimSpace(sel) != "" {
+			return sel, true
+		}
 		return "", false
 	}
 }
