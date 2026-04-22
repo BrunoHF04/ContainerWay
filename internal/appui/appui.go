@@ -104,14 +104,20 @@ func Run() {
 
 func setAccessLoginWindow(w fyne.Window) {
 	w.Resize(fyne.NewSize(480, 360))
+	w.CenterOnScreen()
 }
 
 func setLoginWindow(w fyne.Window) {
 	w.Resize(fyne.NewSize(460, 440))
+	w.CenterOnScreen()
 }
 
 func setExplorerWindow(w fyne.Window) {
 	w.Resize(fyne.NewSize(1100, 720))
+	maximizeMainWindow(w)
+	if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
+		w.CenterOnScreen()
+	}
 }
 
 func goToLogin(w fyne.Window) {
@@ -1030,6 +1036,8 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	ui.btnDown = widget.NewButtonWithIcon("Receber", theme.DownloadIcon(), func() { ui.download() })
 	ui.btnDown.Importance = widget.HighImportance
 	btnHistory := widget.NewButtonWithIcon("Histórico", theme.HistoryIcon(), func() { ui.showOperationHistory() })
+	btnDocker := widget.NewButtonWithIcon("Contêineres Docker", theme.StorageIcon(), func() { ui.showDockerContainerManager() })
+	btnDocker.Importance = widget.MediumImportance
 	btnManual := widget.NewButton("?", func() { ui.showUserManual() })
 	btnManual.Importance = widget.MediumImportance
 	btnManageUsers := widget.NewButtonWithIcon("Usuários", theme.AccountIcon(), func() { ui.showAccessUserManager() })
@@ -1047,6 +1055,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 		ui.btnUp,
 		ui.btnDown,
 		btnHistory,
+		btnDocker,
 		btnManual,
 	}
 	if isCurrentAccessAdmin() {
@@ -4602,7 +4611,7 @@ ContainerWay - Manual de uso
 1) Visão geral
 - Painel esquerdo: computador local.
 - Painel direito: servidor remoto (host) ou contêiner selecionado.
-- Barra superior: enviar/receber, histórico, manual e sair.
+- Barra superior: enviar/receber, histórico, contêineres Docker, manual e sair.
 - Barra de status: mostra ações, progresso e mensagens.
 
 2) Conexão e login
@@ -4641,7 +4650,15 @@ ContainerWay - Manual de uso
 - Em arquivo remoto, use abrir para edição.
 - O app sincroniza de volta quando detectar salvamento local.
 
-8) Histórico e log
+8) Contêineres Docker no servidor
+- Botão "Contêineres Docker" lista só contêineres em execução no host conectado.
+- É possível atualizar a lista, reiniciar o selecionado ou reiniciar todos os da lista (com confirmação).
+
+9) Janela principal (explorador)
+- Após conectar com sucesso, a janela do explorador tenta maximizar automaticamente no Windows e no macOS.
+- Em outros sistemas, a janela permanece redimensionável e centralizada.
+
+10) Histórico e log
 - Botão "Histórico" abre:
   - aba Sessão (eventos recentes da sessão).
   - aba Log geral (acumulado entre usos).
@@ -4651,7 +4668,7 @@ ContainerWay - Manual de uso
   - abrir log geral e pasta de logs.
   - tentar novamente última falha ou todas as falhas.
 
-9) Atalhos de teclado
+11) Atalhos de teclado
 - Enter: abrir item/pasta no painel ativo.
 - Backspace: subir nível no painel ativo.
 - Tab: alternar foco entre painéis.
@@ -4663,7 +4680,7 @@ ContainerWay - Manual de uso
 - Del: excluir.
 - Ctrl+Shift+N: nova pasta.
 
-10) Dicas e solução rápida
+12) Dicas e solução rápida
 - Erro de permissão no servidor: considere ativar sudo quando necessário.
 - Falhas em lote: use histórico para reexecutar sem repetir tudo manualmente.
 - Se não aparecer resultado, revise filtros (tipo/extensão/texto).
