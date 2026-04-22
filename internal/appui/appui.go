@@ -2,6 +2,7 @@ package appui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"image/color"
 	"io"
@@ -541,6 +542,12 @@ type explorer struct {
 	dragItemID           widget.ListItemID
 	dragAccumX           float32
 	copiedEntry          *copiedItem
+	batchMu              sync.Mutex
+	batchRunning         bool
+	batchLabel           string
+	batchTotal           int
+	batchDone            int
+	batchFailures        []string
 }
 
 type copiedItem struct {
@@ -841,10 +848,14 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	ui.btnOpenRemote = widget.NewButtonWithIcon("Abrir", theme.FolderOpenIcon(), func() { ui.onRightActivate() })
 	ui.btnLeftSend = widget.NewButtonWithIcon("Enviar", theme.UploadIcon(), func() { ui.upload() })
 	ui.btnRightRecv = widget.NewButtonWithIcon("Receber", theme.DownloadIcon(), func() { ui.download() })
+	btnLeftSendBatch := widget.NewButtonWithIcon("Enviar visíveis", theme.ContentAddIcon(), func() { ui.uploadVisibleBatch() })
+	btnRightRecvBatch := widget.NewButtonWithIcon("Receber visíveis", theme.ContentAddIcon(), func() { ui.downloadVisibleBatch() })
 	ui.btnOpenLocal.Importance = widget.MediumImportance
 	ui.btnOpenRemote.Importance = widget.MediumImportance
 	ui.btnLeftSend.Importance = widget.HighImportance
 	ui.btnRightRecv.Importance = widget.HighImportance
+	btnLeftSendBatch.Importance = widget.MediumImportance
+	btnRightRecvBatch.Importance = widget.MediumImportance
 	btnBackLocal := widget.NewButtonWithIcon("", theme.NavigateBackIcon(), func() { ui.goLeftBack() })
 	btnUpLocal := widget.NewButtonWithIcon("", theme.MoveUpIcon(), func() { ui.goLeftUp() })
 	btnHomeLocal := widget.NewButtonWithIcon("", theme.HomeIcon(), func() { ui.goLeftHome() })
@@ -941,6 +952,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 		fynecontainer.NewHBox(
 			ui.btnOpenLocal,
 			ui.btnLeftSend,
+			btnLeftSendBatch,
 		),
 	)
 	leftPaneBase := fynecontainer.NewBorder(
@@ -969,6 +981,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 		fynecontainer.NewHBox(
 			ui.btnOpenRemote,
 			ui.btnRightRecv,
+			btnRightRecvBatch,
 		),
 	)
 	rightPaneBase := fynecontainer.NewBorder(
@@ -2438,6 +2451,119 @@ func (ui *explorer) download() {
 	ui.startDrain()
 }
 
+func transferableEntries(rows []fsutil.DirEntry) []fsutil.DirEntry {
+	out := make([]fsutil.DirEntry, 0, len(rows))
+	for _, e := range rows {
+		if e.Name == ".." {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
+func (ui *explorer) uploadVisibleBatch() {
+	items := transferableEntries(ui.leftRows)
+	if len(items) == 0 {
+		dialog.ShowInformation("ContainerWay", "Não há itens visíveis no painel local para enviar.", ui.win)
+		return
+	}
+	msg := fmt.Sprintf("Enviar %d item(ns) visível(is) para %s?", len(items), ui.rightPath)
+	dialog.ShowConfirm("Enviar em lote", msg, func(ok bool) {
+		if !ok {
+			return
+		}
+		ui.beginBatch("Envio em lote", len(items))
+		for _, entry := range items {
+			ui.enqueueLocalToRemote(entry, ui.rightPath)
+		}
+		ui.status.SetText(fmt.Sprintf("Fila iniciada: %d item(ns) para envio", len(items)))
+		ui.startDrain()
+	}, ui.win)
+}
+
+func (ui *explorer) downloadVisibleBatch() {
+	items := transferableEntries(ui.rightRows)
+	if len(items) == 0 {
+		dialog.ShowInformation("ContainerWay", "Não há itens visíveis no painel do servidor para receber.", ui.win)
+		return
+	}
+	msg := fmt.Sprintf("Receber %d item(ns) visível(is) em %s?", len(items), ui.leftPath)
+	dialog.ShowConfirm("Receber em lote", msg, func(ok bool) {
+		if !ok {
+			return
+		}
+		ui.beginBatch("Recebimento em lote", len(items))
+		containerID := ""
+		if !ui.hostMode && ui.cfs != nil {
+			containerID = ui.cfs.ID
+		}
+		for _, entry := range items {
+			ui.enqueueRemoteToLocal(copiedItem{
+				entry:       entry,
+				hostMode:    ui.hostMode,
+				containerID: containerID,
+			}, ui.leftPath)
+		}
+		ui.status.SetText(fmt.Sprintf("Fila iniciada: %d item(ns) para recebimento", len(items)))
+		ui.startDrain()
+	}, ui.win)
+}
+
+func (ui *explorer) beginBatch(label string, total int) {
+	ui.batchMu.Lock()
+	defer ui.batchMu.Unlock()
+	ui.batchRunning = total > 0
+	ui.batchLabel = label
+	ui.batchTotal = total
+	ui.batchDone = 0
+	ui.batchFailures = nil
+}
+
+func (ui *explorer) batchSnapshot() (running bool, done int, total int) {
+	ui.batchMu.Lock()
+	defer ui.batchMu.Unlock()
+	return ui.batchRunning, ui.batchDone, ui.batchTotal
+}
+
+func (ui *explorer) consumeBatchResult(job transfer.Job, err error) (active bool, finished bool, done int, total int, progress string, summary string, summaryErr error) {
+	ui.batchMu.Lock()
+	defer ui.batchMu.Unlock()
+	if !ui.batchRunning {
+		return false, false, 0, 0, "", "", nil
+	}
+	ui.batchDone++
+	if err != nil {
+		ui.batchFailures = append(ui.batchFailures, fmt.Sprintf("%s: %v", job.Name, err))
+	}
+	if ui.batchDone < ui.batchTotal {
+		return true, false, ui.batchDone, ui.batchTotal, fmt.Sprintf("Lote em andamento: %d/%d", ui.batchDone, ui.batchTotal), "", nil
+	}
+	total = ui.batchTotal
+	fails := len(ui.batchFailures)
+	ok := total - fails
+	label := strings.TrimSpace(ui.batchLabel)
+	if label == "" {
+		label = "Transferência em lote"
+	}
+	ui.batchRunning = false
+	ui.batchLabel = ""
+	ui.batchTotal = 0
+	ui.batchDone = 0
+	if fails == 0 {
+		return true, true, total, total, "", fmt.Sprintf("%s concluída: %d sucesso(s), 0 falha(s).", label, ok), nil
+	}
+	preview := ui.batchFailures
+	if len(preview) > 4 {
+		preview = preview[:4]
+	}
+	msg := fmt.Sprintf("%s concluída: %d sucesso(s), %d falha(s).\n\nFalhas:\n- %s", label, ok, fails, strings.Join(preview, "\n- "))
+	if len(ui.batchFailures) > len(preview) {
+		msg += fmt.Sprintf("\n- ... e mais %d falha(s)", len(ui.batchFailures)-len(preview))
+	}
+	return true, true, total, total, "", "", errors.New(msg)
+}
+
 func (ui *explorer) enqueueLocalToRemote(src fsutil.DirEntry, dstDir string) {
 	dstName := filepath.Base(src.Path)
 	if src.IsDir {
@@ -2664,13 +2790,40 @@ func (ui *explorer) startDrain() {
 		func(j transfer.Job) {
 			fyne.Do(func() {
 				ui.progress.Show()
-				ui.progress.SetValue(0)
+				batchRunning, batchDone, batchTotal := ui.batchSnapshot()
+				if batchRunning && batchTotal > 0 {
+					ui.progress.SetValue(float64(batchDone) / float64(batchTotal))
+				} else {
+					ui.progress.SetValue(0)
+				}
 				ui.lastJobText.SetText(j.Name)
 				ui.status.SetText("Transferindo…")
 			})
 		},
 		func(j transfer.Job, err error) {
 			fyne.Do(func() {
+				batchActive, batchFinished, batchDone, batchTotal, batchProgress, batchSummary, batchErr := ui.consumeBatchResult(j, err)
+				if batchActive {
+					ui.progress.Show()
+					if batchTotal > 0 {
+						ui.progress.SetValue(float64(batchDone) / float64(batchTotal))
+					}
+					if batchFinished {
+						ui.progress.Hide()
+						if batchErr != nil {
+							ui.status.SetText(batchErr.Error())
+							dialog.ShowError(batchErr, ui.win)
+						} else {
+							ui.status.SetText(batchSummary)
+							dialog.ShowInformation("Transferência em lote concluída", batchSummary, ui.win)
+						}
+					} else {
+						ui.status.SetText(batchProgress)
+					}
+					ui.refreshLeft()
+					ui.refreshRightQuiet()
+					return
+				}
 				ui.progress.SetValue(1)
 				ui.progress.Hide()
 				if err != nil {
@@ -2686,6 +2839,9 @@ func (ui *explorer) startDrain() {
 		},
 		func(done, total int64) {
 			fyne.Do(func() {
+				if batchRunning, _, _ := ui.batchSnapshot(); batchRunning {
+					return
+				}
 				if total > 0 {
 					ui.progress.SetValue(float64(done) / float64(total))
 				} else if total < 0 {
@@ -2901,6 +3057,13 @@ func (ui *explorer) registerExplorerShortcuts() {
 	})
 	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyN, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}, func(fyne.Shortcut) {
 		ui.createFolderActive()
+	})
+	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyF6, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}, func(fyne.Shortcut) {
+		if ui.activePane == "left" {
+			ui.uploadVisibleBatch()
+		} else {
+			ui.downloadVisibleBatch()
+		}
 	})
 }
 
@@ -3306,6 +3469,7 @@ func (ui *explorer) showRowContextMenu(left bool, id widget.ListItemID, pos fyne
 		items := []*fyne.MenuItem{
 			fyne.NewMenuItem("Abrir pasta", func() { ui.onLeftActivate() }),
 			fyne.NewMenuItem("Enviar para o servidor", func() { ui.upload() }),
+			fyne.NewMenuItem("Enviar itens visíveis", func() { ui.uploadVisibleBatch() }),
 			fyne.NewMenuItem("Copiar", func() { ui.copySelectedEntry(true, id) }),
 			fyne.NewMenuItem("Colar aqui", func() { ui.pasteCopiedTo(true, targetDir) }),
 			fyne.NewMenuItem("Renomear", func() { ui.renameActive() }),
@@ -3341,6 +3505,7 @@ func (ui *explorer) showRowContextMenu(left bool, id widget.ListItemID, pos fyne
 	items := []*fyne.MenuItem{
 		fyne.NewMenuItem("Abrir pasta", func() { ui.onRightActivate() }),
 		fyne.NewMenuItem("Receber no computador local", func() { ui.download() }),
+		fyne.NewMenuItem("Receber itens visíveis", func() { ui.downloadVisibleBatch() }),
 		fyne.NewMenuItem("Copiar", func() { ui.copySelectedEntry(false, id) }),
 		fyne.NewMenuItem("Colar aqui", func() { ui.pasteCopiedTo(false, targetDir) }),
 		fyne.NewMenuItem("Renomear", func() { ui.renameActive() }),
