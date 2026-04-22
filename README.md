@@ -8,11 +8,12 @@ Gestor de arquivos com painel duplo (estilo WinSCP) para **Windows**: navega no 
 - **Chave de host**: `known_hosts` (um ou vários arquivos separados por `|`) ou opção explícita **Ignorar chave de host** (inseguro; por padrão ligada para facilitar testes).
 - **Docker sobre SSH**: o cliente Moby usa um dialer que abre `unix:///var/run/docker.sock` no servidor através do canal SSH (stream local), alinhado com o OpenSSH moderno.
 - **Host remoto**: listagem e transferências via **SFTP** no mesmo túnel SSH.
-- **Contêineres**: no menu aparecem só os **em execução**, com nome em destaque e ID curto; navegação com `ContainerStatPath` + arquivo em **tar** (`CopyFromContainer` / `CopyToContainer`), transferências em **stream**.
+- **Contêineres**: no menu aparecem só os **em execução**, com nome em destaque e ID curto; a listagem de diretório usa `docker exec ls` (não-recursivo) para abrir pastas com resposta rápida e sem travar.
 - **Pastas**: envio/recebimento recursivo (tar para contêiner; árvore SFTP para host; cópia local recursiva).
 - **Fila de transferências** com barra de progresso e **vários workers em paralelo** (1–16, configurável no login).
-- **Interface**: tema escuro com acento ciano, cartão no login compacto, ícones nas listas e na barra de ferramentas (Fyne); ícone da aplicação/janela (PNG 64×64 gerado em código).
-- **Responsividade**: a listagem do painel direito (SFTP ou Docker) corre **em segundo plano**; aparece “Carregando pastas…” e a janela **não deve congelar** ao trocar de contêiner ou pasta.
+- **Conexões salvas**: na tela inicial é possível salvar, carregar e excluir perfis de conexão (com opção de guardar senha/chave localmente).
+- **Interface**: tema escuro com acento ciano, layout mais compacto no explorador, botões de navegação por painel, pesquisa local/remota, breadcrumbs clicáveis e ícone da aplicação/janela.
+- **Ações de arquivo**: duplo clique em pasta abre; duplo clique em arquivo local abre no app padrão; arquivo remoto pode abrir para edição remota com sincronização automática ao salvar (estilo WinSCP).
 
 ## Stack (resumo)
 
@@ -57,14 +58,17 @@ go build -tags ci -o containerway_ci.exe ./cmd/containerway/
 
 1. Preencha host (ex.: `192.168.1.10` ou `servidor:22`), usuário e credenciais; opcionalmente `known_hosts`, desmarque **Ignorar chave de host** em produção, e defina **Paralelismo** (número de transferências simultâneas).
 2. Após conectar, no menu do lado direito escolha **pastas do servidor** ou um **contêiner em execução** (só os ligados aparecem).
-3. **Duplo clique** numa pasta na lista (o mesmo gesto do Explorador de Arquivos) ou o botão **Abrir pasta** para **entrar** (ou em `..` para subir); **Enviar** / **Receber** para **arquivos ou pastas** selecionados (um clique só seleciona a linha).
+3. Use os perfis em **Conexões salvas** para preencher o login mais rápido e clique em **Conectar**.
+4. No explorador, use **duplo clique** para abrir pasta ou o botão **Abrir**; **Enviar** / **Receber** para transferências.
 
 ### No explorador (uso simples)
 
-- **Esquerda**: arquivos do seu **computador local**.
-- **Direita**: um texto de ajuda indica que só aparecem **contêineres ligados** (em execução). A primeira opção do menu são as **pastas do servidor fora dos contêineres** (SFTP no Linux remoto); abaixo vêm os contêineres, cada um como **`nome (ID curto)`** (nomes muito longos são encurtados com `…`).
-- A barra abaixo do menu mostra a **pasta atual** no servidor ou **dentro do contêiner** (com o ID), para saber sempre onde está.
-- Depois de **mudar de pasta** ou de contexto (menu servidor/contêiner), a lista **limpa a seleção** para o índice não ficar desalinhado: use **duplo clique** na pasta ou **Abrir pasta** para continuar.
+- **Esquerda**: arquivos do seu **computador local** (com atalhos rápidos para Diretório inicial, Desktop, Documentos, Downloads).
+- **Direita**: escolha **pastas do servidor** (SFTP) ou um **contêiner em execução**; o conteúdo mostrado sempre acompanha o contexto selecionado.
+- Cada painel tem barra de navegação com **voltar**, **subir**, **início** e **atualizar**, além de busca por nome.
+- **Breadcrumb clicável** permite saltar direto para qualquer nível de pasta.
+- **Menu de contexto** (botão direito) oferece abrir, transferir e atualizar lista.
+- **Atalhos de teclado**: `Enter` abre pasta no painel ativo, `Backspace` sobe nível e `F5` atualiza.
 
 ## Estrutura do código
 

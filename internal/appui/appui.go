@@ -83,6 +83,110 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 	parallelJobsEntry.SetPlaceHolder("transferências em paralelo (1–16)")
 	status := widget.NewLabel("")
 	status.Wrapping = fyne.TextWrapWord
+	saveSecrets := widget.NewCheck("Salvar senha/chave nesta conexão (uso local)", nil)
+	connName := widget.NewEntry()
+	connName.SetPlaceHolder("Nome da conexão (ex.: Produção)")
+	profileSelect := widget.NewSelect([]string{"Nova conexão…"}, nil)
+	profileSelect.SetSelected("Nova conexão…")
+
+	profiles, loadErr := loadSavedConnections()
+	if loadErr != nil {
+		status.SetText(loadErr.Error())
+	}
+
+	rebuildProfileOptions := func(selected string) {
+		opts := []string{"Nova conexão…"}
+		for _, p := range profiles {
+			opts = append(opts, p.Name)
+		}
+		profileSelect.Options = opts
+		profileSelect.Refresh()
+		if selected != "" {
+			profileSelect.SetSelected(selected)
+		} else {
+			profileSelect.SetSelected("Nova conexão…")
+		}
+	}
+
+	applyProfile := func(c savedConnection) {
+		connName.SetText(c.Name)
+		host.SetText(c.Host)
+		user.SetText(c.User)
+		pass.SetText(c.Password)
+		keyPath.SetText(c.KeyPath)
+		keyPass.SetText(c.KeyPass)
+		knownHosts.SetText(c.KnownHosts)
+		insecureHost.SetChecked(c.InsecureHostKey)
+		if strings.TrimSpace(c.ParallelJobs) == "" {
+			parallelJobsEntry.SetText("3")
+		} else {
+			parallelJobsEntry.SetText(c.ParallelJobs)
+		}
+		saveSecrets.SetChecked(c.Password != "" || c.KeyPass != "")
+	}
+
+	profileSelect.OnChanged = func(sel string) {
+		if sel == "Nova conexão…" {
+			return
+		}
+		c, ok := findConnectionByName(profiles, sel)
+		if !ok {
+			status.SetText("Conexão selecionada não encontrada.")
+			return
+		}
+		applyProfile(c)
+		status.SetText("Conexão carregada: " + c.Name)
+	}
+
+	saveProfile := widget.NewButtonWithIcon("Salvar", theme.DocumentSaveIcon(), func() {
+		name := strings.TrimSpace(connName.Text)
+		if name == "" {
+			dialog.ShowInformation("ContainerWay", "Informe um nome para salvar a conexão.", w)
+			return
+		}
+		saved := savedConnection{
+			Name:            name,
+			Host:            strings.TrimSpace(host.Text),
+			User:            strings.TrimSpace(user.Text),
+			KeyPath:         strings.TrimSpace(keyPath.Text),
+			KnownHosts:      strings.TrimSpace(knownHosts.Text),
+			InsecureHostKey: insecureHost.Checked,
+			ParallelJobs:    strings.TrimSpace(parallelJobsEntry.Text),
+		}
+		if saveSecrets.Checked {
+			saved.Password = pass.Text
+			saved.KeyPass = keyPass.Text
+		}
+		profiles = upsertConnection(profiles, saved)
+		if err := saveConnections(profiles); err != nil {
+			dialog.ShowError(err, w)
+			return
+		}
+		rebuildProfileOptions(name)
+		status.SetText("Conexão salva: " + name)
+	})
+
+	deleteProfile := widget.NewButtonWithIcon("Excluir", theme.DeleteIcon(), func() {
+		target := strings.TrimSpace(profileSelect.Selected)
+		if target == "" || target == "Nova conexão…" {
+			dialog.ShowInformation("ContainerWay", "Selecione uma conexão salva para excluir.", w)
+			return
+		}
+		dialog.ShowConfirm("Excluir conexão", fmt.Sprintf("Deseja excluir a conexão \"%s\"?", target), func(ok bool) {
+			if !ok {
+				return
+			}
+			profiles = removeConnectionByName(profiles, target)
+			if err := saveConnections(profiles); err != nil {
+				dialog.ShowError(err, w)
+				return
+			}
+			rebuildProfileOptions("")
+			status.SetText("Conexão excluída: " + target)
+		}, w)
+	})
+	deleteProfile.Importance = widget.DangerImportance
+	rebuildProfileOptions("")
 
 	formConn := &widget.Form{
 		Items: []*widget.FormItem{
@@ -102,6 +206,11 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 	}
 
 	body := fynecontainer.NewVBox(
+		widget.NewLabelWithStyle("Conexões salvas", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		fynecontainer.NewHBox(profileSelect, saveProfile, deleteProfile),
+		connName,
+		saveSecrets,
+		widget.NewSeparator(),
 		widget.NewLabelWithStyle("Conexão", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		formConn,
 		widget.NewSeparator(),
@@ -443,8 +552,8 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 	})
 	ui.ctxSelect.SetSelectedIndex(0)
 
-	ui.btnOpenLocal = widget.NewButtonWithIcon("Abrir pasta", theme.FolderOpenIcon(), func() { ui.onLeftActivate() })
-	ui.btnOpenRemote = widget.NewButtonWithIcon("Abrir pasta", theme.FolderOpenIcon(), func() { ui.onRightActivate() })
+	ui.btnOpenLocal = widget.NewButtonWithIcon("Abrir", theme.FolderOpenIcon(), func() { ui.onLeftActivate() })
+	ui.btnOpenRemote = widget.NewButtonWithIcon("Abrir", theme.FolderOpenIcon(), func() { ui.onRightActivate() })
 	btnBackLocal := widget.NewButtonWithIcon("", theme.NavigateBackIcon(), func() { ui.goLeftBack() })
 	btnUpLocal := widget.NewButtonWithIcon("", theme.MoveUpIcon(), func() { ui.goLeftUp() })
 	btnHomeLocal := widget.NewButtonWithIcon("", theme.HomeIcon(), func() { ui.goLeftHome() })
@@ -515,10 +624,8 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 			btnReloadLocal,
 			ui.btnOpenLocal,
 		),
-		ui.leftPathLbl,
+		fynecontainer.NewHBox(ui.leftQuick, ui.leftSearch),
 		ui.leftCrumbs,
-		ui.leftQuick,
-		ui.leftSearch,
 	)
 	leftPane := fynecontainer.NewBorder(
 		fynecontainer.NewPadded(leftHead),
@@ -526,8 +633,8 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 		fynecontainer.NewPadded(fynecontainer.NewScroll(ui.leftList)),
 	)
 
-	ctxHelp := widget.NewLabel("Escolha pastas do Linux no servidor ou um contêiner ligado. Na lista só entram contêineres em execução. Duplo clique numa pasta para entrar (ou use «Abrir pasta»).")
-	ctxHelp.Wrapping = fyne.TextWrapWord
+	ctxHelp := widget.NewLabel("Só contêineres em execução. Duplo clique abre.")
+	ctxHelp.Wrapping = fyne.TextTruncate
 	ctxHelp.TextStyle = fyne.TextStyle{Italic: true}
 
 	rightHead := fynecontainer.NewVBox(
@@ -541,11 +648,9 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 			btnReloadRemote,
 			ui.btnOpenRemote,
 		),
-		fynecontainer.NewPadded(fynecontainer.NewVBox(ctxHelp, ui.ctxSelect)),
-		fynecontainer.NewPadded(ui.breadcrumb),
+		fynecontainer.NewVBox(ctxHelp, ui.ctxSelect),
+		fynecontainer.NewHBox(ui.rightQuick, ui.rightSearch),
 		ui.rightCrumbs,
-		ui.rightQuick,
-		ui.rightSearch,
 	)
 	rightPane := fynecontainer.NewBorder(
 		fynecontainer.NewPadded(rightHead),
