@@ -297,6 +297,7 @@ type explorer struct {
 	progress    *widget.ProgressBar
 	lastJobText *widget.Label
 	selectionInfo *widget.Label
+	summaryInfo *widget.Label
 	leftSearch  *widget.Entry
 	rightSearch *widget.Entry
 	leftBack    []string
@@ -460,6 +461,8 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 	ui.rightSearch.SetPlaceHolder("Pesquisar no lado do servidor")
 	ui.selectionInfo = widget.NewLabel("Selecione um arquivo ou pasta para ver ações disponíveis.")
 	ui.selectionInfo.Wrapping = fyne.TextWrapWord
+	ui.summaryInfo = widget.NewLabel("Local: 0 itens | Servidor: 0 itens")
+	ui.summaryInfo.Wrapping = fyne.TextWrapWord
 
 	ui.leftList = widget.NewList(
 		func() int { return len(ui.leftRows) },
@@ -688,6 +691,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 
 	bottom := fynecontainer.NewVBox(
 		ui.selectionInfo,
+		ui.summaryInfo,
 		ui.status,
 		ui.progress,
 	)
@@ -782,6 +786,7 @@ func (ui *explorer) applyLeftFilter() {
 	ui.leftList.ScrollToTop()
 	ui.updateBreadcrumb()
 	ui.updateActionState()
+	ui.updateSummaryInfo()
 }
 
 func (ui *explorer) refreshRight() {
@@ -844,6 +849,7 @@ func (ui *explorer) refreshRightImpl(showLoading bool) {
 				ui.rightSel = -1
 				ui.rightList.UnselectAll()
 				ui.rightList.Refresh()
+				ui.updateSummaryInfo()
 				return
 			}
 			ui.rightAll = rows
@@ -887,6 +893,7 @@ func (ui *explorer) applyRightFilter() {
 	ui.rightList.ScrollToTop()
 	ui.updateBreadcrumb()
 	ui.updateActionState()
+	ui.updateSummaryInfo()
 }
 
 func (ui *explorer) goLeftBack() {
@@ -1451,6 +1458,34 @@ func rightActionSuggestion(e fsutil.DirEntry) string {
 		return "abrir pasta ou receber"
 	}
 	return "receber"
+}
+
+func summarizeEntries(rows []fsutil.DirEntry) (dirs int, files int) {
+	for _, e := range rows {
+		if e.Name == ".." {
+			continue
+		}
+		if e.IsDir {
+			dirs++
+			continue
+		}
+		files++
+	}
+	return dirs, files
+}
+
+func (ui *explorer) updateSummaryInfo() {
+	if ui.summaryInfo == nil {
+		return
+	}
+	leftDirs, leftFiles := summarizeEntries(ui.leftRows)
+	rightDirs, rightFiles := summarizeEntries(ui.rightRows)
+	leftTotal := leftDirs + leftFiles
+	rightTotal := rightDirs + rightFiles
+	ui.summaryInfo.SetText(fmt.Sprintf(
+		"Itens visíveis | Local: %d (%d pastas, %d arquivos) | Servidor: %d (%d pastas, %d arquivos)",
+		leftTotal, leftDirs, leftFiles, rightTotal, rightDirs, rightFiles,
+	))
 }
 
 func (ui *explorer) registerExplorerShortcuts() {
