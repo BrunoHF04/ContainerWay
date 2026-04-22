@@ -243,7 +243,7 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 				return
 			}
 			fyne.Do(func() {
-				w.SetContent(buildExplorer(w, sess, pJobs))
+				w.SetContent(buildExplorer(w, sess, pJobs, creds))
 				setExplorerWindow(w)
 			})
 		}()
@@ -270,6 +270,7 @@ type explorer struct {
 	s   *session.Session
 	hfs *hostfs.FS
 	cfs *containerfs.FS
+	connCreds session.Credentials
 
 	leftPath  string
 	rightPath string
@@ -321,6 +322,9 @@ type explorer struct {
 
 	remoteEditMu       sync.Mutex
 	remoteEditSessions map[string]*remoteEditSession
+	rootPromptOpen     atomic.Bool
+	sudoEnabled        bool
+	sudoPass           string
 }
 
 type remoteEditSession struct {
@@ -392,7 +396,7 @@ func containerDisplayName(c dcontainer.Summary) string {
 	return name
 }
 
-func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.CanvasObject {
+func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds session.Credentials) fyne.CanvasObject {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	list, err := s.Docker.ContainerList(ctx, dcontainer.ListOptions{All: false})
@@ -412,6 +416,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 		win:           w,
 		s:             s,
 		hfs:           &hostfs.FS{Client: s.SFTP},
+		connCreds:     creds,
 		leftPath:      homeOrRoot(),
 		rightPath:     "/",
 		hostMode:      true,
@@ -825,7 +830,11 @@ func (ui *explorer) refreshRightImpl(showLoading bool) {
 			var rows []fsutil.DirEntry
 			var err error
 			if hostMode {
-				rows, err = hfs.List(ctx, p)
+				if ui.sudoEnabled {
+					rows, err = ui.listHostWithSudo(ctx, p)
+				} else {
+					rows, err = hfs.List(ctx, p)
+				}
 			} else {
 				rows, err = cfs.List(ctx, p)
 			}
@@ -845,6 +854,7 @@ func (ui *explorer) refreshRightImpl(showLoading bool) {
 			}
 			if err != nil {
 				ui.status.SetText(fmt.Sprintf("Erro ao listar: %v", err))
+				ui.maybePromptRootAccess(err)
 				ui.rightAll = nil
 				ui.rightRows = nil
 				ui.rightSel = -1
@@ -855,11 +865,327 @@ func (ui *explorer) refreshRightImpl(showLoading bool) {
 			}
 			ui.rightAll = rows
 			ui.applyRightFilter()
-			if strings.HasPrefix(ui.status.Text, "Carregando pastas") {
+			if strings.HasPrefix(ui.status.Text, "Carregando pastas") || strings.HasPrefix(ui.status.Text, "Sudo ativo") {
 				ui.status.SetText("")
 			}
 		})
 	}(seq)
+}
+
+func (ui *explorer) maybePromptRootAccess(listErr error) {
+	if listErr == nil || !ui.hostMode {
+		return
+	}
+	msg := strings.ToLower(listErr.Error())
+	if !strings.Contains(msg, "permission denied") {
+		return
+	}
+	if ui.rootPromptOpen.Load() {
+		return
+	}
+	ui.rootPromptOpen.Store(true)
+
+	userEntry := widget.NewEntry()
+	userEntry.SetText(ui.connCreds.User)
+	userEntry.Disable()
+	passEntry := widget.NewPasswordEntry()
+	passEntry.SetPlaceHolder("senha do usuário da sessão com sudo")
+	userEntry.Resize(fyne.NewSize(260, userEntry.MinSize().Height))
+	passEntry.Resize(fyne.NewSize(260, passEntry.MinSize().Height))
+
+	prompt := dialog.NewForm(
+		"Acesso negado",
+		"Aplicar sudo",
+		"Cancelar",
+		[]*widget.FormItem{
+			widget.NewFormItem("Usuário", userEntry),
+			widget.NewFormItem("Senha", passEntry),
+		},
+		func(confirm bool) {
+			defer ui.rootPromptOpen.Store(false)
+			if !confirm {
+				ui.status.SetText("Acesso elevado cancelado.")
+				return
+			}
+			if strings.TrimSpace(passEntry.Text) == "" {
+				dialog.ShowInformation("Credenciais obrigatórias", "Informe a senha para tentar acesso elevado via sudo.", ui.win)
+				return
+			}
+			ui.enableSudoMode(passEntry.Text)
+		},
+		ui.win,
+	)
+	prompt.Resize(fyne.NewSize(460, 240))
+	prompt.Show()
+}
+
+func (ui *explorer) enableSudoMode(password string) {
+	ui.status.SetText("Validando sudo no servidor…")
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
+		defer cancel()
+		if err := ui.testSudoAccess(ctx, password); err != nil {
+			fyne.Do(func() {
+				ui.status.SetText("Falha ao validar sudo.")
+				dialog.ShowError(fmt.Errorf("não foi possível elevar com sudo: %w\n\nLog de diagnóstico: %s", err, filepath.Join(os.TempDir(), "containerway-sudo-debug.log")), ui.win)
+			})
+			return
+		}
+		fyne.Do(func() {
+			ui.sudoEnabled = true
+			ui.sudoPass = password
+			ui.status.SetText("Sudo ativo (root). Recarregando pasta…")
+			ui.refreshRight()
+		})
+	}()
+}
+
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'"
+}
+
+func appendSudoDebugLog(line string) {
+	logPath := filepath.Join(os.TempDir(), "containerway-sudo-debug.log")
+	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	_, _ = f.WriteString(time.Now().Format("2006-01-02 15:04:05") + " " + line + "\n")
+}
+
+func (ui *explorer) runSSHCommandWithInput(ctx context.Context, cmd, input string) (string, string, error) {
+	if ui.s == nil || ui.s.SSH == nil {
+		return "", "", fmt.Errorf("sessão SSH indisponível")
+	}
+	ch := make(chan struct {
+		stdout string
+		stderr string
+		err    error
+	}, 1)
+	go func() {
+		sess, err := ui.s.SSH.NewSession()
+		if err != nil {
+			ch <- struct {
+				stdout string
+				stderr string
+				err    error
+			}{"", "", err}
+			return
+		}
+		defer sess.Close()
+		var outBuf, errBuf strings.Builder
+		sess.Stdout = &outBuf
+		sess.Stderr = &errBuf
+		stdin, err := sess.StdinPipe()
+		if err != nil {
+			ch <- struct {
+				stdout string
+				stderr string
+				err    error
+			}{"", "", err}
+			return
+		}
+		if err := sess.Start(cmd); err != nil {
+			ch <- struct {
+				stdout string
+				stderr string
+				err    error
+			}{"", "", err}
+			return
+		}
+		if input != "" {
+			_, _ = io.WriteString(stdin, input+"\n")
+		}
+		_ = stdin.Close()
+		err = sess.Wait()
+		ch <- struct {
+			stdout string
+			stderr string
+			err    error
+		}{outBuf.String(), errBuf.String(), err}
+	}()
+
+	select {
+	case <-ctx.Done():
+		appendSudoDebugLog(fmt.Sprintf("runSSH timeout cmd=%q err=%v", cmd, ctx.Err()))
+		return "", "", ctx.Err()
+	case res := <-ch:
+		appendSudoDebugLog(fmt.Sprintf("runSSH cmd=%q err=%v stderr=%q stdout=%q", cmd, res.err, strings.TrimSpace(res.stderr), strings.TrimSpace(res.stdout)))
+		return res.stdout, res.stderr, res.err
+	}
+}
+
+func (ui *explorer) copyHostFileWithSudoToLocal(ctx context.Context, remotePath, localPath string) error {
+	if ui.s == nil || ui.s.SSH == nil {
+		return fmt.Errorf("sessão SSH indisponível")
+	}
+	sess, err := ui.s.SSH.NewSession()
+	if err != nil {
+		return err
+	}
+	defer sess.Close()
+
+	outFile, err := os.Create(localPath)
+	if err != nil {
+		return err
+	}
+	defer outFile.Close()
+
+	var errBuf strings.Builder
+	sess.Stdout = outFile
+	sess.Stderr = &errBuf
+	stdin, err := sess.StdinPipe()
+	if err != nil {
+		return err
+	}
+
+	cmd := fmt.Sprintf("sudo -k -S -p '' sh -lc %s", shellQuote("cat -- "+shellQuote(path.Clean(remotePath))))
+	if err := sess.Start(cmd); err != nil {
+		return err
+	}
+	_, _ = io.WriteString(stdin, ui.sudoPass+"\n")
+	_ = stdin.Close()
+
+	done := make(chan error, 1)
+	go func() { done <- sess.Wait() }()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-done:
+		if err != nil {
+			msg := strings.TrimSpace(errBuf.String())
+			if msg == "" {
+				msg = err.Error()
+			}
+			return fmt.Errorf(msg)
+		}
+	}
+	return nil
+}
+
+func (ui *explorer) copyLocalFileToHostWithSudo(ctx context.Context, localPath, remotePath string) error {
+	if ui.s == nil || ui.s.SSH == nil {
+		return fmt.Errorf("sessão SSH indisponível")
+	}
+	in, err := os.Open(localPath)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	sess, err := ui.s.SSH.NewSession()
+	if err != nil {
+		return err
+	}
+	defer sess.Close()
+
+	var errBuf strings.Builder
+	sess.Stderr = &errBuf
+	stdin, err := sess.StdinPipe()
+	if err != nil {
+		return err
+	}
+
+	target := path.Clean(remotePath)
+	cmd := fmt.Sprintf("sudo -k -S -p '' sh -lc %s", shellQuote("cat > "+shellQuote(target)))
+	if err := sess.Start(cmd); err != nil {
+		return err
+	}
+	if _, err := io.WriteString(stdin, ui.sudoPass+"\n"); err != nil {
+		_ = stdin.Close()
+		return err
+	}
+	if _, err := io.Copy(stdin, in); err != nil {
+		_ = stdin.Close()
+		return err
+	}
+	_ = stdin.Close()
+
+	done := make(chan error, 1)
+	go func() { done <- sess.Wait() }()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-done:
+		if err != nil {
+			msg := strings.TrimSpace(errBuf.String())
+			if msg == "" {
+				msg = err.Error()
+			}
+			return fmt.Errorf(msg)
+		}
+	}
+	return nil
+}
+
+func (ui *explorer) testSudoAccess(ctx context.Context, password string) error {
+	cmd := "sudo -k -S -p '' sh -lc 'id -u >/dev/null'"
+	_, stderr, err := ui.runSSHCommandWithInput(ctx, cmd, password)
+	if err != nil {
+		if strings.TrimSpace(stderr) != "" {
+			return fmt.Errorf("%s", strings.TrimSpace(stderr))
+		}
+		return err
+	}
+	return nil
+}
+
+func (ui *explorer) listHostWithSudo(ctx context.Context, p string) ([]fsutil.DirEntry, error) {
+	if !ui.sudoEnabled || strings.TrimSpace(ui.sudoPass) == "" {
+		return nil, fmt.Errorf("sudo não configurado")
+	}
+	clean := path.Clean(strings.TrimSpace(p))
+	if !strings.HasPrefix(clean, "/") {
+		clean = "/" + clean
+	}
+	listCmd := fmt.Sprintf("sudo -k -S -p '' sh -lc %s", shellQuote("id -u; id -un; ls -1Ap -- "+shellQuote(clean)))
+	stdout, stderr, err := ui.runSSHCommandWithInput(ctx, listCmd, ui.sudoPass)
+	if err != nil {
+		msg := strings.TrimSpace(stderr)
+		if msg == "" {
+			msg = err.Error()
+		}
+		return nil, fmt.Errorf(msg)
+	}
+	lines := strings.Split(strings.ReplaceAll(stdout, "\r\n", "\n"), "\n")
+	if len(lines) < 3 {
+		return nil, fmt.Errorf("resposta inesperada do sudo ao listar pasta")
+	}
+	uidLine := strings.TrimSpace(lines[0])
+	userLine := strings.TrimSpace(lines[1])
+	if uidLine != "0" {
+		return nil, fmt.Errorf("sudo não elevou privilégios (uid=%s, user=%s)", uidLine, userLine)
+	}
+
+	out := make([]fsutil.DirEntry, 0, 64)
+	if clean != "/" {
+		parent := path.Dir(clean)
+		if parent == "" || parent == "." {
+			parent = "/"
+		}
+		out = append(out, fsutil.DirEntry{Name: "..", Path: parent, IsDir: true})
+	}
+	for _, line := range lines[2:] {
+		item := strings.TrimSpace(line)
+		if item == "" || item == "." || item == ".." {
+			continue
+		}
+		isDir := strings.HasSuffix(item, "/")
+		name := strings.TrimSuffix(item, "/")
+		if name == "" || name == "." || name == ".." {
+			continue
+		}
+		out = append(out, fsutil.DirEntry{
+			Name:    name,
+			Path:    path.Join(clean, name),
+			IsDir:   isDir,
+			Size:    0,
+			ModTime: time.Now(),
+		})
+	}
+	fsutil.SortLikeWinSCP(out)
+	return out, nil
 }
 
 func (ui *explorer) applyRightFilter() {
@@ -892,6 +1218,17 @@ func (ui *explorer) applyRightFilter() {
 	}
 	ui.rightList.Refresh()
 	ui.rightList.ScrollToTop()
+	if term != "" {
+		matches := 0
+		for _, e := range ui.rightRows {
+			if e.Name != ".." {
+				matches++
+			}
+		}
+		if matches == 0 {
+			ui.status.SetText(fmt.Sprintf("Nenhum resultado para \"%s\" em %s.", term, ui.rightPath))
+		}
+	}
 	ui.updateBreadcrumb()
 	ui.updateActionState()
 	ui.updateSummaryInfo()
@@ -1099,6 +1436,22 @@ func (ui *explorer) upload() {
 		ui.tm.Enqueue(transfer.Job{
 			Name: fmt.Sprintf("Enviar %s → servidor:%s", src.Path, dst),
 			Run: func(ctx context.Context, on transfer.Progress) error {
+				if ui.sudoEnabled {
+					st, err := os.Stat(src.Path)
+					if err != nil {
+						return err
+					}
+					if on != nil {
+						on(0, st.Size())
+					}
+					if err := ui.copyLocalFileToHostWithSudo(ctx, src.Path, dst); err != nil {
+						return err
+					}
+					if on != nil {
+						on(st.Size(), st.Size())
+					}
+					return nil
+				}
 				f, err := os.Open(src.Path)
 				if err != nil {
 					return err
@@ -1232,6 +1585,12 @@ func (ui *explorer) download() {
 		ui.tm.Enqueue(transfer.Job{
 			Name: fmt.Sprintf("Receber servidor:%s → %s", src.Path, dstPath),
 			Run: func(ctx context.Context, on transfer.Progress) error {
+				if ui.sudoEnabled {
+					if on != nil {
+						on(0, -1)
+					}
+					return ui.copyHostFileWithSudoToLocal(ctx, src.Path, dstPath)
+				}
 				rf, err := ui.hfs.OpenReader(src.Path)
 				if err != nil {
 					return err
@@ -1881,29 +2240,38 @@ func (ui *explorer) openRemoteForEdit(e fsutil.DirEntry) {
 			editContainerID = ui.cfs.ID
 		}
 		if editOnHost {
-			rf, err := ui.hfs.OpenReader(e.Path)
-			if err != nil {
-				fyne.Do(func() {
-					dialog.ShowError(fmt.Errorf("não foi possível ler arquivo remoto: %w", err), ui.win)
-				})
-				return
-			}
-			defer rf.Close()
-			out, err := os.Create(tmpPath)
-			if err != nil {
-				fyne.Do(func() {
-					dialog.ShowError(fmt.Errorf("não foi possível gravar arquivo temporário: %w", err), ui.win)
-				})
-				return
-			}
-			if _, err := io.Copy(out, rf); err != nil {
+			if ui.sudoEnabled {
+				if err := ui.copyHostFileWithSudoToLocal(ctx, e.Path, tmpPath); err != nil {
+					fyne.Do(func() {
+						dialog.ShowError(fmt.Errorf("não foi possível ler arquivo remoto com sudo: %w", err), ui.win)
+					})
+					return
+				}
+			} else {
+				rf, err := ui.hfs.OpenReader(e.Path)
+				if err != nil {
+					fyne.Do(func() {
+						dialog.ShowError(fmt.Errorf("não foi possível ler arquivo remoto: %w", err), ui.win)
+					})
+					return
+				}
+				defer rf.Close()
+				out, err := os.Create(tmpPath)
+				if err != nil {
+					fyne.Do(func() {
+						dialog.ShowError(fmt.Errorf("não foi possível gravar arquivo temporário: %w", err), ui.win)
+					})
+					return
+				}
+				if _, err := io.Copy(out, rf); err != nil {
+					_ = out.Close()
+					fyne.Do(func() {
+						dialog.ShowError(fmt.Errorf("falha ao copiar arquivo remoto: %w", err), ui.win)
+					})
+					return
+				}
 				_ = out.Close()
-				fyne.Do(func() {
-					dialog.ShowError(fmt.Errorf("falha ao copiar arquivo remoto: %w", err), ui.win)
-				})
-				return
 			}
-			_ = out.Close()
 		} else {
 			cfs := &containerfs.FS{Docker: ui.s.Docker, ID: editContainerID}
 			rc, _, err := cfs.OpenFileReader(ctx, e.Path)
@@ -2024,6 +2392,9 @@ func (ui *explorer) syncEditedFileBack(s *remoteEditSession) error {
 		return err
 	}
 	if s.hostMode {
+		if ui.sudoEnabled {
+			return ui.copyLocalFileToHostWithSudo(ctx, s.tempPath, s.remotePath)
+		}
 		w, err := ui.hfs.CreateWriter(s.remotePath)
 		if err != nil {
 			return err
