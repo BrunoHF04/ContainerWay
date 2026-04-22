@@ -1,6 +1,7 @@
 /containerway.exe
 containerway_ci.exe
 *.exe
+*.exe~
 /dist/
 
 # Regras e configuração local do Cursor (não versionar)

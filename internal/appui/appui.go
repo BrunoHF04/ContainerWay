@@ -945,6 +945,8 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	ui.btnDown = widget.NewButtonWithIcon("Receber", theme.DownloadIcon(), func() { ui.download() })
 	ui.btnDown.Importance = widget.HighImportance
 	btnHistory := widget.NewButtonWithIcon("Histórico", theme.HistoryIcon(), func() { ui.showOperationHistory() })
+	btnManual := widget.NewButton("?", func() { ui.showUserManual() })
+	btnManual.Importance = widget.MediumImportance
 	btnDisconnect := widget.NewButtonWithIcon("Sair", theme.LogoutIcon(), func() {
 		appendAuditLog("sessao", "Sessão encerrada pelo usuário")
 		s.Close()
@@ -958,6 +960,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 		ui.btnUp,
 		ui.btnDown,
 		btnHistory,
+		btnManual,
 		layout.NewSpacer(),
 		ui.lblSudoState,
 		ui.btnDisableSudo,
@@ -2967,6 +2970,7 @@ func (ui *explorer) startDrain() {
 	ui.tm.DrainAsync(ctx, ui.parallelJobs,
 		func(j transfer.Job) {
 			fyne.Do(func() {
+				appendAuditLog("transfer", "Início | "+j.Name)
 				ui.progress.Show()
 				batchRunning, batchDone, batchTotal := ui.batchSnapshot()
 				if batchRunning && batchTotal > 0 {
@@ -2984,6 +2988,7 @@ func (ui *explorer) startDrain() {
 				if batchActive {
 					if err != nil {
 						ui.rememberFailedJob(j)
+						appendAuditLog("transfer", fmt.Sprintf("Falha | %s | %v", j.Name, err))
 					}
 					ui.progress.Show()
 					if batchTotal > 0 {
@@ -2998,6 +3003,7 @@ func (ui *explorer) startDrain() {
 						} else {
 							ui.status.SetText(batchSummary)
 							ui.appendOperationHistory(batchSummary)
+							appendAuditLog("transfer", "Concluído | "+batchSummary)
 							dialog.ShowInformation("Transferência em lote concluída", batchSummary, ui.win)
 						}
 					} else {
@@ -3011,10 +3017,12 @@ func (ui *explorer) startDrain() {
 				ui.progress.Hide()
 				if err != nil {
 					ui.rememberFailedJob(j)
+					appendAuditLog("transfer", fmt.Sprintf("Falha | %s | %v", j.Name, err))
 					ui.status.SetText(fmt.Sprintf("Erro: %v", err))
 					ui.appendOperationHistory(fmt.Sprintf("Falha: %s | %v", j.Name, err))
 					dialog.ShowError(err, ui.win)
 				} else {
+					appendAuditLog("transfer", "Concluído | "+j.Name)
 					ui.status.SetText("Concluído: " + j.Name)
 					ui.appendOperationHistory("Concluído: " + j.Name)
 					dialog.ShowInformation("Transferência concluída", j.Name, ui.win)
@@ -3698,7 +3706,12 @@ func appendAuditLog(scope, message string) {
 	if msg == "" {
 		return
 	}
-	line := fmt.Sprintf("%s | %s | %s\n", time.Now().Format("2006-01-02 15:04:05"), strings.TrimSpace(scope), msg)
+	level := "INFO"
+	lower := strings.ToLower(msg)
+	if strings.Contains(lower, "erro") || strings.Contains(lower, "falha") {
+		level = "ERROR"
+	}
+	line := fmt.Sprintf("%s | %s | %s | %s\n", time.Now().Format("2006-01-02 15:04:05"), level, strings.TrimSpace(scope), msg)
 	auditLogMu.Lock()
 	defer auditLogMu.Unlock()
 	f, err := os.OpenFile(auditLogPath(), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
@@ -3707,6 +3720,33 @@ func appendAuditLog(scope, message string) {
 	}
 	defer f.Close()
 	_, _ = f.WriteString(line)
+}
+
+func readAuditLogLines(maxLines int, filter string) []string {
+	if maxLines < 1 {
+		maxLines = 1
+	}
+	raw, err := os.ReadFile(auditLogPath())
+	if err != nil {
+		return nil
+	}
+	lines := strings.Split(strings.ReplaceAll(string(raw), "\r\n", "\n"), "\n")
+	term := strings.ToLower(strings.TrimSpace(filter))
+	filtered := make([]string, 0, len(lines))
+	for _, line := range lines {
+		t := strings.TrimSpace(line)
+		if t == "" {
+			continue
+		}
+		if term != "" && !strings.Contains(strings.ToLower(t), term) {
+			continue
+		}
+		filtered = append(filtered, t)
+	}
+	if len(filtered) > maxLines {
+		filtered = filtered[len(filtered)-maxLines:]
+	}
+	return filtered
 }
 
 func (ui *explorer) localShortcutOptions() []string {
@@ -3957,17 +3997,27 @@ func (ui *explorer) retryAllFailedOperations() {
 		dialog.ShowInformation("Histórico", "Não há falhas recentes para tentar novamente.", ui.win)
 		return
 	}
-	jobs := append([]transfer.Job(nil), ui.failedJobs...)
-	for _, job := range jobs {
-		ui.tm.Enqueue(job)
-	}
-	ui.appendOperationHistory(fmt.Sprintf("Reexecução em lote solicitada: %d falha(s)", len(jobs)))
-	ui.status.SetText(fmt.Sprintf("Reexecutando %d falha(s) recentes...", len(jobs)))
-	ui.startDrain()
+	dialog.ShowConfirm(
+		"Reexecutar todas as falhas",
+		fmt.Sprintf("Deseja reexecutar %d falha(s) registradas?", len(ui.failedJobs)),
+		func(ok bool) {
+			if !ok {
+				return
+			}
+			jobs := append([]transfer.Job(nil), ui.failedJobs...)
+			for _, job := range jobs {
+				ui.tm.Enqueue(job)
+			}
+			ui.appendOperationHistory(fmt.Sprintf("Reexecução em lote solicitada: %d falha(s)", len(jobs)))
+			ui.status.SetText(fmt.Sprintf("Reexecutando %d falha(s) recentes...", len(jobs)))
+			ui.startDrain()
+		},
+		ui.win,
+	)
 }
 
 func (ui *explorer) showOperationHistory() {
-	buildContent := func(term string) string {
+	buildSessionContent := func(term string) string {
 		lines := ui.opHistory
 		if t := strings.ToLower(strings.TrimSpace(term)); t != "" {
 			filtered := make([]string, 0, len(lines))
@@ -3986,20 +4036,49 @@ func (ui *explorer) showOperationHistory() {
 		}
 		return strings.Join(lines, "\n")
 	}
-	log := widget.NewMultiLineEntry()
-	log.SetText(buildContent(""))
-	log.Disable()
-	log.Wrapping = fyne.TextWrapWord
-	scroll := fynecontainer.NewScroll(log)
-	scroll.SetMinSize(fyne.NewSize(820, 360))
-	filterEntry := widget.NewEntry()
-	filterEntry.SetPlaceHolder("Filtrar histórico (ex.: erro, concluído, upload)")
-	filterEntry.OnChanged = func(text string) {
-		log.SetText(buildContent(text))
+	buildFullLogContent := func(term string) string {
+		lines := readAuditLogLines(600, term)
+		if len(lines) == 0 {
+			return "Sem registros no log geral para este filtro."
+		}
+		return strings.Join(lines, "\n")
 	}
+	sessionLog := widget.NewLabel(buildSessionContent(""))
+	sessionLog.Wrapping = fyne.TextWrapWord
+	sessionFilter := widget.NewEntry()
+	sessionFilter.SetPlaceHolder("Filtrar sessão (ex.: erro, concluído, upload)")
+	sessionFilter.OnChanged = func(text string) {
+		sessionLog.SetText(buildSessionContent(text))
+	}
+	fullLog := widget.NewLabel(buildFullLogContent(""))
+	fullLog.Wrapping = fyne.TextWrapWord
+	fullLogFilter := widget.NewEntry()
+	fullLogFilter.SetPlaceHolder("Filtrar log geral (ex.: ERROR, login, transferência)")
+	fullLogFilter.OnChanged = func(text string) {
+		fullLog.SetText(buildFullLogContent(text))
+	}
+	sessionPane := fynecontainer.NewBorder(
+		fynecontainer.NewPadded(sessionFilter),
+		nil,
+		nil,
+		nil,
+		fynecontainer.NewScroll(sessionLog),
+	)
+	fullLogPane := fynecontainer.NewBorder(
+		fynecontainer.NewPadded(fullLogFilter),
+		nil,
+		nil,
+		nil,
+		fynecontainer.NewScroll(fullLog),
+	)
+	tabs := fynecontainer.NewAppTabs(
+		fynecontainer.NewTabItem("Sessão", sessionPane),
+		fynecontainer.NewTabItem("Log geral", fullLogPane),
+	)
+	tabs.SetTabLocation(fynecontainer.TabLocationTop)
 	btnExport := widget.NewButtonWithIcon("Exportar .log", theme.DocumentSaveIcon(), func() {
 		target := filepath.Join(filepath.Dir(auditLogPath()), "historico-operacoes.log")
-		content := buildContent(filterEntry.Text)
+		content := buildSessionContent(sessionFilter.Text)
 		if err := os.WriteFile(target, []byte(content+"\n"), 0o644); err != nil {
 			dialog.ShowError(fmt.Errorf("não foi possível exportar histórico: %w", err), ui.win)
 			return
@@ -4019,6 +4098,18 @@ func (ui *explorer) showOperationHistory() {
 		}
 		ui.status.SetText("Log geral aberto: " + logPath)
 	})
+	btnOpenLogFolder := widget.NewButtonWithIcon("Abrir pasta de logs", theme.FolderOpenIcon(), func() {
+		logDir := filepath.Dir(auditLogPath())
+		if err := os.MkdirAll(logDir, 0o755); err != nil {
+			dialog.ShowError(fmt.Errorf("não foi possível preparar pasta de logs: %w", err), ui.win)
+			return
+		}
+		if err := openWithDefaultApp(logDir); err != nil {
+			dialog.ShowError(fmt.Errorf("não foi possível abrir pasta de logs: %w", err), ui.win)
+			return
+		}
+		ui.status.SetText("Pasta de logs aberta: " + logDir)
+	})
 	btnRetry := widget.NewButtonWithIcon("Tentar novamente última falha", theme.ViewRefreshIcon(), func() {
 		ui.retryLastFailedOperation()
 	})
@@ -4030,7 +4121,7 @@ func (ui *explorer) showOperationHistory() {
 		ui.failedJobs = nil
 		saveOperationHistoryPreference(nil)
 		ui.status.SetText("Histórico de operações limpo.")
-		log.SetText("Sem operações registradas para este filtro.")
+		sessionLog.SetText("Sem operações registradas para este filtro.")
 		appendAuditLog("historico", "Histórico de operações limpo")
 	})
 	if len(ui.failedJobs) == 0 {
@@ -4038,11 +4129,11 @@ func (ui *explorer) showOperationHistory() {
 		btnRetryAll.Disable()
 	}
 	contentWrap := fynecontainer.NewBorder(
-		fynecontainer.NewPadded(filterEntry),
-		fynecontainer.NewHBox(btnExport, btnOpenFullLog, btnRetry, btnRetryAll, btnClear),
+		nil,
+		fynecontainer.NewHBox(btnExport, btnOpenFullLog, btnOpenLogFolder, btnRetry, btnRetryAll, btnClear),
 		nil,
 		nil,
-		scroll,
+		tabs,
 	)
 	historyDialog := dialog.NewCustom(
 		"Histórico de operações",
@@ -4052,6 +4143,95 @@ func (ui *explorer) showOperationHistory() {
 	)
 	historyDialog.Resize(fyne.NewSize(860, 420))
 	historyDialog.Show()
+}
+
+func userManualText() string {
+	return strings.TrimSpace(`
+ContainerWay - Manual de uso
+
+1) Visão geral
+- Painel esquerdo: computador local.
+- Painel direito: servidor remoto (host) ou contêiner selecionado.
+- Barra superior: enviar/receber, histórico, manual e sair.
+- Barra de status: mostra ações, progresso e mensagens.
+
+2) Conexão e login
+- Configure Host, Usuário e Senha (ou chave).
+- Use "Testar conexão" antes de conectar.
+- Você pode salvar conexões e carregar depois.
+- Tema: padrão do sistema, claro ou escuro.
+
+3) Navegação de pastas
+- Botões por painel: voltar, subir nível, home e atualizar.
+- Seletores de atalhos: pular para pastas favoritas.
+- Clique duplo:
+  - Pasta: abre.
+  - Arquivo local: abre no app padrão do sistema.
+
+4) Transferências
+- "Enviar": local -> servidor/contêiner.
+- "Receber": servidor/contêiner -> local.
+- "Enviar visíveis" / "Receber visíveis": opera em lote com os itens filtrados.
+- Em lote, o progresso é por quantidade de itens concluídos.
+
+5) Busca e filtros avançados
+- Campo de busca em cada painel suporta:
+  - texto livre: parte do nome.
+  - ext:log (filtra por extensão).
+  - tipo:pasta ou tipo:arquivo.
+- Seletor ao lado da busca:
+  - Tudo, Pastas ou Arquivos.
+
+6) Favoritos
+- Botão "+" salva a pasta atual nos atalhos.
+- Botão "-" remove a pasta atual dos atalhos.
+- Favoritos são persistidos entre sessões.
+
+7) Edição remota
+- Em arquivo remoto, use abrir para edição.
+- O app sincroniza de volta quando detectar salvamento local.
+
+8) Histórico e log
+- Botão "Histórico" abre:
+  - aba Sessão (eventos recentes da sessão).
+  - aba Log geral (acumulado entre usos).
+- Ações disponíveis:
+  - filtrar eventos por texto.
+  - exportar histórico.
+  - abrir log geral e pasta de logs.
+  - tentar novamente última falha ou todas as falhas.
+
+9) Atalhos de teclado
+- Enter: abrir item/pasta no painel ativo.
+- Backspace: subir nível no painel ativo.
+- Tab: alternar foco entre painéis.
+- F3 ou Ctrl+F: focar busca.
+- F5: atualizar painéis.
+- F6: enviar/receber conforme painel ativo.
+- Ctrl+Shift+F6: enviar/receber itens visíveis (lote).
+- F2: renomear.
+- Del: excluir.
+- Ctrl+Shift+N: nova pasta.
+
+10) Dicas e solução rápida
+- Erro de permissão no servidor: considere ativar sudo quando necessário.
+- Falhas em lote: use histórico para reexecutar sem repetir tudo manualmente.
+- Se não aparecer resultado, revise filtros (tipo/extensão/texto).
+`)
+}
+
+func (ui *explorer) showUserManual() {
+	appendAuditLog("manual", "Manual do usuário aberto")
+	text := widget.NewRichTextWithText(userManualText())
+	text.Wrapping = fyne.TextWrapWord
+	scroll := fynecontainer.NewScroll(text)
+	scroll.SetMinSize(fyne.NewSize(900, 500))
+	dialog.NewCustom(
+		"Manual do sistema",
+		"Fechar",
+		scroll,
+		ui.win,
+	).Show()
 }
 
 func (ui *explorer) openRemoteForEdit(e fsutil.DirEntry) {
