@@ -686,6 +686,9 @@ type explorer struct {
 	explorerMain   fyne.CanvasObject
 	sessionHub     fyne.CanvasObject
 	explorerOnTop  atomic.Bool // true quando a janela mostra o gerenciador (atalhos do explorador ativos)
+
+	// Destino do botão Voltar nas telas cheias de configuração (admin): explorador ou hub da sessão.
+	settingsReturnToExplorer bool
 }
 
 type copiedItem struct {
@@ -4223,7 +4226,9 @@ func loadMailRecipientListFromPrefs(p fyne.Preferences) []string {
 	raw := strings.TrimSpace(p.String(notifyRecipientsJSONPreferenceKey))
 	if raw != "" {
 		var emails []string
-		if err := json.Unmarshal([]byte(raw), &emails); err == nil && len(emails) > 0 {
+		if err := json.Unmarshal([]byte(raw), &emails); err == nil {
+			// Lista vazia em JSON (ex.: "[]") é válida: deve retornar vazio e não cair no legado
+			// notify.email.to, que pode ainda guardar o primeiro endereço antigo.
 			return mailnotify.NormalizeRecipients(emails)
 		}
 	}
@@ -4926,6 +4931,47 @@ func (ui *explorer) showUserManual() {
 	).Show()
 }
 
+func (ui *explorer) snapshotSettingsReturnTarget() {
+	switch ui.win.Content() {
+	case ui.explorerMain:
+		ui.settingsReturnToExplorer = true
+	case ui.sessionHub:
+		ui.settingsReturnToExplorer = false
+	default:
+		// Ex.: abrir «Alertas por e-mail» a partir da tela cheia de usuários — mantém o destino já definido.
+	}
+}
+
+func (ui *explorer) closeSettingsFullscreen() {
+	if ui.settingsReturnToExplorer {
+		ui.win.SetContent(ui.explorerMain)
+		ui.explorerOnTop.Store(true)
+		setExplorerWindow(ui.win)
+		return
+	}
+	ui.win.SetContent(ui.sessionHub)
+	ui.explorerOnTop.Store(false)
+	setSessionHubWindow(ui.win)
+}
+
+// openSettingsFullscreen troca o conteúdo da janela por uma tela cheia maximizada (admin: usuários / e-mail).
+func (ui *explorer) openSettingsFullscreen(title string, content fyne.CanvasObject) {
+	ui.snapshotSettingsReturnTarget()
+	btnBack := widget.NewButtonWithIcon("Voltar", theme.NavigateBackIcon(), func() {
+		ui.closeSettingsFullscreen()
+	})
+	btnBack.Importance = widget.MediumImportance
+	titleLbl := widget.NewLabelWithStyle(title, fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+	titleLbl.Wrapping = fyne.TextWrapWord
+	top := fynecontainer.NewBorder(nil, nil, fynecontainer.NewPadded(btnBack), nil, titleLbl)
+	header := fynecontainer.NewVBox(top, widget.NewSeparator())
+	center := fynecontainer.NewMax(fynecontainer.NewPadded(content))
+	root := fynecontainer.NewBorder(header, nil, nil, nil, center)
+	ui.win.SetContent(root)
+	ui.explorerOnTop.Store(false)
+	setExplorerWindow(ui.win)
+}
+
 func (ui *explorer) showAccessUserManager() {
 	if !isCurrentAccessAdmin() {
 		dialog.ShowInformation("Usuários", "Somente o usuário admin pode gerenciar usuários.", ui.win)
@@ -4944,7 +4990,7 @@ func (ui *explorer) showAccessUserManager() {
 	usersList := widget.NewMultiLineEntry()
 	usersList.Disable()
 	usersList.Wrapping = fyne.TextWrapWord
-	usersList.SetMinRowsVisible(7)
+	usersList.SetMinRowsVisible(14)
 
 	refreshUsersList := func() {
 		users := loadAccessAccounts()
@@ -5018,9 +5064,7 @@ func (ui *explorer) showAccessUserManager() {
 		info.SetText("Usuário removido: " + target)
 	})
 
-	var dlgUsers dialog.Dialog
 	btnOpenMailNotify := widget.NewButtonWithIcon("Abrir configuração de alertas por e-mail…", theme.MailComposeIcon(), func() {
-		dlgUsers.Hide()
 		ui.showMailNotifySettings()
 	})
 	btnOpenMailNotify.Importance = widget.MediumImportance
@@ -5044,9 +5088,9 @@ func (ui *explorer) showAccessUserManager() {
 		widget.NewSeparator(),
 		info,
 	)
-	dlgUsers = dialog.NewCustom("Gerenciar usuários", "Fechar", body, ui.win)
-	dlgUsers.Resize(fyne.NewSize(560, 480))
-	dlgUsers.Show()
+	scroll := fynecontainer.NewScroll(body)
+	scroll.SetMinSize(fyne.NewSize(320, 200))
+	ui.openSettingsFullscreen("Gerenciar usuários", scroll)
 }
 
 func (ui *explorer) showMailNotifySettings() {
@@ -5075,61 +5119,6 @@ func (ui *explorer) showMailNotifySettings() {
 		lblRecipientCount.SetText(fmt.Sprintf("%d destinatários cadastrados.", n))
 	}
 	updateRecipientCount()
-
-	mailList := widget.NewList(
-		func() int { return len(recipients) },
-		func() fyne.CanvasObject {
-			return widget.NewLabel("endereço")
-		},
-		func(id widget.ListItemID, o fyne.CanvasObject) {
-			if id < 0 || int(id) >= len(recipients) {
-				return
-			}
-			o.(*widget.Label).SetText(recipients[id])
-		},
-	)
-	mailList.OnSelected = func(id widget.ListItemID) { selectedRecipient = id }
-	mailList.OnUnselected = func(_ widget.ListItemID) { selectedRecipient = -1 }
-
-	newAddrEntry := widget.NewEntry()
-	newAddrEntry.SetPlaceHolder("novo destinatário@empresa.com")
-
-	refreshMailList := func() {
-		updateRecipientCount()
-		mailList.Refresh()
-	}
-
-	btnAddAddr := widget.NewButtonWithIcon("Adicionar", theme.ContentAddIcon(), func() {
-		e := strings.TrimSpace(newAddrEntry.Text)
-		if e == "" || !strings.Contains(e, "@") {
-			dialog.ShowInformation("Destinatários", "Informe um endereço de e-mail válido (com @).", ui.win)
-			return
-		}
-		for _, x := range recipients {
-			if strings.EqualFold(strings.TrimSpace(x), e) {
-				dialog.ShowInformation("Destinatários", "Este endereço já está na lista.", ui.win)
-				return
-			}
-		}
-		recipients = append(recipients, e)
-		newAddrEntry.SetText("")
-		mailList.UnselectAll()
-		selectedRecipient = -1
-		refreshMailList()
-	})
-
-	btnRemoveAddr := widget.NewButtonWithIcon("Remover selecionado", theme.ContentRemoveIcon(), func() {
-		if selectedRecipient < 0 || int(selectedRecipient) >= len(recipients) {
-			dialog.ShowInformation("Destinatários", "Selecione um endereço na lista para remover.", ui.win)
-			return
-		}
-		i := int(selectedRecipient)
-		recipients = append(recipients[:i], recipients[i+1:]...)
-		mailList.UnselectAll()
-		selectedRecipient = -1
-		refreshMailList()
-	})
-	btnRemoveAddr.Importance = widget.MediumImportance
 
 	hostEntry := widget.NewEntry()
 	hostEntry.SetPlaceHolder("ex.: smtp.office365.com ou smtp.gmail.com")
@@ -5173,6 +5162,104 @@ func (ui *explorer) showMailNotifySettings() {
 			Recipients: mailnotify.NormalizeRecipients(recCopy),
 		}
 	}
+
+	mailList := widget.NewList(
+		func() int { return len(recipients) },
+		func() fyne.CanvasObject {
+			return widget.NewLabel("endereço")
+		},
+		func(id widget.ListItemID, o fyne.CanvasObject) {
+			if id < 0 || int(id) >= len(recipients) {
+				return
+			}
+			o.(*widget.Label).SetText(recipients[id])
+		},
+	)
+	mailList.OnSelected = func(id widget.ListItemID) { selectedRecipient = id }
+	mailList.OnUnselected = func(_ widget.ListItemID) { selectedRecipient = -1 }
+
+	newAddrEntry := widget.NewEntry()
+	newAddrEntry.SetPlaceHolder("novo destinatário@empresa.com")
+
+	refreshMailList := func() {
+		updateRecipientCount()
+		mailList.Refresh()
+	}
+
+	persistRecipients := func() {
+		refreshMailList()
+		s := readForm()
+		autoOff := false
+		if s.Enabled && len(s.Recipients) == 0 {
+			enabled.SetChecked(false)
+			s = readForm()
+			autoOff = true
+		}
+		saveMailNotifySettings(s)
+		recipients = append([]string(nil), loadMailNotifySettings().Recipients...)
+		refreshMailList()
+		if autoOff {
+			dialog.ShowInformation("Destinatários", "Com nenhum destinatário, o envio por e-mail foi desativado. A configuração já foi salva no disco.", ui.win)
+		}
+		appendAuditLog("acesso", "Lista de destinatários de alertas atualizada")
+	}
+
+	btnAddAddr := widget.NewButtonWithIcon("Adicionar", theme.ContentAddIcon(), func() {
+		e := strings.TrimSpace(newAddrEntry.Text)
+		if e == "" || !strings.Contains(e, "@") {
+			dialog.ShowInformation("Destinatários", "Informe um endereço de e-mail válido (com @).", ui.win)
+			return
+		}
+		for _, x := range recipients {
+			if strings.EqualFold(strings.TrimSpace(x), e) {
+				dialog.ShowInformation("Destinatários", "Este endereço já está na lista.", ui.win)
+				return
+			}
+		}
+		recipients = append(recipients, e)
+		newAddrEntry.SetText("")
+		mailList.UnselectAll()
+		selectedRecipient = -1
+		persistRecipients()
+	})
+
+	btnRemoveAddr := widget.NewButtonWithIcon("Remover selecionado", theme.ContentRemoveIcon(), func() {
+		if selectedRecipient < 0 || int(selectedRecipient) >= len(recipients) {
+			dialog.ShowInformation("Destinatários", "Selecione um endereço na lista ou use «Remover e-mail digitado» com o endereço na caixa acima.", ui.win)
+			return
+		}
+		i := int(selectedRecipient)
+		recipients = append(recipients[:i], recipients[i+1:]...)
+		mailList.UnselectAll()
+		selectedRecipient = -1
+		persistRecipients()
+	})
+	btnRemoveAddr.Importance = widget.MediumImportance
+
+	btnRemoveByEmail := widget.NewButtonWithIcon("Remover e-mail digitado", theme.ContentRemoveIcon(), func() {
+		e := strings.TrimSpace(newAddrEntry.Text)
+		if e == "" || !strings.Contains(e, "@") {
+			dialog.ShowInformation("Destinatários", "Digite na caixa acima o e-mail que deseja remover da lista.", ui.win)
+			return
+		}
+		idx := -1
+		for i, x := range recipients {
+			if strings.EqualFold(strings.TrimSpace(x), e) {
+				idx = i
+				break
+			}
+		}
+		if idx < 0 {
+			dialog.ShowInformation("Destinatários", "Este endereço não está na lista.", ui.win)
+			return
+		}
+		recipients = append(recipients[:idx], recipients[idx+1:]...)
+		newAddrEntry.SetText("")
+		mailList.UnselectAll()
+		selectedRecipient = -1
+		persistRecipients()
+	})
+	btnRemoveByEmail.Importance = widget.MediumImportance
 
 	btnSave := widget.NewButtonWithIcon("Salvar", theme.DocumentSaveIcon(), func() {
 		s := readForm()
@@ -5253,10 +5340,10 @@ func (ui *explorer) showMailNotifySettings() {
 	})
 
 	scrollRecipients := fynecontainer.NewScroll(mailList)
-	scrollRecipients.SetMinSize(fyne.NewSize(400, 100))
+	scrollRecipients.SetMinSize(fyne.NewSize(400, 220))
 	// Campo ocupa a largura; botão "Adicionar" fixo à direita (evita sobreposição com HBox simples).
 	addRow := fynecontainer.NewBorder(nil, nil, nil, btnAddAddr, newAddrEntry)
-	removeRow := fynecontainer.NewHBox(layout.NewSpacer(), btnRemoveAddr)
+	removeRow := fynecontainer.NewHBox(layout.NewSpacer(), btnRemoveAddr, btnRemoveByEmail)
 	recipientsBlock := fynecontainer.NewVBox(
 		lblRecipientCount,
 		fynecontainer.NewPadded(scrollRecipients),
@@ -5281,25 +5368,17 @@ func (ui *explorer) showMailNotifySettings() {
 		),
 	)
 	scrollCentral := fynecontainer.NewScroll(scrollContent)
-	scrollCentral.SetMinSize(fyne.NewSize(560, 240))
-
-	var mailDlg dialog.Dialog
-	btnFechar := widget.NewButton("Fechar", func() { mailDlg.Hide() })
-	btnFechar.Importance = widget.MediumImportance
+	scrollCentral.SetMinSize(fyne.NewSize(400, 200))
 
 	actionBar := fynecontainer.NewVBox(
 		widget.NewSeparator(),
 		fynecontainer.NewHBox(btnSave, btnTest, layout.NewSpacer()),
 		fynecontainer.NewHBox(btnTestSelf, layout.NewSpacer()),
-		widget.NewSeparator(),
-		fynecontainer.NewHBox(layout.NewSpacer(), btnFechar, layout.NewSpacer()),
 	)
-	// Barra inferior fixa; formulário rola no centro (cabe em telas menores).
+	// Barra inferior fixa; formulário rola no centro.
 	fullBody := fynecontainer.NewBorder(nil, fynecontainer.NewPadded(actionBar), nil, nil, scrollCentral)
 
-	mailDlg = dialog.NewCustomWithoutButtons("Alertas por e-mail (admin)", fullBody, ui.win)
-	mailDlg.Resize(fyne.NewSize(620, 520))
-	mailDlg.Show()
+	ui.openSettingsFullscreen("Alertas por e-mail (admin)", fullBody)
 }
 
 func (ui *explorer) openRemoteForEdit(e fsutil.DirEntry) {
