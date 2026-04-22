@@ -54,7 +54,7 @@ func Run() {
 }
 
 func setLoginWindow(w fyne.Window) {
-	w.Resize(fyne.NewSize(500, 600))
+	w.Resize(fyne.NewSize(460, 440))
 }
 
 func setExplorerWindow(w fyne.Window) {
@@ -74,11 +74,11 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 	pass := widget.NewPasswordEntry()
 	pass.SetPlaceHolder("senha (opcional se usar chave)")
 	keyPath := widget.NewEntry()
-	keyPath.SetPlaceHolder("caminho para .pem / id_rsa (OpenSSH)")
+	keyPath.SetPlaceHolder("caminho da chave .pem / id_rsa")
 	keyPass := widget.NewPasswordEntry()
-	keyPass.SetPlaceHolder("senha da chave privada (se houver)")
+	keyPass.SetPlaceHolder("senha da chave (se houver)")
 	knownHosts := widget.NewEntry()
-	knownHosts.SetPlaceHolder("known_hosts (opcional); vários: caminho1|caminho2")
+	knownHosts.SetPlaceHolder("known_hosts: caminho1|caminho2")
 	insecureHost := widget.NewCheck("Ignorar chave de host SSH (inseguro)", nil)
 	insecureHost.SetChecked(true)
 	parallelJobsEntry := widget.NewEntry()
@@ -128,8 +128,23 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 		saveSecrets.SetChecked(c.Password != "" || c.KeyPass != "")
 	}
 
+	clearProfileInputs := func() {
+		connName.SetText("")
+		host.SetText("")
+		user.SetText("")
+		pass.SetText("")
+		keyPath.SetText("")
+		keyPass.SetText("")
+		knownHosts.SetText("")
+		insecureHost.SetChecked(true)
+		parallelJobsEntry.SetText("3")
+		saveSecrets.SetChecked(false)
+		status.SetText("")
+	}
+
 	profileSelect.OnChanged = func(sel string) {
 		if sel == "Nova conexão…" {
+			clearProfileInputs()
 			return
 		}
 		c, ok := findConnectionByName(profiles, sel)
@@ -208,18 +223,31 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 		},
 	}
 
-	body := fynecontainer.NewVBox(
-		widget.NewLabelWithStyle("Conexões salvas", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		fynecontainer.NewHBox(profileSelect, saveProfile, deleteProfile),
-		connName,
-		saveSecrets,
-		widget.NewSeparator(),
-		widget.NewLabelWithStyle("Conexão", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		formConn,
-		widget.NewSeparator(),
-		widget.NewLabelWithStyle("Chave e segurança", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		formAdv,
+	saveBtnWrap := fynecontainer.NewGridWrap(
+		fyne.NewSize(82, saveProfile.MinSize().Height),
+		saveProfile,
 	)
+	deleteBtnWrap := fynecontainer.NewGridWrap(
+		fyne.NewSize(90, deleteProfile.MinSize().Height),
+		deleteProfile,
+	)
+	savedConnRow := fynecontainer.NewBorder(
+		nil, nil, nil,
+		fynecontainer.NewHBox(saveBtnWrap, deleteBtnWrap),
+		profileSelect,
+	)
+
+	tabs := fynecontainer.NewAppTabs(
+		fynecontainer.NewTabItem("Conexões SSH/SFTP", fynecontainer.NewVBox(
+			savedConnRow,
+			connName,
+			saveSecrets,
+			widget.NewSeparator(),
+			formConn,
+		)),
+		fynecontainer.NewTabItem("Chave e segurança", formAdv),
+	)
+	tabs.SetTabLocation(fynecontainer.TabLocationTop)
 
 	connect := widget.NewButtonWithIcon("Conectar", theme.LoginIcon(), func() {
 		status.SetText("Conectando…")
@@ -253,10 +281,10 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 	connect.Importance = widget.HighImportance
 
 	cardInner := fynecontainer.NewVBox(
-		body,
+		tabs,
+		status,
 		widget.NewSeparator(),
 		connect,
-		status,
 	)
 	card := widget.NewCard(
 		"ContainerWay",
@@ -264,7 +292,7 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 		cardInner,
 	)
 
-	return fynecontainer.NewCenter(fynecontainer.NewPadded(card))
+	return fynecontainer.NewCenter(card)
 }
 
 type explorer struct {
@@ -335,6 +363,18 @@ type explorer struct {
 	dialogShortcutActive atomic.Bool
 	dialogConfirmAction  func()
 	dialogCancelAction   func()
+	dragActive           bool
+	dragFromLeft         bool
+	dragItemID           widget.ListItemID
+	dragAccumX           float32
+	copiedEntry          *copiedItem
+}
+
+type copiedItem struct {
+	entry       fsutil.DirEntry
+	fromLeft    bool
+	hostMode    bool
+	containerID string
 }
 
 type remoteEditSession struct {
@@ -763,6 +803,182 @@ func panelCard(content fyne.CanvasObject) fyne.CanvasObject {
 	border.StrokeColor = theme.DisabledColor()
 	border.StrokeWidth = 1.5
 	return fynecontainer.NewMax(border, content)
+}
+
+func (ui *explorer) startRowDrag(left bool, id widget.ListItemID) {
+	if left {
+		if id < 0 || int(id) >= len(ui.leftRows) {
+			return
+		}
+		ui.leftList.Select(id)
+		ui.leftSel = int(id)
+		ui.activePane = "left"
+	} else {
+		if id < 0 || int(id) >= len(ui.rightRows) {
+			return
+		}
+		ui.rightList.Select(id)
+		ui.rightSel = int(id)
+		ui.activePane = "right"
+	}
+	ui.dragActive = true
+	ui.dragFromLeft = left
+	ui.dragItemID = id
+	ui.dragAccumX = 0
+	ui.updateActionState()
+}
+
+func (ui *explorer) updateRowDrag(deltaX float32) {
+	if !ui.dragActive {
+		return
+	}
+	ui.dragAccumX += deltaX
+}
+
+func (ui *explorer) finishRowDrag() {
+	if !ui.dragActive {
+		return
+	}
+	const minCrossDrag = float32(120)
+	fromLeft := ui.dragFromLeft
+	acc := ui.dragAccumX
+	ui.dragActive = false
+	ui.dragAccumX = 0
+
+	if fromLeft && acc > minCrossDrag {
+		ui.status.SetText("Arrastar detectado: enviando para o servidor…")
+		ui.upload()
+		return
+	}
+	if !fromLeft && acc < -minCrossDrag {
+		ui.status.SetText("Arrastar detectado: recebendo para o computador local…")
+		ui.download()
+		return
+	}
+}
+
+func (ui *explorer) copySelectedEntry(left bool, id widget.ListItemID) {
+	if left {
+		if id < 0 || int(id) >= len(ui.leftRows) {
+			return
+		}
+		e := ui.leftRows[id]
+		if e.Name == ".." {
+			return
+		}
+		ui.copiedEntry = &copiedItem{entry: e, fromLeft: true}
+		ui.status.SetText("Copiado (local): " + e.Name)
+		return
+	}
+	if id < 0 || int(id) >= len(ui.rightRows) {
+		return
+	}
+	e := ui.rightRows[id]
+	if e.Name == ".." {
+		return
+	}
+	containerID := ""
+	if !ui.hostMode && ui.cfs != nil {
+		containerID = ui.cfs.ID
+	}
+	ui.copiedEntry = &copiedItem{
+		entry:       e,
+		fromLeft:    false,
+		hostMode:    ui.hostMode,
+		containerID: containerID,
+	}
+	ui.status.SetText("Copiado (servidor): " + e.Name)
+}
+
+func (ui *explorer) pasteCopiedTo(leftTarget bool, targetDir string) {
+	if ui.copiedEntry == nil {
+		dialog.ShowInformation("Colar", "Copie um arquivo ou pasta antes de colar.", ui.win)
+		return
+	}
+	src := *ui.copiedEntry
+	name := filepath.Base(src.entry.Path)
+	if !src.fromLeft {
+		name = path.Base(src.entry.Path)
+	}
+
+	// Local -> Local
+	if src.fromLeft && leftTarget {
+		dst := filepath.Join(targetDir, name)
+		ui.tm.Enqueue(transfer.Job{
+			Name: fmt.Sprintf("Copiar local:%s → local:%s", src.entry.Path, dst),
+			Run: func(ctx context.Context, on transfer.Progress) error {
+				if src.entry.IsDir {
+					return copyLocalDir(ctx, src.entry.Path, dst)
+				}
+				return copyLocalFile(ctx, src.entry.Path, dst)
+			},
+		})
+		ui.startDrain()
+		return
+	}
+	// Local -> Remoto
+	if src.fromLeft && !leftTarget {
+		ui.enqueueLocalToRemote(src.entry, targetDir)
+		ui.startDrain()
+		return
+	}
+	// Remoto -> Local
+	if !src.fromLeft && leftTarget {
+		ui.enqueueRemoteToLocal(src, targetDir)
+		ui.startDrain()
+		return
+	}
+	// Remoto -> Remoto (mesmo contexto)
+	if src.hostMode != ui.hostMode || (!src.hostMode && src.containerID != "" && ui.cfs != nil && src.containerID != ui.cfs.ID) {
+		dialog.ShowInformation("Colar", "Para colar no remoto, mantenha o mesmo contexto (host ou contêiner).", ui.win)
+		return
+	}
+	ui.enqueueRemoteToRemote(src, targetDir)
+	ui.startDrain()
+}
+
+func copyLocalFile(ctx context.Context, src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	_, err = io.Copy(out, in)
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	return err
+}
+
+func copyLocalDir(ctx context.Context, srcDir, dstDir string) error {
+	return filepath.WalkDir(srcDir, func(full string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		rel, err := filepath.Rel(srcDir, full)
+		if err != nil {
+			return err
+		}
+		if rel == "." {
+			return os.MkdirAll(dstDir, 0o755)
+		}
+		dst := filepath.Join(dstDir, rel)
+		if d.IsDir() {
+			return os.MkdirAll(dst, 0o755)
+		}
+		return copyLocalFile(ctx, full, dst)
+	})
 }
 
 func (ui *explorer) updateBreadcrumb() {
@@ -1997,6 +2213,226 @@ func (ui *explorer) download() {
 	ui.startDrain()
 }
 
+func (ui *explorer) enqueueLocalToRemote(src fsutil.DirEntry, dstDir string) {
+	dstName := filepath.Base(src.Path)
+	if src.IsDir {
+		if ui.hostMode {
+			remoteBase := path.Join(dstDir, dstName)
+			ui.tm.Enqueue(transfer.Job{
+				Name: fmt.Sprintf("Copiar local:%s → servidor:%s", src.Path, remoteBase),
+				Run: func(ctx context.Context, on transfer.Progress) error {
+					if ui.sudoEnabled {
+						_, err := ui.copyLocalDirToHostWithSudo(ctx, src.Path, remoteBase)
+						return err
+					}
+					_, err := tarxfer.SFTPUploadLocalTree(ctx, src.Path, remoteBase, ui.hfs.Client)
+					return err
+				},
+			})
+			return
+		}
+		ui.tm.Enqueue(transfer.Job{
+			Name: fmt.Sprintf("Copiar local:%s → contêiner:%s", src.Path, dstDir),
+			Run: func(ctx context.Context, on transfer.Progress) error {
+				return tarxfer.UploadLocalDirToContainer(ctx, ui.s.Docker, ui.cfs.ID, src.Path, dstDir)
+			},
+		})
+		return
+	}
+	if ui.hostMode {
+		dst := path.Join(dstDir, dstName)
+		ui.tm.Enqueue(transfer.Job{
+			Name: fmt.Sprintf("Copiar local:%s → servidor:%s", src.Path, dst),
+			Run: func(ctx context.Context, on transfer.Progress) error {
+				if ui.sudoEnabled {
+					return ui.copyLocalFileToHostWithSudo(ctx, src.Path, dst)
+				}
+				f, err := os.Open(src.Path)
+				if err != nil {
+					return err
+				}
+				defer f.Close()
+				wf, err := ui.hfs.CreateWriter(dst)
+				if err != nil {
+					return err
+				}
+				defer wf.Close()
+				_, err = io.Copy(wf, f)
+				return err
+			},
+		})
+		return
+	}
+	ui.tm.Enqueue(transfer.Job{
+		Name: fmt.Sprintf("Copiar local:%s → contêiner:%s", src.Path, dstDir),
+		Run: func(ctx context.Context, on transfer.Progress) error {
+			f, err := os.Open(src.Path)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			st, err := f.Stat()
+			if err != nil {
+				return err
+			}
+			return ui.cfs.UploadFile(ctx, dstDir, dstName, f, st.Size())
+		},
+	})
+}
+
+func (ui *explorer) enqueueRemoteToLocal(src copiedItem, dstDir string) {
+	dstPath := filepath.Join(dstDir, path.Base(src.entry.Path))
+	if src.entry.IsDir {
+		if src.hostMode {
+			ui.tm.Enqueue(transfer.Job{
+				Name: fmt.Sprintf("Copiar servidor:%s → local:%s", src.entry.Path, dstPath),
+				Run: func(ctx context.Context, on transfer.Progress) error {
+					if ui.sudoEnabled {
+						_, err := ui.copyHostDirWithSudoToLocal(ctx, src.entry.Path, dstPath)
+						return err
+					}
+					_, err := tarxfer.SFTPDownloadTree(ctx, ui.hfs.Client, src.entry.Path, dstPath)
+					return err
+				},
+			})
+			return
+		}
+		ui.tm.Enqueue(transfer.Job{
+			Name: fmt.Sprintf("Copiar contêiner:%s → local:%s", src.entry.Path, dstPath),
+			Run: func(ctx context.Context, on transfer.Progress) error {
+				cid := src.containerID
+				if cid == "" && ui.cfs != nil {
+					cid = ui.cfs.ID
+				}
+				_, err := tarxfer.ExtractContainerDirToLocal(ctx, ui.s.Docker, cid, src.entry.Path, dstPath)
+				return err
+			},
+		})
+		return
+	}
+	if src.hostMode {
+		ui.tm.Enqueue(transfer.Job{
+			Name: fmt.Sprintf("Copiar servidor:%s → local:%s", src.entry.Path, dstPath),
+			Run: func(ctx context.Context, on transfer.Progress) error {
+				if ui.sudoEnabled {
+					return ui.copyHostFileWithSudoToLocal(ctx, src.entry.Path, dstPath)
+				}
+				rf, err := ui.hfs.OpenReader(src.entry.Path)
+				if err != nil {
+					return err
+				}
+				defer rf.Close()
+				out, err := os.Create(dstPath)
+				if err != nil {
+					return err
+				}
+				defer out.Close()
+				_, err = io.Copy(out, rf)
+				return err
+			},
+		})
+		return
+	}
+	ui.tm.Enqueue(transfer.Job{
+		Name: fmt.Sprintf("Copiar contêiner:%s → local:%s", src.entry.Path, dstPath),
+		Run: func(ctx context.Context, on transfer.Progress) error {
+			cid := src.containerID
+			if cid == "" && ui.cfs != nil {
+				cid = ui.cfs.ID
+			}
+			cfs := &containerfs.FS{Docker: ui.s.Docker, ID: cid}
+			rc, _, err := cfs.OpenFileReader(ctx, src.entry.Path)
+			if err != nil {
+				return err
+			}
+			defer rc.Close()
+			out, err := os.Create(dstPath)
+			if err != nil {
+				return err
+			}
+			defer out.Close()
+			_, err = io.Copy(out, rc)
+			return err
+		},
+	})
+}
+
+func (ui *explorer) enqueueRemoteToRemote(src copiedItem, dstDir string) {
+	name := path.Base(src.entry.Path)
+	if src.entry.IsDir {
+		if src.hostMode {
+			ui.tm.Enqueue(transfer.Job{
+				Name: fmt.Sprintf("Copiar servidor:%s → servidor:%s", src.entry.Path, dstDir),
+				Run: func(ctx context.Context, on transfer.Progress) error {
+					if ui.sudoEnabled {
+						tmpDir, err := os.MkdirTemp("", "containerway-copy-*")
+						if err != nil {
+							return err
+						}
+						defer os.RemoveAll(tmpDir)
+						localTmp := filepath.Join(tmpDir, name)
+						if _, err := ui.copyHostDirWithSudoToLocal(ctx, src.entry.Path, localTmp); err != nil {
+							return err
+						}
+						_, err = ui.copyLocalDirToHostWithSudo(ctx, localTmp, path.Join(dstDir, name))
+						return err
+					}
+					return fmt.Errorf("copiar pasta servidor->servidor sem sudo ainda não suportado")
+				},
+			})
+			return
+		}
+		ui.tm.Enqueue(transfer.Job{
+			Name: fmt.Sprintf("Copiar contêiner:%s → contêiner:%s", src.entry.Path, dstDir),
+			Run: func(ctx context.Context, on transfer.Progress) error {
+				rc, _, err := ui.s.Docker.CopyFromContainer(ctx, src.containerID, src.entry.Path)
+				if err != nil {
+					return err
+				}
+				defer rc.Close()
+				opts := dcontainer.CopyToContainerOptions{AllowOverwriteDirWithFile: true}
+				return ui.s.Docker.CopyToContainer(ctx, src.containerID, dstDir, rc, opts)
+			},
+		})
+		return
+	}
+	if src.hostMode {
+		dst := path.Join(dstDir, name)
+		ui.tm.Enqueue(transfer.Job{
+			Name: fmt.Sprintf("Copiar servidor:%s → servidor:%s", src.entry.Path, dst),
+			Run: func(ctx context.Context, on transfer.Progress) error {
+				if ui.sudoEnabled {
+					tmpFile, err := os.CreateTemp("", "containerway-copy-*")
+					if err != nil {
+						return err
+					}
+					tmpPath := tmpFile.Name()
+					_ = tmpFile.Close()
+					defer os.Remove(tmpPath)
+					if err := ui.copyHostFileWithSudoToLocal(ctx, src.entry.Path, tmpPath); err != nil {
+						return err
+					}
+					return ui.copyLocalFileToHostWithSudo(ctx, tmpPath, dst)
+				}
+				return fmt.Errorf("copiar arquivo servidor->servidor sem sudo ainda não suportado")
+			},
+		})
+		return
+	}
+	ui.tm.Enqueue(transfer.Job{
+		Name: fmt.Sprintf("Copiar contêiner:%s → contêiner:%s", src.entry.Path, dstDir),
+		Run: func(ctx context.Context, on transfer.Progress) error {
+			cfs := &containerfs.FS{Docker: ui.s.Docker, ID: src.containerID}
+			rc, size, err := cfs.OpenFileReader(ctx, src.entry.Path)
+			if err != nil {
+				return err
+			}
+			defer rc.Close()
+			return cfs.UploadFile(ctx, dstDir, name, rc, size)
+		},
+	})
+}
+
 func (ui *explorer) startDrain() {
 	ctx := context.Background()
 	ui.tm.DrainAsync(ctx, ui.parallelJobs,
@@ -2632,9 +3068,15 @@ func (ui *explorer) showRowContextMenu(left bool, id widget.ListItemID, pos fyne
 		ui.activePane = "left"
 		ui.updateActionState()
 		e := ui.leftRows[id]
+		targetDir := ui.leftPath
+		if e.IsDir && e.Name != ".." {
+			targetDir = e.Path
+		}
 		items := []*fyne.MenuItem{
 			fyne.NewMenuItem("Abrir pasta", func() { ui.onLeftActivate() }),
 			fyne.NewMenuItem("Enviar para o servidor", func() { ui.upload() }),
+			fyne.NewMenuItem("Copiar", func() { ui.copySelectedEntry(true, id) }),
+			fyne.NewMenuItem("Colar aqui", func() { ui.pasteCopiedTo(true, targetDir) }),
 			fyne.NewMenuItem("Renomear", func() { ui.renameActive() }),
 			fyne.NewMenuItem("Excluir", func() { ui.deleteActive() }),
 			fyne.NewMenuItem("Nova pasta aqui", func() { ui.createFolderActive() }),
@@ -2647,6 +3089,9 @@ func (ui *explorer) showRowContextMenu(left bool, id widget.ListItemID, pos fyne
 		if e.Name == ".." {
 			items[1].Disabled = true
 		}
+		if ui.copiedEntry == nil {
+			items[3].Disabled = true
+		}
 		widget.ShowPopUpMenuAtPosition(fyne.NewMenu("", items...), ui.win.Canvas(), pos)
 		return
 	}
@@ -2658,9 +3103,15 @@ func (ui *explorer) showRowContextMenu(left bool, id widget.ListItemID, pos fyne
 	ui.activePane = "right"
 	ui.updateActionState()
 	e := ui.rightRows[id]
+	targetDir := ui.rightPath
+	if e.IsDir && e.Name != ".." {
+		targetDir = e.Path
+	}
 	items := []*fyne.MenuItem{
 		fyne.NewMenuItem("Abrir pasta", func() { ui.onRightActivate() }),
 		fyne.NewMenuItem("Receber no computador local", func() { ui.download() }),
+		fyne.NewMenuItem("Copiar", func() { ui.copySelectedEntry(false, id) }),
+		fyne.NewMenuItem("Colar aqui", func() { ui.pasteCopiedTo(false, targetDir) }),
 		fyne.NewMenuItem("Renomear", func() { ui.renameActive() }),
 		fyne.NewMenuItem("Excluir", func() { ui.deleteActive() }),
 		fyne.NewMenuItem("Nova pasta aqui", func() { ui.createFolderActive() }),
@@ -2672,6 +3123,9 @@ func (ui *explorer) showRowContextMenu(left bool, id widget.ListItemID, pos fyne
 	}
 	if e.Name == ".." {
 		items[1].Disabled = true
+	}
+	if ui.copiedEntry == nil {
+		items[3].Disabled = true
 	}
 	widget.ShowPopUpMenuAtPosition(fyne.NewMenu("", items...), ui.win.Canvas(), pos)
 }

@@ -21,6 +21,7 @@ var (
 	_ fyne.Tappable       = (*dirListRow)(nil)
 	_ fyne.DoubleTappable = (*dirListRow)(nil)
 	_ fyne.SecondaryTappable = (*dirListRow)(nil)
+	_ fyne.Draggable      = (*dirListRow)(nil)
 )
 
 func newDirListRow(ui *explorer, left bool) *dirListRow {
@@ -79,4 +80,15 @@ func (r *dirListRow) DoubleTapped(_ *fyne.PointEvent) {
 
 func (r *dirListRow) TappedSecondary(ev *fyne.PointEvent) {
 	r.ui.showRowContextMenu(r.left, r.itemID, ev.AbsolutePosition)
+}
+
+func (r *dirListRow) Dragged(ev *fyne.DragEvent) {
+	if !r.ui.dragActive || r.ui.dragItemID != r.itemID || r.ui.dragFromLeft != r.left {
+		r.ui.startRowDrag(r.left, r.itemID)
+	}
+	r.ui.updateRowDrag(ev.Dragged.DX)
+}
+
+func (r *dirListRow) DragEnd() {
+	r.ui.finishRowDrag()
 }
