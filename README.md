@@ -14,6 +14,8 @@ Gestor de arquivos com painel duplo (estilo WinSCP) para **Windows**: navega no 
 - **Conexões salvas**: na tela inicial é possível salvar, carregar e excluir perfis de conexão (com opção de guardar senha/chave localmente).
 - **Interface**: tema escuro com acento ciano, layout mais compacto no explorador, botões de navegação por painel, pesquisa local/remota, breadcrumbs clicáveis e ícone da aplicação/janela.
 - **Ações de arquivo**: duplo clique em pasta abre; duplo clique em arquivo local abre no app padrão; arquivo remoto pode abrir para edição remota com sincronização automática ao salvar (estilo WinSCP).
+- **Gestão de itens**: renomear, excluir e criar pasta no painel ativo (menu de contexto e atalhos).
+- **Modo sudo no host remoto**: ao receber `permission denied`, o app pode solicitar credenciais para elevar acesso, listando/abrindo/editando/transferindo arquivos protegidos no host.
 
 ## Stack (resumo)
 
@@ -68,7 +70,27 @@ go build -tags ci -o containerway_ci.exe ./cmd/containerway/
 - Cada painel tem barra de navegação com **voltar**, **subir**, **início** e **atualizar**, além de busca por nome.
 - **Breadcrumb clicável** permite saltar direto para qualquer nível de pasta.
 - **Menu de contexto** (botão direito) oferece abrir, transferir e atualizar lista.
-- **Atalhos de teclado**: `Enter` abre pasta no painel ativo, `Backspace` sobe nível e `F5` atualiza.
+- **Atalhos de teclado**:
+  - `Enter`: abre pasta no painel ativo
+  - `Backspace`: sobe um nível
+  - `Tab`: alterna painel ativo (local/servidor)
+  - `F3` e `Ctrl+F`: foca a busca do painel ativo
+  - `F5`: atualiza os dois painéis
+  - `F6`: transfere conforme o painel ativo (`Enviar` no local / `Receber` no servidor)
+  - `F2`: renomear item selecionado
+  - `Del`: excluir item selecionado (com confirmação)
+  - `Ctrl+Shift+N`: criar nova pasta no painel ativo
+- **Busca inteligente por painel**: ao navegar para outra pasta, o campo de busca do painel é limpo automaticamente para evitar lista “vazia” por filtro antigo.
+
+### Pastas protegidas (sudo)
+
+- Ao entrar em pasta remota com restrição de permissão, o app exibe o diálogo **Acesso negado**.
+- Você pode informar usuário/senha para tentativa de elevação com `sudo`.
+- Se o usuário informado não elevar para `uid=0`, o app tenta fallback para `root` automaticamente com a mesma senha.
+- Com sudo ativo, o lado remoto passa a suportar:
+  - listagem de diretórios protegidos,
+  - abrir/editar arquivo remoto com sincronização,
+  - enviar e receber arquivos protegidos.
 
 ## Estrutura do código
 
