@@ -60,12 +60,9 @@ func (r *dirListRow) DoubleTapped(_ *fyne.PointEvent) {
 			if id < 0 || int(id) >= len(ui.leftRows) {
 				return
 			}
-			if !ui.leftRows[id].IsDir {
-				return
-			}
 			ui.leftList.Select(id)
 			ui.leftSel = int(id)
-			ui.onLeftActivate()
+			ui.onLeftDoubleAction()
 			return
 		}
 		if ui.rightList == nil {
@@ -74,12 +71,9 @@ func (r *dirListRow) DoubleTapped(_ *fyne.PointEvent) {
 		if id < 0 || int(id) >= len(ui.rightRows) {
 			return
 		}
-		if !ui.rightRows[id].IsDir {
-			return
-		}
 		ui.rightList.Select(id)
 		ui.rightSel = int(id)
-		ui.onRightActivate()
+		ui.onRightDoubleAction()
 	})
 }
 

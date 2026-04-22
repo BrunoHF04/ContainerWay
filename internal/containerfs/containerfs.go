@@ -2,6 +2,7 @@ package containerfs
 
 import (
 	"archive/tar"
+	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -54,6 +55,11 @@ func (f *FS) List(ctx context.Context, containerPath string) ([]fsutil.DirEntry,
 		}}, nil
 	}
 
+	rows, err := f.listDirDirect(ctx, p)
+	if err == nil {
+		return rows, nil
+	}
+
 	rc, _, err := f.Docker.CopyFromContainer(ctx, f.ID, p)
 	if err != nil {
 		return nil, err
@@ -72,6 +78,8 @@ func (f *FS) List(ctx context.Context, containerPath string) ([]fsutil.DirEntry,
 		out = append(out, fsutil.DirEntry{Name: "..", Path: parent, IsDir: true})
 	}
 
+	totalHdr := 0
+	accepted := 0
 	for {
 		hdr, err := tr.Next()
 		if err == io.EOF {
@@ -80,31 +88,43 @@ func (f *FS) List(ctx context.Context, containerPath string) ([]fsutil.DirEntry,
 		if err != nil {
 			return nil, err
 		}
+		totalHdr++
 
-		name := strings.TrimSuffix(hdr.Name, "/")
-		name = strings.TrimPrefix(name, "./")
+		name := strings.TrimPrefix(strings.TrimSpace(hdr.Name), "./")
+		name = strings.TrimPrefix(name, "/")
 		if name == "" || name == "." {
-			if _, err := io.Copy(io.Discard, tr); err != nil {
-				return nil, err
-			}
 			continue
 		}
-		base := path.Base(name)
-		if base == "." || base == "" {
-			if _, err := io.Copy(io.Discard, tr); err != nil {
-				return nil, err
+
+		// CopyFromContainer devolve tar recursivo; aqui mostramos apenas os filhos diretos de p.
+		rel := name
+		if p != "/" {
+			fullPrefix := strings.TrimPrefix(path.Clean(p), "/")
+			basePrefix := path.Base(p)
+			switch {
+			case rel == fullPrefix, rel == basePrefix:
+				rel = ""
+			case strings.HasPrefix(rel, fullPrefix+"/"):
+				rel = strings.TrimPrefix(rel, fullPrefix+"/")
+			case strings.HasPrefix(rel, basePrefix+"/"):
+				rel = strings.TrimPrefix(rel, basePrefix+"/")
+			default:
+				// Qualquer entrada fora da pasta pedida é descartada.
+				continue
 			}
+		}
+		rel = strings.TrimPrefix(rel, "./")
+		rel = strings.TrimPrefix(rel, "/")
+		if rel == "" || rel == "." {
 			continue
 		}
+		base := strings.Split(rel, "/")[0]
 		if _, ok := seen[base]; ok {
-			if _, err := io.Copy(io.Discard, tr); err != nil {
-				return nil, err
-			}
 			continue
 		}
 		seen[base] = struct{}{}
 
-		isDir := hdr.Typeflag == tar.TypeDir || strings.HasSuffix(hdr.Name, "/")
+		isDir := strings.Contains(rel, "/") || hdr.Typeflag == tar.TypeDir || strings.HasSuffix(hdr.Name, "/")
 		mt := hdr.ModTime
 		if mt.IsZero() {
 			mt = time.Unix(hdr.ModTime.Unix(), 0)
@@ -116,12 +136,65 @@ func (f *FS) List(ctx context.Context, containerPath string) ([]fsutil.DirEntry,
 			Size:    hdr.Size,
 			ModTime: mt,
 		})
+		accepted++
+	}
+	return out, nil
+}
 
-		if _, err := io.Copy(io.Discard, tr); err != nil {
-			return nil, err
+func (f *FS) listDirDirect(ctx context.Context, p string) ([]fsutil.DirEntry, error) {
+	execCfg := container.ExecOptions{
+		AttachStdout: true,
+		AttachStderr: true,
+		Cmd:          []string{"ls", "-1Ap", p},
+	}
+	created, err := f.Docker.ContainerExecCreate(ctx, f.ID, execCfg)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := f.Docker.ContainerExecAttach(ctx, created.ID, container.ExecStartOptions{})
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Close()
+
+	var out []fsutil.DirEntry
+	if p != "/" {
+		parent := path.Dir(p)
+		if parent == "" || parent == "." {
+			parent = "/"
 		}
+		out = append(out, fsutil.DirEntry{Name: "..", Path: parent, IsDir: true})
 	}
 
+	sc := bufio.NewScanner(resp.Reader)
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if line == "" {
+			continue
+		}
+		isDir := strings.HasSuffix(line, "/")
+		name := strings.TrimSuffix(line, "/")
+		if name == "." || name == ".." || name == "" {
+			continue
+		}
+		out = append(out, fsutil.DirEntry{
+			Name:    name,
+			Path:    f.join(p, name),
+			IsDir:   isDir,
+			Size:    0,
+			ModTime: time.Now(),
+		})
+	}
+	if err := sc.Err(); err != nil {
+		return nil, err
+	}
+	inspected, err := f.Docker.ContainerExecInspect(ctx, created.ID)
+	if err != nil {
+		return nil, err
+	}
+	if inspected.ExitCode != 0 {
+		return nil, fmt.Errorf("ls retornou código %d", inspected.ExitCode)
+	}
 	return out, nil
 }
 

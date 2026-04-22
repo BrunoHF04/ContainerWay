@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -200,6 +203,19 @@ type explorer struct {
 
 	// Evita aplicar listagens antigas se o usuário mudar de pasta/contexto a meio.
 	rightRefreshSeq atomic.Uint64
+
+	remoteEditMu       sync.Mutex
+	remoteEditSessions map[string]*remoteEditSession
+}
+
+type remoteEditSession struct {
+	tempPath    string
+	remotePath  string
+	hostMode    bool
+	containerID string
+	lastMod     time.Time
+	lastSize    int64
+	stopped     atomic.Bool
 }
 
 func splitKnownHostsFiles(s string) []string {
@@ -291,6 +307,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 		tm:             &transfer.Manager{},
 		parallelJobs:   parallelJobs,
 		activePane:     "left",
+		remoteEditSessions: map[string]*remoteEditSession{},
 	}
 	for _, c := range list {
 		// Reforço no cliente: só o que está “vivo” (como no docker ps sem -a).
@@ -605,6 +622,10 @@ func (ui *explorer) refreshLeft() {
 }
 
 func (ui *explorer) applyLeftFilter() {
+	selectedPath := ""
+	if ui.leftSel >= 0 && ui.leftSel < len(ui.leftRows) {
+		selectedPath = ui.leftRows[ui.leftSel].Path
+	}
 	term := strings.ToLower(strings.TrimSpace(ui.leftSearch.Text))
 	if term == "" {
 		ui.leftRows = append([]fsutil.DirEntry(nil), ui.leftAll...)
@@ -619,6 +640,15 @@ func (ui *explorer) applyLeftFilter() {
 	}
 	ui.leftSel = -1
 	ui.leftList.UnselectAll()
+	if selectedPath != "" {
+		for i, e := range ui.leftRows {
+			if e.Path == selectedPath {
+				ui.leftSel = i
+				ui.leftList.Select(i)
+				break
+			}
+		}
+	}
 	ui.leftList.Refresh()
 	ui.leftList.ScrollToTop()
 	ui.updateBreadcrumb()
@@ -635,6 +665,7 @@ func (ui *explorer) refreshRightQuiet() {
 }
 
 func (ui *explorer) refreshRightImpl(showLoading bool) {
+	_ = showLoading
 	seq := ui.rightRefreshSeq.Add(1)
 	hostMode := ui.hostMode
 	p := ui.rightPath
@@ -644,30 +675,34 @@ func (ui *explorer) refreshRightImpl(showLoading bool) {
 		cfs = ui.cfs
 	}
 
-	if showLoading {
-		ui.status.SetText("Carregando pastas…")
-	}
-
 	go func(seq uint64) {
 		if !hostMode && cfs == nil {
-			if showLoading {
-				fyne.Do(func() {
-					if seq != ui.rightRefreshSeq.Load() {
-						return
-					}
-					ui.status.SetText("")
-				})
-			}
 			return
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
+		type listResult struct {
+			rows []fsutil.DirEntry
+			err  error
+		}
+		resCh := make(chan listResult, 1)
+		go func() {
+			var rows []fsutil.DirEntry
+			var err error
+			if hostMode {
+				rows, err = hfs.List(ctx, p)
+			} else {
+				rows, err = cfs.List(ctx, p)
+			}
+			resCh <- listResult{rows: rows, err: err}
+		}()
 		var rows []fsutil.DirEntry
 		var err error
-		if hostMode {
-			rows, err = hfs.List(ctx, p)
-		} else {
-			rows, err = cfs.List(ctx, p)
+		select {
+		case res := <-resCh:
+			rows, err = res.rows, res.err
+		case <-time.After(65 * time.Second):
+			err = fmt.Errorf("tempo limite ao listar \"%s\"; tente outra pasta ou Atualizar", p)
 		}
 		fyne.Do(func() {
 			if seq != ui.rightRefreshSeq.Load() {
@@ -684,7 +719,7 @@ func (ui *explorer) refreshRightImpl(showLoading bool) {
 			}
 			ui.rightAll = rows
 			ui.applyRightFilter()
-			if showLoading {
+			if strings.HasPrefix(ui.status.Text, "Carregando pastas") {
 				ui.status.SetText("")
 			}
 		})
@@ -692,6 +727,10 @@ func (ui *explorer) refreshRightImpl(showLoading bool) {
 }
 
 func (ui *explorer) applyRightFilter() {
+	selectedPath := ""
+	if ui.rightSel >= 0 && ui.rightSel < len(ui.rightRows) {
+		selectedPath = ui.rightRows[ui.rightSel].Path
+	}
 	term := strings.ToLower(strings.TrimSpace(ui.rightSearch.Text))
 	if term == "" {
 		ui.rightRows = append([]fsutil.DirEntry(nil), ui.rightAll...)
@@ -706,6 +745,15 @@ func (ui *explorer) applyRightFilter() {
 	}
 	ui.rightSel = -1
 	ui.rightList.UnselectAll()
+	if selectedPath != "" {
+		for i, e := range ui.rightRows {
+			if e.Path == selectedPath {
+				ui.rightSel = i
+				ui.rightList.Select(i)
+				break
+			}
+		}
+	}
 	ui.rightList.Refresh()
 	ui.rightList.ScrollToTop()
 	ui.updateBreadcrumb()
@@ -789,6 +837,7 @@ func (ui *explorer) pushRightHistory(next string) {
 
 func (ui *explorer) onLeftActivate() {
 	if ui.leftSel < 0 || ui.leftSel >= len(ui.leftRows) {
+		dialog.ShowInformation("ContainerWay", "Selecione uma pasta no painel local para abrir.", ui.win)
 		return
 	}
 	e := ui.leftRows[ui.leftSel]
@@ -800,8 +849,29 @@ func (ui *explorer) onLeftActivate() {
 	}
 }
 
+func (ui *explorer) onLeftDoubleAction() {
+	e, ok := ui.selectedLeftEntry()
+	if !ok {
+		return
+	}
+	if e.IsDir {
+		ui.onLeftActivate()
+		return
+	}
+	if e.Name == ".." {
+		ui.goLeftUp()
+		return
+	}
+	if err := openWithDefaultApp(e.Path); err != nil {
+		dialog.ShowError(fmt.Errorf("não foi possível abrir o arquivo: %w", err), ui.win)
+		return
+	}
+	ui.status.SetText("Arquivo local aberto: " + e.Name)
+}
+
 func (ui *explorer) onRightActivate() {
 	if ui.rightSel < 0 || ui.rightSel >= len(ui.rightRows) {
+		dialog.ShowInformation("ContainerWay", "Selecione uma pasta no painel do servidor para abrir.", ui.win)
 		return
 	}
 	e := ui.rightRows[ui.rightSel]
@@ -812,6 +882,32 @@ func (ui *explorer) onRightActivate() {
 		ui.refreshRight()
 		ui.status.SetText("Pasta remota aberta: " + e.Path)
 	}
+}
+
+func (ui *explorer) onRightDoubleAction() {
+	e, ok := ui.selectedRightEntry()
+	if !ok {
+		return
+	}
+	if e.IsDir {
+		ui.onRightActivate()
+		return
+	}
+	if e.Name == ".." {
+		ui.goRightUp()
+		return
+	}
+	dialog.ShowConfirm(
+		"Editar arquivo remoto",
+		fmt.Sprintf("Deseja abrir \"%s\" para edição remota? O arquivo será sincronizado de volta quando você salvar.", e.Name),
+		func(open bool) {
+			if !open {
+				return
+			}
+			ui.openRemoteForEdit(e)
+		},
+		ui.win,
+	)
 }
 
 func (ui *explorer) upload() {
@@ -1370,4 +1466,193 @@ func (ui *explorer) showRowContextMenu(left bool, id widget.ListItemID, pos fyne
 		items[1].Disabled = true
 	}
 	widget.ShowPopUpMenuAtPosition(fyne.NewMenu("", items...), ui.win.Canvas(), pos)
+}
+
+func (ui *explorer) openRemoteForEdit(e fsutil.DirEntry) {
+	go func() {
+		fyne.Do(func() {
+			ui.status.SetText("Abrindo arquivo remoto para edição…")
+		})
+		ext := filepath.Ext(e.Name)
+		tmp, err := os.CreateTemp("", "containerway-open-*"+ext)
+		if err != nil {
+			fyne.Do(func() {
+				dialog.ShowError(fmt.Errorf("não foi possível criar arquivo temporário: %w", err), ui.win)
+			})
+			return
+		}
+		tmpPath := tmp.Name()
+		_ = tmp.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+		defer cancel()
+		editOnHost := ui.hostMode
+		editContainerID := ""
+		if !editOnHost && ui.cfs != nil {
+			editContainerID = ui.cfs.ID
+		}
+		if editOnHost {
+			rf, err := ui.hfs.OpenReader(e.Path)
+			if err != nil {
+				fyne.Do(func() {
+					dialog.ShowError(fmt.Errorf("não foi possível ler arquivo remoto: %w", err), ui.win)
+				})
+				return
+			}
+			defer rf.Close()
+			out, err := os.Create(tmpPath)
+			if err != nil {
+				fyne.Do(func() {
+					dialog.ShowError(fmt.Errorf("não foi possível gravar arquivo temporário: %w", err), ui.win)
+				})
+				return
+			}
+			if _, err := io.Copy(out, rf); err != nil {
+				_ = out.Close()
+				fyne.Do(func() {
+					dialog.ShowError(fmt.Errorf("falha ao copiar arquivo remoto: %w", err), ui.win)
+				})
+				return
+			}
+			_ = out.Close()
+		} else {
+			cfs := &containerfs.FS{Docker: ui.s.Docker, ID: editContainerID}
+			rc, _, err := cfs.OpenFileReader(ctx, e.Path)
+			if err != nil {
+				fyne.Do(func() {
+					dialog.ShowError(fmt.Errorf("não foi possível ler arquivo no contêiner: %w", err), ui.win)
+				})
+				return
+			}
+			defer rc.Close()
+			out, err := os.Create(tmpPath)
+			if err != nil {
+				fyne.Do(func() {
+					dialog.ShowError(fmt.Errorf("não foi possível gravar arquivo temporário: %w", err), ui.win)
+				})
+				return
+			}
+			if _, err := io.Copy(out, rc); err != nil {
+				_ = out.Close()
+				fyne.Do(func() {
+					dialog.ShowError(fmt.Errorf("falha ao copiar arquivo do contêiner: %w", err), ui.win)
+				})
+				return
+			}
+			_ = out.Close()
+		}
+		if err := openWithDefaultApp(tmpPath); err != nil {
+			fyne.Do(func() {
+				dialog.ShowError(fmt.Errorf("arquivo baixado, mas não foi possível abrir: %w", err), ui.win)
+			})
+			return
+		}
+		st, err := os.Stat(tmpPath)
+		if err != nil {
+			fyne.Do(func() {
+				dialog.ShowError(fmt.Errorf("arquivo aberto, mas não foi possível iniciar monitoramento: %w", err), ui.win)
+			})
+			return
+		}
+		session := &remoteEditSession{
+			tempPath:    tmpPath,
+			remotePath:  e.Path,
+			hostMode:    editOnHost,
+			containerID: editContainerID,
+			lastMod:     st.ModTime(),
+			lastSize:    st.Size(),
+		}
+		ui.trackRemoteEditSession(session)
+		ui.startRemoteEditWatcher(session)
+		fyne.Do(func() {
+			ui.status.SetText("Arquivo remoto aberto para edição: " + e.Name)
+		})
+	}()
+}
+
+func (ui *explorer) trackRemoteEditSession(s *remoteEditSession) {
+	ui.remoteEditMu.Lock()
+	defer ui.remoteEditMu.Unlock()
+	if old, ok := ui.remoteEditSessions[s.tempPath]; ok {
+		old.stopped.Store(true)
+	}
+	ui.remoteEditSessions[s.tempPath] = s
+}
+
+func (ui *explorer) startRemoteEditWatcher(s *remoteEditSession) {
+	go func() {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+		idleChecks := 0
+		for range ticker.C {
+			if s.stopped.Load() {
+				return
+			}
+			st, err := os.Stat(s.tempPath)
+			if err != nil {
+				s.stopped.Store(true)
+				return
+			}
+			changed := st.ModTime() != s.lastMod || st.Size() != s.lastSize
+			if changed {
+				if err := ui.syncEditedFileBack(s); err != nil {
+					fyne.Do(func() {
+						ui.status.SetText("Erro ao sincronizar edição remota")
+						dialog.ShowError(fmt.Errorf("não foi possível sincronizar o arquivo remoto: %w", err), ui.win)
+					})
+					continue
+				}
+				s.lastMod = st.ModTime()
+				s.lastSize = st.Size()
+				idleChecks = 0
+				fyne.Do(func() {
+					ui.status.SetText("Alterações salvas no servidor automaticamente.")
+				})
+				continue
+			}
+			idleChecks++
+			if idleChecks > 180 { // ~6 minutos sem mudanças; mantém baixo custo de monitoramento
+				s.stopped.Store(true)
+				ui.remoteEditMu.Lock()
+				delete(ui.remoteEditSessions, s.tempPath)
+				ui.remoteEditMu.Unlock()
+				return
+			}
+		}
+	}()
+}
+
+func (ui *explorer) syncEditedFileBack(s *remoteEditSession) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+	in, err := os.Open(s.tempPath)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	st, err := in.Stat()
+	if err != nil {
+		return err
+	}
+	if s.hostMode {
+		w, err := ui.hfs.CreateWriter(s.remotePath)
+		if err != nil {
+			return err
+		}
+		defer w.Close()
+		_, err = io.Copy(w, in)
+		return err
+	}
+	cfs := &containerfs.FS{Docker: ui.s.Docker, ID: s.containerID}
+	return cfs.UploadFile(ctx, path.Dir(s.remotePath), path.Base(s.remotePath), in, st.Size())
+}
+
+func openWithDefaultApp(filePath string) error {
+	switch runtime.GOOS {
+	case "windows":
+		return exec.Command("cmd", "/c", "start", "", filePath).Start()
+	case "darwin":
+		return exec.Command("open", filePath).Start()
+	default:
+		return exec.Command("xdg-open", filePath).Start()
+	}
 }
