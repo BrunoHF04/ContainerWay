@@ -3,6 +3,7 @@ package appui
 import (
 	"context"
 	"fmt"
+	"image/color"
 	"io"
 	"os"
 	"os/exec"
@@ -15,6 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	fynecontainer "fyne.io/fyne/v2/container"
@@ -298,8 +300,8 @@ type explorer struct {
 	status      *widget.Label
 	progress    *widget.ProgressBar
 	lastJobText *widget.Label
-	selectionInfo *widget.Label
-	summaryInfo *widget.Label
+	leftFooterInfo  *widget.Label
+	rightFooterInfo *widget.Label
 	leftSearch  *widget.Entry
 	rightSearch *widget.Entry
 	leftBack    []string
@@ -330,6 +332,9 @@ type explorer struct {
 	sudoPass           string
 	sudoValidatedAt    time.Time
 	sudoTTL            time.Duration
+	dialogShortcutActive atomic.Bool
+	dialogConfirmAction  func()
+	dialogCancelAction   func()
 }
 
 type remoteEditSession struct {
@@ -471,10 +476,10 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	ui.leftSearch.SetPlaceHolder("Pesquisar no computador local")
 	ui.rightSearch = widget.NewEntry()
 	ui.rightSearch.SetPlaceHolder("Pesquisar no lado do servidor")
-	ui.selectionInfo = widget.NewLabel("Selecione um arquivo ou pasta para ver ações disponíveis.")
-	ui.selectionInfo.Wrapping = fyne.TextWrapWord
-	ui.summaryInfo = widget.NewLabel("Local: 0 itens | Servidor: 0 itens")
-	ui.summaryInfo.Wrapping = fyne.TextWrapWord
+	ui.leftFooterInfo = widget.NewLabel("Local: selecione um item.")
+	ui.leftFooterInfo.Wrapping = fyne.TextWrapWord
+	ui.rightFooterInfo = widget.NewLabel("Servidor: selecione um item.")
+	ui.rightFooterInfo.Wrapping = fyne.TextWrapWord
 
 	ui.leftList = widget.NewList(
 		func() int { return len(ui.leftRows) },
@@ -673,11 +678,12 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 			ui.btnLeftRefreshAction,
 		),
 	)
-	leftPane := fynecontainer.NewBorder(
+	leftPaneBase := fynecontainer.NewBorder(
 		fynecontainer.NewPadded(leftHead),
 		nil, nil, nil,
 		fynecontainer.NewPadded(fynecontainer.NewScroll(ui.leftList)),
 	)
+	leftPane := panelCard(leftPaneBase)
 
 	rightHead := fynecontainer.NewVBox(
 		fynecontainer.NewHBox(
@@ -700,18 +706,23 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 			ui.btnRightRefreshAction,
 		),
 	)
-	rightPane := fynecontainer.NewBorder(
+	rightPaneBase := fynecontainer.NewBorder(
 		fynecontainer.NewPadded(rightHead),
 		nil, nil, nil,
 		fynecontainer.NewPadded(fynecontainer.NewScroll(ui.rightList)),
 	)
+	rightPane := panelCard(rightPaneBase)
 
 	split := fynecontainer.NewHSplit(leftPane, rightPane)
 	split.SetOffset(0.48)
 
+	bottomInfoSplit := fynecontainer.NewHSplit(
+		panelCard(fynecontainer.NewPadded(ui.leftFooterInfo)),
+		panelCard(fynecontainer.NewPadded(ui.rightFooterInfo)),
+	)
+	bottomInfoSplit.SetOffset(0.48)
 	bottom := fynecontainer.NewVBox(
-		ui.selectionInfo,
-		ui.summaryInfo,
+		bottomInfoSplit,
 		ui.status,
 		ui.progress,
 	)
@@ -744,6 +755,14 @@ func sizeLabel(e fsutil.DirEntry) string {
 		return ""
 	}
 	return transfer.FormatBytes(e.Size)
+}
+
+func panelCard(content fyne.CanvasObject) fyne.CanvasObject {
+	border := canvas.NewRectangle(theme.DisabledColor())
+	border.FillColor = color.Transparent
+	border.StrokeColor = theme.DisabledColor()
+	border.StrokeWidth = 1.5
+	return fynecontainer.NewMax(border, content)
 }
 
 func (ui *explorer) updateBreadcrumb() {
@@ -907,20 +926,17 @@ func (ui *explorer) maybePromptRootAccess(listErr error) {
 	userEntry.Resize(fyne.NewSize(260, userEntry.MinSize().Height))
 	passEntry.Resize(fyne.NewSize(260, passEntry.MinSize().Height))
 
-	prompt := dialog.NewForm(
+	ui.openFormDialogWithShortcuts(
 		"Acesso negado",
 		"Aplicar sudo",
 		"Cancelar",
+		fyne.NewSize(460, 240),
 		[]*widget.FormItem{
 			widget.NewFormItem("Usuário", userEntry),
 			widget.NewFormItem("Senha", passEntry),
 		},
-		func(confirm bool) {
+		func() {
 			defer ui.rootPromptOpen.Store(false)
-			if !confirm {
-				ui.status.SetText("Acesso elevado cancelado.")
-				return
-			}
 			if strings.TrimSpace(passEntry.Text) == "" {
 				dialog.ShowInformation("Credenciais obrigatórias", "Informe a senha para tentar acesso elevado via sudo.", ui.win)
 				return
@@ -932,10 +948,11 @@ func (ui *explorer) maybePromptRootAccess(listErr error) {
 			}
 			ui.enableSudoMode(user, passEntry.Text)
 		},
-		ui.win,
+		func() {
+			defer ui.rootPromptOpen.Store(false)
+			ui.status.SetText("Acesso elevado cancelado.")
+		},
 	)
-	prompt.Resize(fyne.NewSize(460, 240))
-	prompt.Show()
 }
 
 func (ui *explorer) enableSudoMode(user, password string) {
@@ -2083,20 +2100,11 @@ func (ui *explorer) updateActionState() {
 	if ui.btnRightRefreshAction != nil {
 		ui.btnRightRefreshAction.Enable()
 	}
-	switch ui.activePane {
-	case "left":
-		if hasLeft {
-			ui.selectionInfo.SetText(fmt.Sprintf("Selecionado (local): %s | Tipo: %s | Sugestão: %s", left.Name, entryTypeLabel(left), leftActionSuggestion(left)))
-		} else {
-			ui.selectionInfo.SetText("Lado ativo: computador local. Selecione um item para habilitar ações.")
-		}
-	default:
-		if hasRight {
-			ui.selectionInfo.SetText(fmt.Sprintf("Selecionado (servidor): %s | Tipo: %s | Sugestão: %s", right.Name, entryTypeLabel(right), rightActionSuggestion(right)))
-		} else {
-			ui.selectionInfo.SetText("Lado ativo: servidor. Selecione um item para habilitar ações.")
-		}
-	}
+	_ = left
+	_ = right
+	_ = hasLeft
+	_ = hasRight
+	ui.updateFooterPanels()
 }
 
 func entryTypeLabel(e fsutil.DirEntry) string {
@@ -2104,26 +2112,6 @@ func entryTypeLabel(e fsutil.DirEntry) string {
 		return "pasta"
 	}
 	return "arquivo"
-}
-
-func leftActionSuggestion(e fsutil.DirEntry) string {
-	if e.Name == ".." {
-		return "subir nível"
-	}
-	if e.IsDir {
-		return "abrir pasta ou enviar"
-	}
-	return "enviar"
-}
-
-func rightActionSuggestion(e fsutil.DirEntry) string {
-	if e.Name == ".." {
-		return "subir nível"
-	}
-	if e.IsDir {
-		return "abrir pasta ou receber"
-	}
-	return "receber"
 }
 
 func summarizeEntries(rows []fsutil.DirEntry) (dirs int, files int) {
@@ -2141,21 +2129,58 @@ func summarizeEntries(rows []fsutil.DirEntry) (dirs int, files int) {
 }
 
 func (ui *explorer) updateSummaryInfo() {
-	if ui.summaryInfo == nil {
+	ui.updateFooterPanels()
+}
+
+func (ui *explorer) updateFooterPanels() {
+	if ui.leftFooterInfo == nil || ui.rightFooterInfo == nil {
 		return
 	}
 	leftDirs, leftFiles := summarizeEntries(ui.leftRows)
 	rightDirs, rightFiles := summarizeEntries(ui.rightRows)
-	leftTotal := leftDirs + leftFiles
-	rightTotal := rightDirs + rightFiles
-	ui.summaryInfo.SetText(fmt.Sprintf(
-		"Itens visíveis | Local: %d (%d pastas, %d arquivos) | Servidor: %d (%d pastas, %d arquivos)",
-		leftTotal, leftDirs, leftFiles, rightTotal, rightDirs, rightFiles,
+
+	leftSelText := "nenhum item selecionado"
+	if left, ok := ui.selectedLeftEntry(); ok {
+		leftSelText = fmt.Sprintf("selecionado: %s (%s)", left.Name, entryTypeLabel(left))
+	}
+	rightSelText := "nenhum item selecionado"
+	if right, ok := ui.selectedRightEntry(); ok {
+		rightSelText = fmt.Sprintf("selecionado: %s (%s)", right.Name, entryTypeLabel(right))
+	}
+
+	rightPathLabel := fmt.Sprintf("Pasta servidor: %s", ui.rightPath)
+	if !ui.hostMode && ui.cfs != nil {
+		short := strings.TrimPrefix(ui.cfs.ID, "sha256:")
+		if len(short) > 12 {
+			short = short[:12]
+		}
+		rightPathLabel = fmt.Sprintf("Pasta contêiner (%s): %s", short, ui.rightPath)
+	}
+
+	ui.leftFooterInfo.SetText(fmt.Sprintf(
+		"Pasta local: %s | Itens: %d pastas, %d arquivos | %s",
+		ui.leftPath, leftDirs, leftFiles, leftSelText,
+	))
+	ui.rightFooterInfo.SetText(fmt.Sprintf(
+		"%s | Itens: %d pastas, %d arquivos | %s",
+		rightPathLabel, rightDirs, rightFiles, rightSelText,
 	))
 }
 
 func (ui *explorer) registerExplorerShortcuts() {
+	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyEscape}, func(fyne.Shortcut) {
+		ui.triggerDialogCancel()
+	})
+	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyReturn}, func(fyne.Shortcut) {
+		ui.triggerDialogConfirm()
+	})
+	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyEnter}, func(fyne.Shortcut) {
+		ui.triggerDialogConfirm()
+	})
 	ui.win.Canvas().SetOnTypedKey(func(k *fyne.KeyEvent) {
+		if ui.dialogShortcutActive.Load() {
+			return
+		}
 		if _, ok := ui.win.Canvas().Focused().(*widget.Entry); ok {
 			return
 		}
@@ -2212,6 +2237,96 @@ func (ui *explorer) registerExplorerShortcuts() {
 	})
 }
 
+func (ui *explorer) triggerDialogConfirm() {
+	if !ui.dialogShortcutActive.Load() {
+		return
+	}
+	if ui.dialogConfirmAction != nil {
+		ui.dialogConfirmAction()
+	}
+}
+
+func (ui *explorer) triggerDialogCancel() {
+	if !ui.dialogShortcutActive.Load() {
+		return
+	}
+	if ui.dialogCancelAction != nil {
+		ui.dialogCancelAction()
+	}
+}
+
+func (ui *explorer) openFormDialogWithShortcuts(
+	title string,
+	confirmText string,
+	cancelText string,
+	size fyne.Size,
+	items []*widget.FormItem,
+	onConfirm func(),
+	onCancel func(),
+) {
+	done := atomic.Bool{}
+	var formDlg dialog.Dialog
+
+	confirmOnce := func() {
+		if done.Swap(true) {
+			return
+		}
+		ui.dialogShortcutActive.Store(false)
+		ui.dialogConfirmAction = nil
+		ui.dialogCancelAction = nil
+		if formDlg != nil {
+			formDlg.Hide()
+		}
+		if onConfirm != nil {
+			onConfirm()
+		}
+	}
+	cancelOnce := func() {
+		if done.Swap(true) {
+			return
+		}
+		ui.dialogShortcutActive.Store(false)
+		ui.dialogConfirmAction = nil
+		ui.dialogCancelAction = nil
+		if formDlg != nil {
+			formDlg.Hide()
+		}
+		if onCancel != nil {
+			onCancel()
+		}
+	}
+
+	formDlg = dialog.NewForm(
+		title,
+		confirmText,
+		cancelText,
+		items,
+		func(ok bool) {
+			if ok {
+				confirmOnce()
+				return
+			}
+			cancelOnce()
+		},
+		ui.win,
+	)
+	ui.dialogConfirmAction = confirmOnce
+	ui.dialogCancelAction = cancelOnce
+	ui.dialogShortcutActive.Store(true)
+
+	for _, it := range items {
+		if e, ok := it.Widget.(*widget.Entry); ok {
+			e.OnSubmitted = func(_ string) {
+				confirmOnce()
+			}
+		}
+	}
+	if size.Width > 0 && size.Height > 0 {
+		formDlg.Resize(size)
+	}
+	formDlg.Show()
+}
+
 func (ui *explorer) focusActiveSearch() {
 	if ui.activePane == "left" {
 		ui.win.Canvas().Focus(ui.leftSearch)
@@ -2249,24 +2364,29 @@ func (ui *explorer) renameActive() {
 		}
 		name := widget.NewEntry()
 		name.SetText(e.Name)
-		dialog.ShowForm("Renomear (local)", "Salvar", "Cancelar", []*widget.FormItem{
-			widget.NewFormItem("Novo nome", name),
-		}, func(confirm bool) {
-			if !confirm {
-				return
-			}
-			newName := strings.TrimSpace(name.Text)
-			if newName == "" || newName == e.Name {
-				return
-			}
-			target := filepath.Join(filepath.Dir(e.Path), newName)
-			if err := localfs.Rename(e.Path, target); err != nil {
-				dialog.ShowError(fmt.Errorf("não foi possível renomear item local: %w", err), ui.win)
-				return
-			}
-			ui.status.SetText("Item local renomeado com sucesso.")
-			ui.refreshLeft()
-		}, ui.win)
+		ui.openFormDialogWithShortcuts(
+			"Renomear (local)",
+			"Salvar",
+			"Cancelar",
+			fyne.NewSize(460, 220),
+			[]*widget.FormItem{
+				widget.NewFormItem("Novo nome", name),
+			},
+			func() {
+				newName := strings.TrimSpace(name.Text)
+				if newName == "" || newName == e.Name {
+					return
+				}
+				target := filepath.Join(filepath.Dir(e.Path), newName)
+				if err := localfs.Rename(e.Path, target); err != nil {
+					dialog.ShowError(fmt.Errorf("não foi possível renomear item local: %w", err), ui.win)
+					return
+				}
+				ui.status.SetText("Item local renomeado com sucesso.")
+				ui.refreshLeft()
+			},
+			nil,
+		)
 		return
 	}
 	e, ok := ui.selectedRightEntry()
@@ -2276,32 +2396,37 @@ func (ui *explorer) renameActive() {
 	}
 	name := widget.NewEntry()
 	name.SetText(e.Name)
-	dialog.ShowForm("Renomear (servidor)", "Salvar", "Cancelar", []*widget.FormItem{
-		widget.NewFormItem("Novo nome", name),
-	}, func(confirm bool) {
-		if !confirm {
-			return
-		}
-		newName := strings.TrimSpace(name.Text)
-		if newName == "" || newName == e.Name {
-			return
-		}
-		target := path.Join(path.Dir(e.Path), newName)
-		var err error
-		if ui.hostMode {
-			err = ui.hfs.Rename(e.Path, target)
-		} else {
-			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-			defer cancel()
-			err = ui.cfs.Rename(ctx, e.Path, target)
-		}
-		if err != nil {
-			dialog.ShowError(fmt.Errorf("não foi possível renomear item remoto: %w", err), ui.win)
-			return
-		}
-		ui.status.SetText("Item remoto renomeado com sucesso.")
-		ui.refreshRight()
-	}, ui.win)
+	ui.openFormDialogWithShortcuts(
+		"Renomear (servidor)",
+		"Salvar",
+		"Cancelar",
+		fyne.NewSize(460, 220),
+		[]*widget.FormItem{
+			widget.NewFormItem("Novo nome", name),
+		},
+		func() {
+			newName := strings.TrimSpace(name.Text)
+			if newName == "" || newName == e.Name {
+				return
+			}
+			target := path.Join(path.Dir(e.Path), newName)
+			var err error
+			if ui.hostMode {
+				err = ui.hfs.Rename(e.Path, target)
+			} else {
+				ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+				defer cancel()
+				err = ui.cfs.Rename(ctx, e.Path, target)
+			}
+			if err != nil {
+				dialog.ShowError(fmt.Errorf("não foi possível renomear item remoto: %w", err), ui.win)
+				return
+			}
+			ui.status.SetText("Item remoto renomeado com sucesso.")
+			ui.refreshRight()
+		},
+		nil,
+	)
 }
 
 func (ui *explorer) deleteActive() {
@@ -2360,42 +2485,47 @@ func (ui *explorer) createFolderActive() {
 	if ui.activePane == "right" {
 		title = "Nova pasta (servidor)"
 	}
-	dialog.ShowForm(title, "Criar", "Cancelar", []*widget.FormItem{
-		widget.NewFormItem("Nome da pasta", name),
-	}, func(confirm bool) {
-		if !confirm {
-			return
-		}
-		folderName := strings.TrimSpace(name.Text)
-		if folderName == "" {
-			return
-		}
-		if ui.activePane == "left" {
-			target := filepath.Join(ui.leftPath, folderName)
-			if err := localfs.Mkdir(target); err != nil {
-				dialog.ShowError(fmt.Errorf("não foi possível criar pasta local: %w", err), ui.win)
+	ui.openFormDialogWithShortcuts(
+		title,
+		"Criar",
+		"Cancelar",
+		fyne.Size{},
+		[]*widget.FormItem{
+			widget.NewFormItem("Nome da pasta", name),
+		},
+		func() {
+			folderName := strings.TrimSpace(name.Text)
+			if folderName == "" {
 				return
 			}
-			ui.status.SetText("Pasta local criada com sucesso.")
-			ui.refreshLeft()
-			return
-		}
-		target := path.Join(ui.rightPath, folderName)
-		var err error
-		if ui.hostMode {
-			err = ui.hfs.Mkdir(target)
-		} else {
-			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-			defer cancel()
-			err = ui.cfs.Mkdir(ctx, target)
-		}
-		if err != nil {
-			dialog.ShowError(fmt.Errorf("não foi possível criar pasta remota: %w", err), ui.win)
-			return
-		}
-		ui.status.SetText("Pasta remota criada com sucesso.")
-		ui.refreshRight()
-	}, ui.win)
+			if ui.activePane == "left" {
+				target := filepath.Join(ui.leftPath, folderName)
+				if err := localfs.Mkdir(target); err != nil {
+					dialog.ShowError(fmt.Errorf("não foi possível criar pasta local: %w", err), ui.win)
+					return
+				}
+				ui.status.SetText("Pasta local criada com sucesso.")
+				ui.refreshLeft()
+				return
+			}
+			target := path.Join(ui.rightPath, folderName)
+			var err error
+			if ui.hostMode {
+				err = ui.hfs.Mkdir(target)
+			} else {
+				ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+				defer cancel()
+				err = ui.cfs.Mkdir(ctx, target)
+			}
+			if err != nil {
+				dialog.ShowError(fmt.Errorf("não foi possível criar pasta remota: %w", err), ui.win)
+				return
+			}
+			ui.status.SetText("Pasta remota criada com sucesso.")
+			ui.refreshRight()
+		},
+		nil,
+	)
 }
 
 func (ui *explorer) makePathButtons(p string, left bool) []fyne.CanvasObject {
