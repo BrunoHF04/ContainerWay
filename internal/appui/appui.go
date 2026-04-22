@@ -1506,11 +1506,42 @@ func (ui *explorer) registerExplorerShortcuts() {
 			} else {
 				ui.goRightUp()
 			}
+		case fyne.KeyTab:
+			if ui.activePane == "left" {
+				ui.activePane = "right"
+				if len(ui.rightRows) > 0 && ui.rightSel < 0 {
+					ui.rightSel = 0
+					ui.rightList.Select(0)
+				}
+			} else {
+				ui.activePane = "left"
+				if len(ui.leftRows) > 0 && ui.leftSel < 0 {
+					ui.leftSel = 0
+					ui.leftList.Select(0)
+				}
+			}
+			ui.updateActionState()
+		case fyne.KeyF3:
+			ui.focusActiveSearch()
+		case fyne.KeyF6:
+			if ui.activePane == "left" {
+				ui.upload()
+			} else {
+				ui.download()
+			}
 		case fyne.KeyF5:
 			ui.refreshLeft()
 			ui.refreshRight()
 		}
 	})
+}
+
+func (ui *explorer) focusActiveSearch() {
+	if ui.activePane == "left" {
+		ui.win.Canvas().Focus(ui.leftSearch)
+		return
+	}
+	ui.win.Canvas().Focus(ui.rightSearch)
 }
 
 func (ui *explorer) makePathButtons(p string, left bool) []fyne.CanvasObject {
