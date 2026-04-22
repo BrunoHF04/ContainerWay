@@ -34,6 +34,7 @@ import (
 	"containerway/internal/fsutil"
 	"containerway/internal/hostfs"
 	"containerway/internal/localfs"
+	"containerway/internal/mailnotify"
 	"containerway/internal/session"
 	"containerway/internal/tarxfer"
 	"containerway/internal/transfer"
@@ -58,6 +59,8 @@ var (
 	auditActorName      = "desconhecido"
 	accessUserMu        sync.Mutex
 	currentAccessUserName = ""
+	sessionAuditMu        sync.Mutex
+	sessionAuditLines     []string
 )
 
 const (
@@ -66,6 +69,14 @@ const (
 	rightFavoritesPreferenceKey = "explorer.right.favorites"
 	operationHistoryPreferenceKey = "explorer.operation.history"
 	accessUsersPreferenceKey      = "access.users"
+	notifyEnabledPreferenceKey           = "notify.email.enabled"
+	notifyRecipientPreferenceKey         = "notify.email.to" // legado: um endereço; ainda sincronizado ao salvar
+	notifyRecipientsJSONPreferenceKey    = "notify.email.recipients"
+	notifySMTPHostPreferenceKey  = "notify.smtp.host"
+	notifySMTPPortPreferenceKey  = "notify.smtp.port"
+	notifySMTPUserPreferenceKey  = "notify.smtp.user"
+	notifySMTPPasswordPreferenceKey = "notify.smtp.password"
+	notifySMTPFromPreferenceKey  = "notify.smtp.from"
 	auditLogFileName             = "containerway-activity.log"
 	defaultAccessUser            = "admin"
 	defaultAccessPass            = "!q1w2e3r4$"
@@ -103,6 +114,7 @@ func setExplorerWindow(w fyne.Window) {
 }
 
 func goToLogin(w fyne.Window) {
+	w.SetCloseIntercept(nil)
 	setAccessLoginWindow(w)
 	w.SetContent(buildAccessLogin(w))
 }
@@ -125,9 +137,11 @@ func buildAccessLogin(w fyne.Window) fyne.CanvasObject {
 		}
 		acc, ok := findAccessAccount(accounts, u)
 		if ok && strings.TrimSpace(acc.Password) == p {
+			resetSessionAuditBuffer()
 			setAuditActor(acc.DisplayName)
 			setCurrentAccessUser(acc.Username)
 			appendAuditLog("acesso", "Login de acesso autorizado")
+			go sendNotifyLoginEmail(acc)
 			setLoginWindow(w)
 			w.SetContent(buildLogin(w))
 			return
@@ -807,10 +821,13 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 		errLabel := widget.NewLabel(fmt.Sprintf("Não foi possível usar o Docker neste servidor: %v", err))
 		errLabel.Wrapping = fyne.TextWrapWord
 		closeBtn := widget.NewButtonWithIcon("Encerrar sessão", theme.LogoutIcon(), func() {
-			s.Close()
-			goToLogin(w)
+			finalizeLocalAccessSession(w, s, "Sessão encerrada após erro ao acessar o Docker")
 		})
 		closeBtn.Importance = widget.DangerImportance
+		w.SetCloseIntercept(func() {
+			w.SetCloseIntercept(nil)
+			finalizeLocalAccessSession(w, s, "Sessão encerrada (fechamento da janela após erro no Docker)")
+		})
 		inner := fynecontainer.NewVBox(errLabel, widget.NewSeparator(), closeBtn)
 		return fynecontainer.NewPadded(widget.NewCard("Docker", "Verifique as permissões em /var/run/docker.sock", inner))
 	}
@@ -1014,12 +1031,10 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	btnManual.Importance = widget.MediumImportance
 	btnManageUsers := widget.NewButtonWithIcon("Usuários", theme.AccountIcon(), func() { ui.showAccessUserManager() })
 	btnManageUsers.Importance = widget.MediumImportance
+	btnMailNotify := widget.NewButtonWithIcon("E-mail", theme.MailComposeIcon(), func() { ui.showMailNotifySettings() })
+	btnMailNotify.Importance = widget.MediumImportance
 	btnDisconnect := widget.NewButtonWithIcon("Sair", theme.LogoutIcon(), func() {
-		appendAuditLog("sessao", "Sessão encerrada pelo usuário")
-		setAuditActor("desconhecido")
-		setCurrentAccessUser("")
-		s.Close()
-		goToLogin(w)
+		finalizeLocalAccessSession(w, s, "Sessão encerrada pelo usuário")
 	})
 	btnDisconnect.Importance = widget.DangerImportance
 	ui.lblSudoState = widget.NewLabel("Sudo: inativo")
@@ -1032,7 +1047,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 		btnManual,
 	}
 	if isCurrentAccessAdmin() {
-		toolbarItems = append(toolbarItems, btnManageUsers)
+		toolbarItems = append(toolbarItems, btnManageUsers, btnMailNotify)
 	}
 	toolbarItems = append(toolbarItems,
 		layout.NewSpacer(),
@@ -1176,6 +1191,11 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	ui.updateBreadcrumb()
 	ui.updateActionState()
 	ui.updateSudoUIState()
+
+	w.SetCloseIntercept(func() {
+		w.SetCloseIntercept(nil)
+		finalizeLocalAccessSession(w, s, "Sessão encerrada (fechamento da janela)")
+	})
 
 	return fynecontainer.NewBorder(top, bottom, nil, nil, split)
 }
@@ -3938,6 +3958,157 @@ func auditLogPath() string {
 	return filepath.Join(dir, auditLogFileName)
 }
 
+func resetSessionAuditBuffer() {
+	sessionAuditMu.Lock()
+	sessionAuditLines = nil
+	sessionAuditMu.Unlock()
+}
+
+func appendSessionAuditLine(line string) {
+	if currentAccessUser() == "" {
+		return
+	}
+	t := strings.TrimSpace(strings.TrimSuffix(line, "\n"))
+	if t == "" {
+		return
+	}
+	sessionAuditMu.Lock()
+	sessionAuditLines = append(sessionAuditLines, t)
+	sessionAuditMu.Unlock()
+}
+
+func snapshotSessionAuditLines() []string {
+	sessionAuditMu.Lock()
+	defer sessionAuditMu.Unlock()
+	out := make([]string, len(sessionAuditLines))
+	copy(out, sessionAuditLines)
+	return out
+}
+
+func loadMailRecipientListFromPrefs(p fyne.Preferences) []string {
+	raw := strings.TrimSpace(p.String(notifyRecipientsJSONPreferenceKey))
+	if raw != "" {
+		var emails []string
+		if err := json.Unmarshal([]byte(raw), &emails); err == nil && len(emails) > 0 {
+			return mailnotify.NormalizeRecipients(emails)
+		}
+	}
+	legacy := strings.TrimSpace(p.String(notifyRecipientPreferenceKey))
+	if legacy == "" {
+		return nil
+	}
+	var parts []string
+	for _, seg := range strings.Split(legacy, ",") {
+		if t := strings.TrimSpace(seg); t != "" {
+			parts = append(parts, t)
+		}
+	}
+	return mailnotify.NormalizeRecipients(parts)
+}
+
+func loadMailNotifySettings() mailnotify.Settings {
+	a := fyne.CurrentApp()
+	if a == nil {
+		return mailnotify.Settings{}
+	}
+	p := a.Preferences()
+	port, _ := strconv.Atoi(strings.TrimSpace(p.StringWithFallback(notifySMTPPortPreferenceKey, "587")))
+	if port <= 0 {
+		port = 587
+	}
+	return mailnotify.Settings{
+		Enabled:    strings.EqualFold(strings.TrimSpace(p.StringWithFallback(notifyEnabledPreferenceKey, "")), "true"),
+		Host:       strings.TrimSpace(p.String(notifySMTPHostPreferenceKey)),
+		Port:       port,
+		User:       strings.TrimSpace(p.String(notifySMTPUserPreferenceKey)),
+		Password:   p.String(notifySMTPPasswordPreferenceKey),
+		From:       strings.TrimSpace(p.String(notifySMTPFromPreferenceKey)),
+		Recipients: loadMailRecipientListFromPrefs(p),
+	}
+}
+
+func saveMailNotifySettings(s mailnotify.Settings) {
+	a := fyne.CurrentApp()
+	if a == nil {
+		return
+	}
+	p := a.Preferences()
+	if s.Enabled {
+		p.SetString(notifyEnabledPreferenceKey, "true")
+	} else {
+		p.SetString(notifyEnabledPreferenceKey, "false")
+	}
+	rec := mailnotify.NormalizeRecipients(s.Recipients)
+	if buf, err := json.Marshal(rec); err == nil {
+		p.SetString(notifyRecipientsJSONPreferenceKey, string(buf))
+	}
+	if len(rec) > 0 {
+		p.SetString(notifyRecipientPreferenceKey, rec[0])
+	} else {
+		p.SetString(notifyRecipientPreferenceKey, "")
+	}
+	p.SetString(notifySMTPHostPreferenceKey, strings.TrimSpace(s.Host))
+	p.SetString(notifySMTPPortPreferenceKey, strconv.Itoa(s.Port))
+	p.SetString(notifySMTPUserPreferenceKey, strings.TrimSpace(s.User))
+	p.SetString(notifySMTPPasswordPreferenceKey, s.Password)
+	p.SetString(notifySMTPFromPreferenceKey, strings.TrimSpace(s.From))
+}
+
+func sendNotifyLoginEmail(acc accessUser) {
+	cfg := loadMailNotifySettings()
+	if !cfg.Valid() {
+		return
+	}
+	host, _ := os.Hostname()
+	body := fmt.Sprintf(
+		"Um usuário acabou de entrar no ContainerWay neste computador.\n\n"+
+			"Conta (login): %s\n"+
+			"Nome exibido: %s\n"+
+			"Computador: %s\n"+
+			"Data/hora: %s\n",
+		acc.Username,
+		strings.TrimSpace(acc.DisplayName),
+		host,
+		time.Now().Format(time.RFC3339),
+	)
+	if err := cfg.Send("ContainerWay: login no aplicativo", body); err != nil {
+		appendAuditLog("email", "Falha ao enviar aviso de login: "+err.Error())
+	}
+}
+
+func sendNotifySessionEndEmail(lines []string) {
+	cfg := loadMailNotifySettings()
+	if !cfg.Valid() {
+		return
+	}
+	host, _ := os.Hostname()
+	body := fmt.Sprintf(
+		"Sessão do ContainerWay encerrada neste computador.\n\nComputador: %s\nData/hora: %s\n\n--- Registro desta sessão ---\n",
+		host,
+		time.Now().Format(time.RFC3339),
+	)
+	if len(lines) == 0 {
+		body += "(Nenhuma linha adicional no registro da sessão.)\n"
+	} else {
+		body += strings.Join(lines, "\n") + "\n"
+	}
+	if err := cfg.Send("ContainerWay: fim de sessão e registro de atividades", body); err != nil {
+		appendAuditLog("email", "Falha ao enviar resumo de sessão por e-mail: "+err.Error())
+	}
+}
+
+func finalizeLocalAccessSession(w fyne.Window, s *session.Session, endMsg string) {
+	appendAuditLog("sessao", endMsg)
+	lines := snapshotSessionAuditLines()
+	go sendNotifySessionEndEmail(lines)
+	if s != nil {
+		s.Close()
+	}
+	setAuditActor("desconhecido")
+	setCurrentAccessUser("")
+	goToLogin(w)
+}
+
 func appendAuditLog(scope, message string) {
 	msg := strings.TrimSpace(message)
 	if msg == "" {
@@ -3956,6 +4127,7 @@ func appendAuditLog(scope, message string) {
 		currentAuditActor(),
 		msg,
 	)
+	appendSessionAuditLine(line)
 	auditLogMu.Lock()
 	defer auditLogMu.Unlock()
 	f, err := os.OpenFile(auditLogPath(), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
@@ -4491,7 +4663,7 @@ func (ui *explorer) showAccessUserManager() {
 	newName.SetPlaceHolder("nome exibido nos logs")
 	removeUser := widget.NewEntry()
 	removeUser.SetPlaceHolder("usuário para remover")
-	info := widget.NewLabel("Crie ou atualize usuários de acesso local.")
+	info := widget.NewLabel("Crie ou atualize usuários de acesso local. O botão \"E-mail\" na barra superior também abre as notificações por SMTP.")
 	info.Wrapping = fyne.TextWrapWord
 	usersList := widget.NewMultiLineEntry()
 	usersList.Disable()
@@ -4570,7 +4742,16 @@ func (ui *explorer) showAccessUserManager() {
 		info.SetText("Usuário removido: " + target)
 	})
 
+	var dlgUsers dialog.Dialog
+	btnOpenMailNotify := widget.NewButtonWithIcon("Abrir configuração de alertas por e-mail…", theme.MailComposeIcon(), func() {
+		dlgUsers.Hide()
+		ui.showMailNotifySettings()
+	})
+	btnOpenMailNotify.Importance = widget.MediumImportance
+
 	body := fynecontainer.NewVBox(
+		btnOpenMailNotify,
+		widget.NewSeparator(),
 		widget.NewForm(
 			widget.NewFormItem("Novo usuário", newUser),
 			widget.NewFormItem("Senha", newPass),
@@ -4587,9 +4768,262 @@ func (ui *explorer) showAccessUserManager() {
 		widget.NewSeparator(),
 		info,
 	)
-	dlg := dialog.NewCustom("Gerenciar usuários", "Fechar", body, ui.win)
-	dlg.Resize(fyne.NewSize(560, 420))
-	dlg.Show()
+	dlgUsers = dialog.NewCustom("Gerenciar usuários", "Fechar", body, ui.win)
+	dlgUsers.Resize(fyne.NewSize(560, 480))
+	dlgUsers.Show()
+}
+
+func (ui *explorer) showMailNotifySettings() {
+	if !isCurrentAccessAdmin() {
+		dialog.ShowInformation("Alertas por e-mail", "Somente o usuário admin pode configurar alertas por e-mail.", ui.win)
+		return
+	}
+	cur := loadMailNotifySettings()
+	recipients := append([]string(nil), cur.Recipients...)
+	var selectedRecipient widget.ListItemID = -1
+
+	enabled := widget.NewCheck("Enviar alertas por e-mail (login e fim de sessão)", nil)
+	enabled.SetChecked(cur.Enabled)
+
+	lblRecipientCount := widget.NewLabel("")
+	updateRecipientCount := func() {
+		n := len(recipients)
+		if n == 0 {
+			lblRecipientCount.SetText("Nenhum destinatário cadastrado.")
+			return
+		}
+		if n == 1 {
+			lblRecipientCount.SetText("1 destinatário cadastrado.")
+			return
+		}
+		lblRecipientCount.SetText(fmt.Sprintf("%d destinatários cadastrados.", n))
+	}
+	updateRecipientCount()
+
+	mailList := widget.NewList(
+		func() int { return len(recipients) },
+		func() fyne.CanvasObject {
+			return widget.NewLabel("endereço")
+		},
+		func(id widget.ListItemID, o fyne.CanvasObject) {
+			if id < 0 || int(id) >= len(recipients) {
+				return
+			}
+			o.(*widget.Label).SetText(recipients[id])
+		},
+	)
+	mailList.OnSelected = func(id widget.ListItemID) { selectedRecipient = id }
+	mailList.OnUnselected = func(_ widget.ListItemID) { selectedRecipient = -1 }
+
+	newAddrEntry := widget.NewEntry()
+	newAddrEntry.SetPlaceHolder("novo destinatário@empresa.com")
+
+	refreshMailList := func() {
+		updateRecipientCount()
+		mailList.Refresh()
+	}
+
+	btnAddAddr := widget.NewButtonWithIcon("Adicionar", theme.ContentAddIcon(), func() {
+		e := strings.TrimSpace(newAddrEntry.Text)
+		if e == "" || !strings.Contains(e, "@") {
+			dialog.ShowInformation("Destinatários", "Informe um endereço de e-mail válido (com @).", ui.win)
+			return
+		}
+		for _, x := range recipients {
+			if strings.EqualFold(strings.TrimSpace(x), e) {
+				dialog.ShowInformation("Destinatários", "Este endereço já está na lista.", ui.win)
+				return
+			}
+		}
+		recipients = append(recipients, e)
+		newAddrEntry.SetText("")
+		mailList.UnselectAll()
+		selectedRecipient = -1
+		refreshMailList()
+	})
+
+	btnRemoveAddr := widget.NewButtonWithIcon("Remover selecionado", theme.ContentRemoveIcon(), func() {
+		if selectedRecipient < 0 || int(selectedRecipient) >= len(recipients) {
+			dialog.ShowInformation("Destinatários", "Selecione um endereço na lista para remover.", ui.win)
+			return
+		}
+		i := int(selectedRecipient)
+		recipients = append(recipients[:i], recipients[i+1:]...)
+		mailList.UnselectAll()
+		selectedRecipient = -1
+		refreshMailList()
+	})
+	btnRemoveAddr.Importance = widget.MediumImportance
+
+	hostEntry := widget.NewEntry()
+	hostEntry.SetPlaceHolder("ex.: smtp.office365.com ou smtp.gmail.com")
+	hostEntry.SetText(cur.Host)
+	portEntry := widget.NewEntry()
+	portEntry.SetPlaceHolder("587")
+	if cur.Port > 0 {
+		portEntry.SetText(strconv.Itoa(cur.Port))
+	} else {
+		portEntry.SetText("587")
+	}
+	userEntry := widget.NewEntry()
+	userEntry.SetPlaceHolder("usuário SMTP (se exigido pelo servidor)")
+	userEntry.SetText(cur.User)
+	passEntry := widget.NewPasswordEntry()
+	passEntry.SetPlaceHolder("senha do SMTP (ou app password)")
+	passEntry.SetText(cur.Password)
+	fromEntry := widget.NewEntry()
+	fromEntry.SetPlaceHolder("remetente@empresa.com")
+	fromEntry.SetText(cur.From)
+	info := widget.NewLabel(
+		"Após o login de acesso local, todos os destinatários cadastrados recebem um aviso. Ao sair ou fechar a janela do explorador, recebem o registro desta sessão (mesmo formato do log de atividades). " +
+			"É necessário um servidor SMTP acessível a partir deste computador. " +
+			"Se o teste para @siplan (ou outro domínio corporativo) não chegar, use «Teste só no remetente»: se esse chegar no Gmail, o bloqueio é do servidor de e-mail da empresa (TI / quarentena).",
+	)
+	info.Wrapping = fyne.TextWrapWord
+
+	readForm := func() mailnotify.Settings {
+		port, _ := strconv.Atoi(strings.TrimSpace(portEntry.Text))
+		if port <= 0 {
+			port = 587
+		}
+		recCopy := append([]string(nil), recipients...)
+		return mailnotify.Settings{
+			Enabled:    enabled.Checked,
+			Host:       strings.TrimSpace(hostEntry.Text),
+			Port:       port,
+			User:       strings.TrimSpace(userEntry.Text),
+			Password:   passEntry.Text,
+			From:       strings.TrimSpace(fromEntry.Text),
+			Recipients: mailnotify.NormalizeRecipients(recCopy),
+		}
+	}
+
+	btnSave := widget.NewButtonWithIcon("Salvar", theme.DocumentSaveIcon(), func() {
+		s := readForm()
+		if s.Enabled && len(s.Recipients) == 0 {
+			dialog.ShowInformation("Destinatários", "Cadastre pelo menos um destinatário ou desative o envio.", ui.win)
+			return
+		}
+		saveMailNotifySettings(s)
+		recipients = append([]string(nil), s.Recipients...)
+		refreshMailList()
+		appendAuditLog("acesso", "Configuração de alertas por e-mail atualizada")
+		dialog.ShowInformation("Alertas por e-mail", "Configuração salva.", ui.win)
+	})
+
+	btnTest := widget.NewButtonWithIcon("Enviar teste", theme.MailComposeIcon(), func() {
+		s := readForm()
+		if !s.Valid() {
+			dialog.ShowInformation(
+				"Alertas por e-mail",
+				"Preencha: ativar opção, pelo menos um destinatário na lista, servidor SMTP, porta, remetente (from) e credenciais se o servidor exigir autenticação.",
+				ui.win,
+			)
+			return
+		}
+		go func() {
+			err := s.Send("ContainerWay: teste de e-mail", "Este é um e-mail de teste enviado pelo ContainerWay.")
+			if err != nil {
+				fyne.Do(func() {
+					dialog.ShowError(fmt.Errorf("falha ao enviar teste: %w", err), ui.win)
+				})
+				return
+			}
+			fyne.Do(func() {
+				dest := strings.Join(mailnotify.NormalizeRecipients(s.Recipients), "\n")
+				msg := "O servidor SMTP aceitou a mensagem de teste para:\n\n" + dest +
+					"\n\nSe nada aparecer na caixa de entrada, confira spam, lixo eletrônico e pastas como \"Promoções\". " +
+					"Em contas corporativas (@empresa) o servidor pode atrasar ou filtrar mensagens vindas do Gmail. " +
+					"Aguarde alguns minutos e tente buscar por \"ContainerWay\"."
+				dialog.ShowInformation("Alertas por e-mail", msg, ui.win)
+			})
+		}()
+	})
+
+	btnTestSelf := widget.NewButton("Teste só no remetente (Gmail)", func() {
+		s := readForm()
+		if !s.ValidTransport() {
+			dialog.ShowInformation(
+				"Alertas por e-mail",
+				"Para este teste: ative o envio, preencha servidor SMTP, porta, usuário, senha e remetente (From) com o mesmo e-mail da conta Gmail usada no SMTP.",
+				ui.win,
+			)
+			return
+		}
+		go func() {
+			fromAddr := s.EnvelopeFromAddress()
+			err := s.SendTestToSelf(
+				"ContainerWay: teste só no remetente",
+				"Este teste foi enviado apenas para o endereço do remetente (From). "+
+					"Abra o Gmail (mail.google.com) com a conta "+fromAddr+", confira Caixa de entrada e Enviados.",
+			)
+			if err != nil {
+				fyne.Do(func() {
+					dialog.ShowError(fmt.Errorf("falha no teste ao remetente: %w", err), ui.win)
+				})
+				return
+			}
+			addr := fromAddr
+			fyne.Do(func() {
+				dialog.ShowInformation(
+					"Alertas por e-mail",
+					"O Gmail aceitou a mensagem enviada só para:\n\n"+addr+
+						"\n\nAbra essa conta em mail.google.com e verifique Caixa de entrada e «Enviados». "+
+						"Se este e-mail chegar mas o teste normal não chegar no @siplan, o bloqueio é no Microsoft 365 / Exchange da empresa (spam, quarentena ou regras de transporte).",
+					ui.win,
+				)
+			})
+		}()
+	})
+
+	scrollRecipients := fynecontainer.NewScroll(mailList)
+	scrollRecipients.SetMinSize(fyne.NewSize(400, 100))
+	// Campo ocupa a largura; botão "Adicionar" fixo à direita (evita sobreposição com HBox simples).
+	addRow := fynecontainer.NewBorder(nil, nil, nil, btnAddAddr, newAddrEntry)
+	removeRow := fynecontainer.NewHBox(layout.NewSpacer(), btnRemoveAddr)
+	recipientsBlock := fynecontainer.NewVBox(
+		lblRecipientCount,
+		fynecontainer.NewPadded(scrollRecipients),
+		widget.NewSeparator(),
+		addRow,
+		removeRow,
+	)
+
+	scrollContent := fynecontainer.NewVBox(
+		info,
+		widget.NewSeparator(),
+		enabled,
+		widget.NewLabelWithStyle("Destinatários dos alertas", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		fynecontainer.NewPadded(recipientsBlock),
+		widget.NewSeparator(),
+		widget.NewForm(
+			widget.NewFormItem("Servidor SMTP", hostEntry),
+			widget.NewFormItem("Porta", portEntry),
+			widget.NewFormItem("Usuário SMTP", userEntry),
+			widget.NewFormItem("Senha SMTP", passEntry),
+			widget.NewFormItem("Remetente (From)", fromEntry),
+		),
+	)
+	scrollCentral := fynecontainer.NewScroll(scrollContent)
+	scrollCentral.SetMinSize(fyne.NewSize(560, 240))
+
+	var mailDlg dialog.Dialog
+	btnFechar := widget.NewButton("Fechar", func() { mailDlg.Hide() })
+	btnFechar.Importance = widget.MediumImportance
+
+	actionBar := fynecontainer.NewVBox(
+		widget.NewSeparator(),
+		fynecontainer.NewHBox(btnSave, btnTest, layout.NewSpacer()),
+		fynecontainer.NewHBox(btnTestSelf, layout.NewSpacer()),
+		widget.NewSeparator(),
+		fynecontainer.NewHBox(layout.NewSpacer(), btnFechar, layout.NewSpacer()),
+	)
+	// Barra inferior fixa; formulário rola no centro (cabe em telas menores).
+	fullBody := fynecontainer.NewBorder(nil, fynecontainer.NewPadded(actionBar), nil, nil, scrollCentral)
+
+	mailDlg = dialog.NewCustomWithoutButtons("Alertas por e-mail (admin)", fullBody, ui.win)
+	mailDlg.Resize(fyne.NewSize(620, 520))
+	mailDlg.Show()
 }
 
 func (ui *explorer) openRemoteForEdit(e fsutil.DirEntry) {
