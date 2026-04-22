@@ -553,6 +553,7 @@ type explorer struct {
 	batchTotal           int
 	batchDone            int
 	batchFailures        []string
+	opHistory            []string
 }
 
 type copiedItem struct {
@@ -925,6 +926,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	ui.btnUp.Importance = widget.HighImportance
 	ui.btnDown = widget.NewButtonWithIcon("Receber", theme.DownloadIcon(), func() { ui.download() })
 	ui.btnDown.Importance = widget.HighImportance
+	btnHistory := widget.NewButtonWithIcon("Histórico", theme.HistoryIcon(), func() { ui.showOperationHistory() })
 	btnDisconnect := widget.NewButtonWithIcon("Sair", theme.LogoutIcon(), func() {
 		s.Close()
 		goToLogin(w)
@@ -936,6 +938,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	toolbar := fynecontainer.NewHBox(
 		ui.btnUp,
 		ui.btnDown,
+		btnHistory,
 		layout.NewSpacer(),
 		ui.lblSudoState,
 		ui.btnDisableSudo,
@@ -2966,9 +2969,11 @@ func (ui *explorer) startDrain() {
 						ui.progress.Hide()
 						if batchErr != nil {
 							ui.status.SetText(batchErr.Error())
+							ui.appendOperationHistory("Lote com falha: " + batchErr.Error())
 							dialog.ShowError(batchErr, ui.win)
 						} else {
 							ui.status.SetText(batchSummary)
+							ui.appendOperationHistory(batchSummary)
 							dialog.ShowInformation("Transferência em lote concluída", batchSummary, ui.win)
 						}
 					} else {
@@ -2982,9 +2987,11 @@ func (ui *explorer) startDrain() {
 				ui.progress.Hide()
 				if err != nil {
 					ui.status.SetText(fmt.Sprintf("Erro: %v", err))
+					ui.appendOperationHistory(fmt.Sprintf("Falha: %s | %v", j.Name, err))
 					dialog.ShowError(err, ui.win)
 				} else {
 					ui.status.SetText("Concluído: " + j.Name)
+					ui.appendOperationHistory("Concluído: " + j.Name)
 					dialog.ShowInformation("Transferência concluída", j.Name, ui.win)
 				}
 				ui.refreshLeft()
@@ -3795,6 +3802,51 @@ func (ui *explorer) showRowContextMenu(left bool, id widget.ListItemID, pos fyne
 		items[3].Disabled = true
 	}
 	widget.ShowPopUpMenuAtPosition(fyne.NewMenu("", items...), ui.win.Canvas(), pos)
+}
+
+func (ui *explorer) appendOperationHistory(entry string) {
+	msg := strings.TrimSpace(entry)
+	if msg == "" {
+		return
+	}
+	stamp := time.Now().Format("02/01 15:04:05")
+	ui.opHistory = append(ui.opHistory, fmt.Sprintf("%s | %s", stamp, msg))
+	const maxEntries = 120
+	if len(ui.opHistory) > maxEntries {
+		ui.opHistory = ui.opHistory[len(ui.opHistory)-maxEntries:]
+	}
+}
+
+func (ui *explorer) showOperationHistory() {
+	content := "Sem operações registradas nesta sessão."
+	if len(ui.opHistory) > 0 {
+		lines := ui.opHistory
+		if len(lines) > 60 {
+			lines = lines[len(lines)-60:]
+		}
+		content = strings.Join(lines, "\n")
+	}
+	log := widget.NewMultiLineEntry()
+	log.SetText(content)
+	log.Disable()
+	log.Wrapping = fyne.TextWrapWord
+	scroll := fynecontainer.NewScroll(log)
+	scroll.SetMinSize(fyne.NewSize(820, 360))
+	historyDialog := dialog.NewCustomConfirm(
+		"Histórico de operações",
+		"Limpar",
+		"Fechar",
+		scroll,
+		func(clear bool) {
+			if clear {
+				ui.opHistory = nil
+				ui.status.SetText("Histórico de operações limpo.")
+			}
+		},
+		ui.win,
+	)
+	historyDialog.Resize(fyne.NewSize(860, 420))
+	historyDialog.Show()
 }
 
 func (ui *explorer) openRemoteForEdit(e fsutil.DirEntry) {
