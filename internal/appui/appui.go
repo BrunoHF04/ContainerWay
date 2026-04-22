@@ -176,10 +176,15 @@ type explorer struct {
 	rightList   *widget.List
 	leftPathLbl *widget.Label
 	breadcrumb  *widget.Label
+	leftCrumbs  *fyne.Container
+	rightCrumbs *fyne.Container
 	ctxSelect   *widget.Select
+	leftQuick   *widget.Select
+	rightQuick  *widget.Select
 	status      *widget.Label
 	progress    *widget.ProgressBar
 	lastJobText *widget.Label
+	selectionInfo *widget.Label
 	leftSearch  *widget.Entry
 	rightSearch *widget.Entry
 	leftBack    []string
@@ -187,6 +192,11 @@ type explorer struct {
 
 	tm            *transfer.Manager
 	parallelJobs int
+	activePane    string
+	btnOpenLocal  *widget.Button
+	btnOpenRemote *widget.Button
+	btnUp         *widget.Button
+	btnDown       *widget.Button
 
 	// Evita aplicar listagens antigas se o usuário mudar de pasta/contexto a meio.
 	rightRefreshSeq atomic.Uint64
@@ -280,6 +290,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 		rightSel:       -1,
 		tm:             &transfer.Manager{},
 		parallelJobs:   parallelJobs,
+		activePane:     "left",
 	}
 	for _, c := range list {
 		// Reforço no cliente: só o que está “vivo” (como no docker ps sem -a).
@@ -304,6 +315,8 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 
 	ui.breadcrumb = widget.NewLabel("")
 	ui.breadcrumb.Wrapping = fyne.TextWrapWord
+	ui.leftCrumbs = fynecontainer.NewHBox()
+	ui.rightCrumbs = fynecontainer.NewHBox()
 	ui.leftPathLbl = widget.NewLabel("")
 	ui.leftPathLbl.Wrapping = fyne.TextWrapWord
 	ui.status = widget.NewLabel("")
@@ -315,6 +328,8 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 	ui.leftSearch.SetPlaceHolder("Pesquisar no computador local")
 	ui.rightSearch = widget.NewEntry()
 	ui.rightSearch.SetPlaceHolder("Pesquisar no lado do servidor")
+	ui.selectionInfo = widget.NewLabel("Selecione um arquivo ou pasta para ver ações disponíveis.")
+	ui.selectionInfo.Wrapping = fyne.TextWrapWord
 
 	ui.leftList = widget.NewList(
 		func() int { return len(ui.leftRows) },
@@ -344,7 +359,11 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 			l2.SetText(sizeLabel(e))
 		},
 	)
-	ui.leftList.OnSelected = func(id widget.ListItemID) { ui.leftSel = int(id) }
+	ui.leftList.OnSelected = func(id widget.ListItemID) {
+		ui.leftSel = int(id)
+		ui.activePane = "left"
+		ui.updateActionState()
+	}
 
 	ui.rightList = widget.NewList(
 		func() int { return len(ui.rightRows) },
@@ -374,7 +393,11 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 			l2.SetText(sizeLabel(e))
 		},
 	)
-	ui.rightList.OnSelected = func(id widget.ListItemID) { ui.rightSel = int(id) }
+	ui.rightList.OnSelected = func(id widget.ListItemID) {
+		ui.rightSel = int(id)
+		ui.activePane = "right"
+		ui.updateActionState()
+	}
 
 	// ctxSelect depois das listas: SetSelectedIndex(0) dispara o callback e usa rightList.UnselectAll().
 	ui.ctxSelect = widget.NewSelect(ui.containerOpts, func(sel string) {
@@ -403,8 +426,8 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 	})
 	ui.ctxSelect.SetSelectedIndex(0)
 
-	btnOpenLocal := widget.NewButtonWithIcon("Abrir pasta", theme.FolderOpenIcon(), func() { ui.onLeftActivate() })
-	btnOpenRemote := widget.NewButtonWithIcon("Abrir pasta", theme.FolderOpenIcon(), func() { ui.onRightActivate() })
+	ui.btnOpenLocal = widget.NewButtonWithIcon("Abrir pasta", theme.FolderOpenIcon(), func() { ui.onLeftActivate() })
+	ui.btnOpenRemote = widget.NewButtonWithIcon("Abrir pasta", theme.FolderOpenIcon(), func() { ui.onRightActivate() })
 	btnBackLocal := widget.NewButtonWithIcon("", theme.NavigateBackIcon(), func() { ui.goLeftBack() })
 	btnUpLocal := widget.NewButtonWithIcon("", theme.MoveUpIcon(), func() { ui.goLeftUp() })
 	btnHomeLocal := widget.NewButtonWithIcon("", theme.HomeIcon(), func() { ui.goLeftHome() })
@@ -414,10 +437,10 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 	btnHomeRemote := widget.NewButtonWithIcon("", theme.HomeIcon(), func() { ui.goRightHome() })
 	btnReloadRemote := widget.NewButtonWithIcon("", theme.ViewRefreshIcon(), func() { ui.refreshRight() })
 
-	btnUp := widget.NewButtonWithIcon("Enviar", theme.UploadIcon(), func() { ui.upload() })
-	btnUp.Importance = widget.HighImportance
-	btnDown := widget.NewButtonWithIcon("Receber", theme.DownloadIcon(), func() { ui.download() })
-	btnDown.Importance = widget.HighImportance
+	ui.btnUp = widget.NewButtonWithIcon("Enviar", theme.UploadIcon(), func() { ui.upload() })
+	ui.btnUp.Importance = widget.HighImportance
+	ui.btnDown = widget.NewButtonWithIcon("Receber", theme.DownloadIcon(), func() { ui.download() })
+	ui.btnDown.Importance = widget.HighImportance
 	btnRefresh := widget.NewButtonWithIcon("Atualizar", theme.ViewRefreshIcon(), func() {
 		ui.refreshLeft()
 		ui.refreshRight()
@@ -429,8 +452,8 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 	btnDisconnect.Importance = widget.DangerImportance
 
 	toolbar := fynecontainer.NewHBox(
-		btnUp,
-		btnDown,
+		ui.btnUp,
+		ui.btnDown,
 		btnRefresh,
 		layout.NewSpacer(),
 		btnDisconnect,
@@ -439,6 +462,30 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 		fynecontainer.NewPadded(toolbar),
 		widget.NewSeparator(),
 	)
+
+	leftFavs := ui.defaultLocalShortcuts()
+	ui.leftQuick = widget.NewSelect(leftFavs, func(sel string) {
+		p, ok := ui.resolveLocalShortcut(sel)
+		if !ok || p == "" || p == ui.leftPath {
+			return
+		}
+		ui.pushLeftHistory(p)
+		ui.leftPath = p
+		ui.refreshLeft()
+	})
+	ui.leftQuick.SetSelected("Diretório inicial")
+
+	rightFavs := []string{"/", "/home", "/opt", "/var", "/tmp"}
+	ui.rightQuick = widget.NewSelect(rightFavs, func(sel string) {
+		p := strings.TrimSpace(sel)
+		if p == "" || p == ui.rightPath {
+			return
+		}
+		ui.pushRightHistory(p)
+		ui.rightPath = p
+		ui.refreshRight()
+	})
+	ui.rightQuick.SetSelected("/")
 
 	leftHead := fynecontainer.NewVBox(
 		fynecontainer.NewHBox(
@@ -449,9 +496,11 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 			btnUpLocal,
 			btnHomeLocal,
 			btnReloadLocal,
-			btnOpenLocal,
+			ui.btnOpenLocal,
 		),
 		ui.leftPathLbl,
+		ui.leftCrumbs,
+		ui.leftQuick,
 		ui.leftSearch,
 	)
 	leftPane := fynecontainer.NewBorder(
@@ -473,10 +522,12 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 			btnUpRemote,
 			btnHomeRemote,
 			btnReloadRemote,
-			btnOpenRemote,
+			ui.btnOpenRemote,
 		),
 		fynecontainer.NewPadded(fynecontainer.NewVBox(ctxHelp, ui.ctxSelect)),
 		fynecontainer.NewPadded(ui.breadcrumb),
+		ui.rightCrumbs,
+		ui.rightQuick,
 		ui.rightSearch,
 	)
 	rightPane := fynecontainer.NewBorder(
@@ -489,6 +540,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 	split.SetOffset(0.48)
 
 	bottom := fynecontainer.NewVBox(
+		fynecontainer.NewPadded(ui.selectionInfo),
 		fynecontainer.NewPadded(ui.status),
 		fynecontainer.NewPadded(ui.progress),
 		fynecontainer.NewPadded(ui.lastJobText),
@@ -498,7 +550,9 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 	ui.refreshRight()
 	ui.leftSearch.OnChanged = func(_ string) { ui.applyLeftFilter() }
 	ui.rightSearch.OnChanged = func(_ string) { ui.applyRightFilter() }
+	ui.registerExplorerShortcuts()
 	ui.updateBreadcrumb()
+	ui.updateActionState()
 
 	return fynecontainer.NewBorder(top, bottom, nil, nil, split)
 }
@@ -523,8 +577,12 @@ func sizeLabel(e fsutil.DirEntry) string {
 
 func (ui *explorer) updateBreadcrumb() {
 	ui.leftPathLbl.SetText(fmt.Sprintf("Pasta local: %s", ui.leftPath))
+	ui.leftCrumbs.Objects = ui.makePathButtons(ui.leftPath, true)
+	ui.leftCrumbs.Refresh()
 	if ui.hostMode {
 		ui.breadcrumb.SetText(fmt.Sprintf("Pasta no servidor: %s", ui.rightPath))
+		ui.rightCrumbs.Objects = ui.makePathButtons(ui.rightPath, false)
+		ui.rightCrumbs.Refresh()
 		return
 	}
 	short := strings.TrimPrefix(ui.cfs.ID, "sha256:")
@@ -532,6 +590,8 @@ func (ui *explorer) updateBreadcrumb() {
 		short = short[:12]
 	}
 	ui.breadcrumb.SetText(fmt.Sprintf("Dentro do contêiner (ID %s): %s", short, ui.rightPath))
+	ui.rightCrumbs.Objects = ui.makePathButtons(ui.rightPath, false)
+	ui.rightCrumbs.Refresh()
 }
 
 func (ui *explorer) refreshLeft() {
@@ -562,6 +622,7 @@ func (ui *explorer) applyLeftFilter() {
 	ui.leftList.Refresh()
 	ui.leftList.ScrollToTop()
 	ui.updateBreadcrumb()
+	ui.updateActionState()
 }
 
 func (ui *explorer) refreshRight() {
@@ -648,6 +709,7 @@ func (ui *explorer) applyRightFilter() {
 	ui.rightList.Refresh()
 	ui.rightList.ScrollToTop()
 	ui.updateBreadcrumb()
+	ui.updateActionState()
 }
 
 func (ui *explorer) goLeftBack() {
@@ -734,6 +796,7 @@ func (ui *explorer) onLeftActivate() {
 		ui.pushLeftHistory(e.Path)
 		ui.leftPath = e.Path
 		ui.refreshLeft()
+		ui.status.SetText("Pasta local aberta: " + e.Path)
 	}
 }
 
@@ -747,6 +810,7 @@ func (ui *explorer) onRightActivate() {
 		ui.rightPath = e.Path
 		ui.updateBreadcrumb()
 		ui.refreshRight()
+		ui.status.SetText("Pasta remota aberta: " + e.Path)
 	}
 }
 
@@ -1038,6 +1102,7 @@ func (ui *explorer) startDrain() {
 					dialog.ShowError(err, ui.win)
 				} else {
 					ui.status.SetText("Concluído: " + j.Name)
+					dialog.ShowInformation("Transferência concluída", j.Name, ui.win)
 				}
 				ui.refreshLeft()
 				ui.refreshRightQuiet()
@@ -1053,4 +1118,256 @@ func (ui *explorer) startDrain() {
 			})
 		},
 	)
+}
+
+func (ui *explorer) selectedLeftEntry() (fsutil.DirEntry, bool) {
+	if ui.leftSel < 0 || ui.leftSel >= len(ui.leftRows) {
+		return fsutil.DirEntry{}, false
+	}
+	return ui.leftRows[ui.leftSel], true
+}
+
+func (ui *explorer) selectedRightEntry() (fsutil.DirEntry, bool) {
+	if ui.rightSel < 0 || ui.rightSel >= len(ui.rightRows) {
+		return fsutil.DirEntry{}, false
+	}
+	return ui.rightRows[ui.rightSel], true
+}
+
+func (ui *explorer) updateActionState() {
+	left, hasLeft := ui.selectedLeftEntry()
+	right, hasRight := ui.selectedRightEntry()
+	if ui.btnUp != nil {
+		if hasLeft && left.Name != ".." {
+			ui.btnUp.Enable()
+		} else {
+			ui.btnUp.Disable()
+		}
+	}
+	if ui.btnDown != nil {
+		if hasRight && right.Name != ".." {
+			ui.btnDown.Enable()
+		} else {
+			ui.btnDown.Disable()
+		}
+	}
+	if ui.btnOpenLocal != nil {
+		if hasLeft && left.IsDir {
+			ui.btnOpenLocal.Enable()
+		} else {
+			ui.btnOpenLocal.Disable()
+		}
+	}
+	if ui.btnOpenRemote != nil {
+		if hasRight && right.IsDir {
+			ui.btnOpenRemote.Enable()
+		} else {
+			ui.btnOpenRemote.Disable()
+		}
+	}
+	switch ui.activePane {
+	case "left":
+		if hasLeft {
+			ui.selectionInfo.SetText(fmt.Sprintf("Selecionado (local): %s | Tipo: %s | Sugestão: %s", left.Name, entryTypeLabel(left), leftActionSuggestion(left)))
+		} else {
+			ui.selectionInfo.SetText("Lado ativo: computador local. Selecione um item para habilitar ações.")
+		}
+	default:
+		if hasRight {
+			ui.selectionInfo.SetText(fmt.Sprintf("Selecionado (servidor): %s | Tipo: %s | Sugestão: %s", right.Name, entryTypeLabel(right), rightActionSuggestion(right)))
+		} else {
+			ui.selectionInfo.SetText("Lado ativo: servidor. Selecione um item para habilitar ações.")
+		}
+	}
+}
+
+func entryTypeLabel(e fsutil.DirEntry) string {
+	if e.IsDir {
+		return "pasta"
+	}
+	return "arquivo"
+}
+
+func leftActionSuggestion(e fsutil.DirEntry) string {
+	if e.Name == ".." {
+		return "subir nível"
+	}
+	if e.IsDir {
+		return "abrir pasta ou enviar"
+	}
+	return "enviar"
+}
+
+func rightActionSuggestion(e fsutil.DirEntry) string {
+	if e.Name == ".." {
+		return "subir nível"
+	}
+	if e.IsDir {
+		return "abrir pasta ou receber"
+	}
+	return "receber"
+}
+
+func (ui *explorer) registerExplorerShortcuts() {
+	ui.win.Canvas().SetOnTypedKey(func(k *fyne.KeyEvent) {
+		if _, ok := ui.win.Canvas().Focused().(*widget.Entry); ok {
+			return
+		}
+		switch k.Name {
+		case fyne.KeyEnter, fyne.KeyReturn:
+			if ui.activePane == "left" {
+				ui.onLeftActivate()
+			} else {
+				ui.onRightActivate()
+			}
+		case fyne.KeyBackspace:
+			if ui.activePane == "left" {
+				ui.goLeftUp()
+			} else {
+				ui.goRightUp()
+			}
+		case fyne.KeyF5:
+			ui.refreshLeft()
+			ui.refreshRight()
+		}
+	})
+}
+
+func (ui *explorer) makePathButtons(p string, left bool) []fyne.CanvasObject {
+	if left {
+		clean := filepath.Clean(p)
+		if clean == "" {
+			return nil
+		}
+		sep := string(filepath.Separator)
+		parts := strings.Split(clean, sep)
+		var out []fyne.CanvasObject
+		current := ""
+		for i, part := range parts {
+			if part == "" && i > 0 {
+				continue
+			}
+			if i == 0 && strings.HasSuffix(part, ":") {
+				current = part + sep
+			} else if current == "" {
+				current = part
+			} else {
+				current = filepath.Join(current, part)
+			}
+			target := current
+			lbl := part
+			if lbl == "" {
+				lbl = sep
+			}
+			btn := widget.NewButton(lbl, func() {
+				ui.pushLeftHistory(target)
+				ui.leftPath = target
+				ui.refreshLeft()
+			})
+			btn.Importance = widget.LowImportance
+			out = append(out, btn)
+			if i < len(parts)-1 {
+				out = append(out, widget.NewLabel(" / "))
+			}
+		}
+		return out
+	}
+	clean := path.Clean(p)
+	if clean == "." {
+		clean = "/"
+	}
+	parts := strings.Split(strings.TrimPrefix(clean, "/"), "/")
+	out := []fyne.CanvasObject{}
+	rootBtn := widget.NewButton("/", func() {
+		ui.pushRightHistory("/")
+		ui.rightPath = "/"
+		ui.refreshRight()
+	})
+	rootBtn.Importance = widget.LowImportance
+	out = append(out, rootBtn)
+	current := "/"
+	for _, part := range parts {
+		if strings.TrimSpace(part) == "" {
+			continue
+		}
+		current = path.Join(current, part)
+		target := current
+		out = append(out, widget.NewLabel(" / "))
+		btn := widget.NewButton(part, func() {
+			ui.pushRightHistory(target)
+			ui.rightPath = target
+			ui.refreshRight()
+		})
+		btn.Importance = widget.LowImportance
+		out = append(out, btn)
+	}
+	return out
+}
+
+func (ui *explorer) defaultLocalShortcuts() []string {
+	return []string{"Diretório inicial", "Desktop", "Documentos", "Downloads"}
+}
+
+func (ui *explorer) resolveLocalShortcut(sel string) (string, bool) {
+	home := homeOrRoot()
+	switch sel {
+	case "Diretório inicial":
+		return home, true
+	case "Desktop":
+		return filepath.Join(home, "Desktop"), true
+	case "Documentos":
+		return filepath.Join(home, "Documents"), true
+	case "Downloads":
+		return filepath.Join(home, "Downloads"), true
+	default:
+		return "", false
+	}
+}
+
+func (ui *explorer) showRowContextMenu(left bool, id widget.ListItemID, pos fyne.Position) {
+	if left {
+		if id < 0 || int(id) >= len(ui.leftRows) {
+			return
+		}
+		ui.leftList.Select(id)
+		ui.leftSel = int(id)
+		ui.activePane = "left"
+		ui.updateActionState()
+		e := ui.leftRows[id]
+		items := []*fyne.MenuItem{
+			fyne.NewMenuItem("Abrir pasta", func() { ui.onLeftActivate() }),
+			fyne.NewMenuItem("Enviar para o servidor", func() { ui.upload() }),
+			fyne.NewMenuItemSeparator(),
+			fyne.NewMenuItem("Atualizar lista local", func() { ui.refreshLeft() }),
+		}
+		if !e.IsDir {
+			items[0].Disabled = true
+		}
+		if e.Name == ".." {
+			items[1].Disabled = true
+		}
+		widget.ShowPopUpMenuAtPosition(fyne.NewMenu("", items...), ui.win.Canvas(), pos)
+		return
+	}
+	if id < 0 || int(id) >= len(ui.rightRows) {
+		return
+	}
+	ui.rightList.Select(id)
+	ui.rightSel = int(id)
+	ui.activePane = "right"
+	ui.updateActionState()
+	e := ui.rightRows[id]
+	items := []*fyne.MenuItem{
+		fyne.NewMenuItem("Abrir pasta", func() { ui.onRightActivate() }),
+		fyne.NewMenuItem("Receber no computador local", func() { ui.download() }),
+		fyne.NewMenuItemSeparator(),
+		fyne.NewMenuItem("Atualizar lista remota", func() { ui.refreshRight() }),
+	}
+	if !e.IsDir {
+		items[0].Disabled = true
+	}
+	if e.Name == ".." {
+		items[1].Disabled = true
+	}
+	widget.ShowPopUpMenuAtPosition(fyne.NewMenu("", items...), ui.win.Canvas(), pos)
 }

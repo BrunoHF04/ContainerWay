@@ -20,6 +20,7 @@ type dirListRow struct {
 var (
 	_ fyne.Tappable       = (*dirListRow)(nil)
 	_ fyne.DoubleTappable = (*dirListRow)(nil)
+	_ fyne.SecondaryTappable = (*dirListRow)(nil)
 )
 
 func newDirListRow(ui *explorer, left bool) *dirListRow {
@@ -80,4 +81,8 @@ func (r *dirListRow) DoubleTapped(_ *fyne.PointEvent) {
 		ui.rightSel = int(id)
 		ui.onRightActivate()
 	})
+}
+
+func (r *dirListRow) TappedSecondary(ev *fyne.PointEvent) {
+	r.ui.showRowContextMenu(r.left, r.itemID, ev.AbsolutePosition)
 }
