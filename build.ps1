@@ -4,5 +4,5 @@ $ErrorActionPreference = "Stop"
 $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
 $env:CGO_ENABLED = "1"
 Set-Location $PSScriptRoot
-go build -trimpath -ldflags="-s -w" -o containerway.exe ./cmd/containerway/
+go build -trimpath -ldflags="-s -w -H=windowsgui" -o containerway.exe ./cmd/containerway/
 Write-Host "Gerado: $PSScriptRoot\containerway.exe"
