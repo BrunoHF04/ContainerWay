@@ -3845,6 +3845,20 @@ func (ui *explorer) retryLastFailedOperation() {
 	ui.startDrain()
 }
 
+func (ui *explorer) retryAllFailedOperations() {
+	if len(ui.failedJobs) == 0 {
+		dialog.ShowInformation("Histórico", "Não há falhas recentes para tentar novamente.", ui.win)
+		return
+	}
+	jobs := append([]transfer.Job(nil), ui.failedJobs...)
+	for _, job := range jobs {
+		ui.tm.Enqueue(job)
+	}
+	ui.appendOperationHistory(fmt.Sprintf("Reexecução em lote solicitada: %d falha(s)", len(jobs)))
+	ui.status.SetText(fmt.Sprintf("Reexecutando %d falha(s) recentes...", len(jobs)))
+	ui.startDrain()
+}
+
 func (ui *explorer) showOperationHistory() {
 	content := "Sem operações registradas nesta sessão."
 	if len(ui.opHistory) > 0 {
@@ -3863,15 +3877,20 @@ func (ui *explorer) showOperationHistory() {
 	btnRetry := widget.NewButtonWithIcon("Tentar novamente última falha", theme.ViewRefreshIcon(), func() {
 		ui.retryLastFailedOperation()
 	})
+	btnRetryAll := widget.NewButtonWithIcon("Tentar novamente todas as falhas", theme.MediaReplayIcon(), func() {
+		ui.retryAllFailedOperations()
+	})
 	btnClear := widget.NewButtonWithIcon("Limpar histórico", theme.DeleteIcon(), func() {
 		ui.opHistory = nil
+		ui.failedJobs = nil
 		ui.status.SetText("Histórico de operações limpo.")
 		log.SetText("Sem operações registradas nesta sessão.")
 	})
 	if len(ui.failedJobs) == 0 {
 		btnRetry.Disable()
+		btnRetryAll.Disable()
 	}
-	contentWrap := fynecontainer.NewBorder(nil, fynecontainer.NewHBox(btnRetry, btnClear), nil, nil, scroll)
+	contentWrap := fynecontainer.NewBorder(nil, fynecontainer.NewHBox(btnRetry, btnRetryAll, btnClear), nil, nil, scroll)
 	historyDialog := dialog.NewCustom(
 		"Histórico de operações",
 		"Fechar",
