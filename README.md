@@ -1,110 +1,203 @@
 # ContainerWay
 
-Gestor de arquivos com painel duplo (estilo WinSCP) para **Windows**: navega no disco local, no **host Linux** via **SFTP/SSH** e dentro de **contêineres Docker** na mesma máquina remota — sem expor a API do Docker em TCP.
+Gestor de arquivos de painel duplo (estilo WinSCP) para **Windows**, com foco em uso prático no dia a dia:
 
-## Funcionalidades
+- painel esquerdo no **computador local**;
+- painel direito no **host Linux** via **SSH/SFTP** ou dentro de **contêineres Docker** remotos;
+- Docker acessado pelo socket Unix remoto (`/var/run/docker.sock`) **sobre SSH**, sem abrir API Docker em TCP.
 
-- **Conexão SSH**: usuário, senha e/ou chave **OpenSSH/PEM** ou **PPK** (PuTTY), via [`github.com/kayrus/putty`](https://github.com/kayrus/putty), com senha da chave opcional.
-- **Chave de host**: `known_hosts` (um ou vários arquivos separados por `|`) ou opção explícita **Ignorar chave de host** (inseguro; por padrão ligada para facilitar testes).
-- **Docker sobre SSH**: o cliente Moby usa um dialer que abre `unix:///var/run/docker.sock` no servidor através do canal SSH (stream local), alinhado com o OpenSSH moderno.
-- **Host remoto**: listagem e transferências via **SFTP** no mesmo túnel SSH.
-- **Contêineres**: no menu aparecem só os **em execução**, com nome em destaque e ID curto; a listagem de diretório usa `docker exec ls` (não-recursivo) para abrir pastas com resposta rápida e sem travar.
-- **Pastas**: envio/recebimento recursivo (tar para contêiner; árvore SFTP para host; cópia local recursiva).
-- **Fila de transferências** com barra de progresso e **vários workers em paralelo** (1–16, configurável no login).
-- **Conexões salvas**: na tela inicial é possível salvar, carregar e excluir perfis de conexão (com opção de guardar senha/chave localmente).
-- **Interface**: tema escuro com acento ciano, layout mais compacto no explorador, botões de navegação por painel, pesquisa local/remota, breadcrumbs clicáveis e ícone da aplicação/janela.
-- **Ações de arquivo**: duplo clique em pasta abre; duplo clique em arquivo local abre no app padrão; arquivo remoto pode abrir para edição remota com sincronização automática ao salvar (estilo WinSCP).
-- **Gestão de itens**: renomear, excluir e criar pasta no painel ativo (menu de contexto e atalhos).
-- **Modo sudo no host remoto**: ao receber `permission denied`, o app pode solicitar credenciais para elevar acesso, listando/abrindo/editando/transferindo arquivos protegidos no host.
+Toda a interface está em **pt-BR**.
 
-## Stack (resumo)
+## Visão geral das funcionalidades
 
-| Área | Pacotes |
-|------|---------|
-| UI | [fyne.io/fyne/v2](https://fyne.io/) |
-| SSH / known_hosts | `golang.org/x/crypto/ssh`, `golang.org/x/crypto/ssh/knownhosts` |
+### Conexão e login
+
+- Conexão SSH com:
+  - senha;
+  - chave **OpenSSH/PEM**;
+  - chave **PPK** (PuTTY), incluindo senha da chave.
+- Configuração de verificação de host:
+  - `known_hosts` (um ou mais arquivos separados por `|`);
+  - ou opção explícita para ignorar chave de host (inseguro).
+- Perfis de conexão:
+  - salvar, carregar e excluir conexão;
+  - manter segredo no disco (opcional) ou lembrar só na sessão atual.
+- Teste rápido de conexão com status por etapa:
+  - `SSH`;
+  - `SFTP`;
+  - `Docker`.
+- Validação visual em tempo real no login:
+  - host obrigatório;
+  - usuário obrigatório;
+  - senha ou chave obrigatória;
+  - paralelismo entre `1` e `16`;
+  - caminho da chave válido quando preenchido.
+- Layout de login por abas:
+  - `Conexões SSH/SFTP`;
+  - `Chave e segurança`.
+
+### Navegação e usabilidade no explorador
+
+- Navegação por dois painéis:
+  - esquerda: computador local;
+  - direita: host remoto ou contêiner selecionado.
+- Barra de navegação por painel com:
+  - voltar;
+  - subir nível;
+  - início;
+  - atualizar.
+- Breadcrumbs clicáveis para navegação rápida por níveis.
+- Busca por painel (local e remoto) com limpeza automática ao trocar de pasta/contexto.
+- Duplo clique:
+  - pasta abre;
+  - arquivo local abre no app padrão do Windows.
+- Edição remota estilo WinSCP:
+  - abre arquivo remoto localmente;
+  - monitora alterações;
+  - envia de volta automaticamente ao salvar.
+- Menus de contexto com ações de:
+  - abrir;
+  - enviar/receber;
+  - atualizar;
+  - copiar/colar;
+  - renomear/excluir/criar pasta (conforme painel/contexto).
+- Atalhos em diálogos de formulário:
+  - `Enter` confirma;
+  - `Esc` cancela.
+
+### Transferências
+
+- Transferência de arquivos e pastas:
+  - local ↔ host;
+  - local ↔ contêiner;
+  - host ↔ contêiner (via fluxo interno de transferência).
+- Suporte recursivo para diretórios.
+- Drag-and-drop entre painéis para iniciar envio/recebimento.
+- Copiar/colar entre painéis pelo menu de contexto.
+- Fila de transferências com:
+  - progresso;
+  - status de tarefa;
+  - workers paralelos configuráveis (`1` a `16`).
+
+### Docker remoto
+
+- Lista apenas contêineres **em execução**.
+- Identificação amigável com nome e ID curto no seletor.
+- Listagem de diretório preferencial por `docker exec ls -1Ap` (direta e rápida).
+- Fallback para método por tar quando necessário.
+
+### Ordenação de itens
+
+- Ordenação estilo WinSCP:
+  - `..` no topo;
+  - depois pastas em ordem alfabética;
+  - depois arquivos em ordem alfabética.
+
+### Suporte a sudo em pastas protegidas (host remoto)
+
+- Ao detectar permissão negada, o app pode abrir fluxo de elevação.
+- Usuário informa credenciais sudo em diálogo.
+- Fallback automático para `root` quando usuário informado não eleva para `uid=0`.
+- Indicador visual de sudo ativo + ação para desativar.
+- Cache temporário de validação sudo durante a sessão (TTL interno), evitando pedir senha repetidamente.
+- Mensagens mais didáticas para cenários comuns (ex.: senha incorreta, usuário sem sudo, requisito de TTY).
+- Operações com sudo ativo:
+  - listagem de diretório;
+  - abrir/editar arquivo;
+  - upload/download de arquivo;
+  - upload/download recursivo de pasta.
+
+## Atalhos de teclado
+
+- `Enter`: abrir pasta no painel ativo.
+- `Backspace`: subir um nível no painel ativo.
+- `Tab`: alternar foco entre painel esquerdo e direito.
+- `F3` / `Ctrl+F`: focar busca do painel ativo.
+- `F5`: atualizar painéis.
+- `F6`: transferir conforme o painel ativo (`Enviar` / `Receber`).
+- `F2`: renomear item selecionado.
+- `Del`: excluir item selecionado (com confirmação).
+- `Ctrl+Shift+N`: criar pasta no painel ativo.
+
+## Tecnologias utilizadas
+
+| Área | Tecnologias / pacotes |
+|------|------------------------|
+| Linguagem | Go |
+| UI desktop | [fyne.io/fyne/v2](https://fyne.io/) |
+| SSH | `golang.org/x/crypto/ssh` |
+| Host key (`known_hosts`) | `golang.org/x/crypto/ssh/knownhosts` |
 | SFTP | `github.com/pkg/sftp` |
-| PPK | `github.com/kayrus/putty` |
-| Docker API | `github.com/docker/docker` (client Moby) |
+| Chave PPK (PuTTY) | [`github.com/kayrus/putty`](https://github.com/kayrus/putty) |
+| Docker remoto | `github.com/docker/docker` (cliente Moby) |
+| Concorrência | goroutines, `sync`, `sync/atomic` |
 
 ## Requisitos
 
-- [Go](https://go.dev/dl/) 1.21 ou superior (o `go.mod` do projeto pode fixar uma versão mais recente).
-- No **Windows**, a UI **Fyne** usa **CGO** (GLFW): é preciso **GCC ou Clang** no `PATH`. Opções comuns:
-  - [MSYS2](https://www.msys2.org/) com o pacote `mingw-w64-x86_64-gcc`; ou
-  - **LLVM-MinGW** via Winget: `winget install MartinStorsjo.LLVM-MinGW.UCRT` (feche e reabra o terminal depois da instalação).
-  O script `build.ps1` define `CGO_ENABLED=1` e recarrega o `PATH` do sistema e do usuário antes de compilar.
-- No servidor: **OpenSSH** com SFTP; usuário com permissão de leitura/escrita em `/var/run/docker.sock` (ou grupo `docker`, conforme a política da máquina).
+- [Go](https://go.dev/dl/) 1.21+ (ou versão definida no `go.mod`).
+- No Windows, Fyne requer **CGO**:
+  - GCC ou Clang no `PATH`.
+- Opções comuns no Windows:
+  - [MSYS2](https://www.msys2.org/) + `mingw-w64-x86_64-gcc`;
+  - LLVM-MinGW via Winget:
+    - `winget install MartinStorsjo.LLVM-MinGW.UCRT`
+- O `build.ps1` já:
+  - recarrega `PATH` de usuário/sistema;
+  - define `CGO_ENABLED=1`;
+  - compila com `-H=windowsgui` (sem console abrindo junto).
+- Servidor remoto:
+  - OpenSSH com SFTP;
+  - permissão de acesso ao Docker socket (`/var/run/docker.sock`) quando for usar contêineres.
 
-A interface da aplicação está em **português do Brasil (pt-BR)**.
-
-## Compilar
+## Compilação
 
 ```powershell
 .\build.ps1
 ```
 
-Gera `containerway.exe` na raiz do repositório (`CGO_ENABLED=1`). **Sempre use este `.exe` recém-gerado** depois de atualizar o código; uma cópia antiga no Ambiente de trabalho ou outra pasta continua com o comportamento antigo.
+Saída: `containerway.exe` na raiz.
 
-Para validar apenas a compilação do código **sem** GUI (CI / máquina sem GCC):
+Build de validação sem GUI (CI/ambiente sem GCC para Fyne):
 
 ```powershell
 go build -tags ci -o containerway_ci.exe ./cmd/containerway/
 ```
 
-## Executar
+## Execução
 
 ```powershell
 .\containerway.exe
 ```
 
-1. Preencha host (ex.: `192.168.1.10` ou `servidor:22`), usuário e credenciais; opcionalmente `known_hosts`, desmarque **Ignorar chave de host** em produção, e defina **Paralelismo** (número de transferências simultâneas).
-2. Após conectar, no menu do lado direito escolha **pastas do servidor** ou um **contêiner em execução** (só os ligados aparecem).
-3. Use os perfis em **Conexões salvas** para preencher o login mais rápido e clique em **Conectar**.
-4. No explorador, use **duplo clique** para abrir pasta ou o botão **Abrir**; **Enviar** / **Receber** para transferências.
+Fluxo recomendado:
 
-### No explorador (uso simples)
+1. Abra a aba `Conexões SSH/SFTP`.
+2. Selecione uma conexão salva ou preencha uma nova.
+3. Ajuste `Chave e segurança` (se necessário).
+4. Use `Testar conexão` para validar acesso.
+5. Clique em `Conectar`.
+6. No painel direito, escolha contexto:
+   - pastas do servidor;
+   - ou um contêiner em execução.
 
-- **Esquerda**: arquivos do seu **computador local** (com atalhos rápidos para Diretório inicial, Desktop, Documentos, Downloads).
-- **Direita**: escolha **pastas do servidor** (SFTP) ou um **contêiner em execução**; o conteúdo mostrado sempre acompanha o contexto selecionado.
-- Cada painel tem barra de navegação com **voltar**, **subir**, **início** e **atualizar**, além de busca por nome.
-- **Breadcrumb clicável** permite saltar direto para qualquer nível de pasta.
-- **Menu de contexto** (botão direito) oferece abrir, transferir e atualizar lista.
-- **Atalhos de teclado**:
-  - `Enter`: abre pasta no painel ativo
-  - `Backspace`: sobe um nível
-  - `Tab`: alterna painel ativo (local/servidor)
-  - `F3` e `Ctrl+F`: foca a busca do painel ativo
-  - `F5`: atualiza os dois painéis
-  - `F6`: transfere conforme o painel ativo (`Enviar` no local / `Receber` no servidor)
-  - `F2`: renomear item selecionado
-  - `Del`: excluir item selecionado (com confirmação)
-  - `Ctrl+Shift+N`: criar nova pasta no painel ativo
-- **Busca inteligente por painel**: ao navegar para outra pasta, o campo de busca do painel é limpo automaticamente para evitar lista “vazia” por filtro antigo.
+## Estrutura do projeto
 
-### Pastas protegidas (sudo)
+| Caminho | Responsabilidade |
+|---------|------------------|
+| `cmd/containerway` | Ponto de entrada do app |
+| `internal/appui` | Interface Fyne (login, explorador, ações, atalhos) |
+| `internal/session` | Conexão SSH, cliente SFTP e cliente Docker |
+| `internal/hostfs` | Operações no host remoto via SFTP |
+| `internal/containerfs` | Operações em arquivos de contêiner |
+| `internal/localfs` | Operações no sistema de arquivos local |
+| `internal/fsutil` | Utilitários de entrada/listagem e ordenação |
+| `internal/tarxfer` | Transferências recursivas com tar |
+| `internal/transfer` | Fila, progresso e workers de transferência |
 
-- Ao entrar em pasta remota com restrição de permissão, o app exibe o diálogo **Acesso negado**.
-- Você pode informar usuário/senha para tentativa de elevação com `sudo`.
-- Se o usuário informado não elevar para `uid=0`, o app tenta fallback para `root` automaticamente com a mesma senha.
-- Com sudo ativo, o lado remoto passa a suportar:
-  - listagem de diretórios protegidos,
-  - abrir/editar arquivo remoto com sincronização,
-  - enviar e receber arquivos protegidos.
+## Segurança
 
-## Estrutura do código
-
-| Pacote | Descrição |
-|--------|-----------|
-| `cmd/containerway` | Entrada da aplicação |
-| `internal/appui` | Interface Fyne (login, explorador, transferências) |
-| `internal/session` | SSH, SFTP, cliente Docker; `hostkey.go` para `known_hosts` |
-| `internal/hostfs` | Operações SFTP no host |
-| `internal/containerfs` | Operações Docker (tar / API de arquivo) |
-| `internal/localfs` | Listagem do sistema de arquivos local |
-| `internal/tarxfer` | Tar recursivo (local ↔ contêiner / SFTP) |
-| `internal/transfer` | Fila, progresso e workers paralelos |
-
-## Segurança (nota)
-
-Com **Ignorar chave de host** desligado, o cliente usa `golang.org/x/crypto/ssh/knownhosts` sobre os arquivos indicados (ou `%USERPROFILE%\.ssh\known_hosts` se existir). Se não houver arquivos válidos, a conexão falha até informar caminhos ou marcar de novo a opção de ignorar a verificação.
+- Em produção, prefira validação de host por `known_hosts` e evite `Ignorar chave de host`.
+- Segredos podem ser:
+  - persistidos na conexão local (quando marcado);
+  - ou mantidos somente na sessão atual (não persistente em disco).
+- Fluxo sudo é usado apenas quando necessário para acesso a caminhos protegidos.
