@@ -613,6 +613,14 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 	})
 	ui.rightQuick.SetSelected("/")
 
+	const (
+		quickSelectWidth = float32(170)
+		ctxSelectWidth   = float32(185)
+	)
+	leftQuickWrap := fynecontainer.NewGridWrap(fyne.NewSize(quickSelectWidth, ui.leftQuick.MinSize().Height), ui.leftQuick)
+	rightQuickWrap := fynecontainer.NewGridWrap(fyne.NewSize(quickSelectWidth, ui.rightQuick.MinSize().Height), ui.rightQuick)
+	ctxSelectWrap := fynecontainer.NewGridWrap(fyne.NewSize(ctxSelectWidth, ui.ctxSelect.MinSize().Height), ui.ctxSelect)
+
 	leftHead := fynecontainer.NewVBox(
 		fynecontainer.NewHBox(
 			widget.NewIcon(theme.HomeIcon()),
@@ -626,7 +634,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 			btnReloadLocal,
 			ui.btnOpenLocal,
 			layout.NewSpacer(),
-			ui.leftQuick,
+			leftQuickWrap,
 		),
 		ui.leftSearch,
 	)
@@ -649,9 +657,9 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 			btnReloadRemote,
 			ui.btnOpenRemote,
 			layout.NewSpacer(),
-			ui.ctxSelect,
+			ctxSelectWrap,
 		),
-		fynecontainer.NewBorder(nil, nil, ui.rightQuick, nil, ui.rightSearch),
+		fynecontainer.NewBorder(nil, nil, rightQuickWrap, nil, ui.rightSearch),
 	)
 	rightPane := fynecontainer.NewBorder(
 		fynecontainer.NewPadded(rightHead),
