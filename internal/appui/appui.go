@@ -47,12 +47,15 @@ type transientSecret struct {
 var (
 	loginSecretMu       sync.Mutex
 	loginSessionSecrets = map[string]transientSecret{}
+	auditLogMu          sync.Mutex
 )
 
 const (
 	themePreferenceKey = "ui.theme.mode"
 	leftFavoritesPreferenceKey  = "explorer.left.favorites"
 	rightFavoritesPreferenceKey = "explorer.right.favorites"
+	operationHistoryPreferenceKey = "explorer.operation.history"
+	auditLogFileName             = "containerway-activity.log"
 	themeModeSystem    = "system"
 	themeModeLight     = "light"
 	themeModeDark      = "dark"
@@ -182,6 +185,7 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 	profileSelect.OnChanged = func(sel string) {
 		if sel == "Nova conexão…" {
 			clearProfileInputs()
+			appendAuditLog("login", "Formulário de nova conexão selecionado")
 			return
 		}
 		c, ok := findConnectionByName(profiles, sel)
@@ -191,6 +195,7 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 		}
 		applyProfile(c)
 		status.SetText("Conexão carregada: " + c.Name)
+		appendAuditLog("login", "Conexão carregada: "+c.Name)
 	}
 
 	saveProfile := widget.NewButtonWithIcon("Salvar", theme.DocumentSaveIcon(), func() {
@@ -219,6 +224,7 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 		}
 		rebuildProfileOptions(name)
 		status.SetText("Conexão salva: " + name)
+		appendAuditLog("login", "Conexão salva: "+name)
 	})
 
 	deleteProfile := widget.NewButtonWithIcon("Excluir", theme.DeleteIcon(), func() {
@@ -238,6 +244,7 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 			}
 			rebuildProfileOptions("")
 			status.SetText("Conexão excluída: " + target)
+			appendAuditLog("login", "Conexão excluída: "+target)
 		}, w)
 	})
 	deleteProfile.Importance = widget.DangerImportance
@@ -340,6 +347,7 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 
 	connect = widget.NewButtonWithIcon("Conectar", theme.LoginIcon(), func() {
 		status.SetText("Conectando…")
+		appendAuditLog("login", "Tentativa de conexão para "+strings.TrimSpace(host.Text))
 		creds := session.Credentials{
 			Host:              host.Text,
 			User:              user.Text,
@@ -359,12 +367,14 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 					status.SetText(err.Error())
 					dialog.ShowError(err, w)
 				})
+				appendAuditLog("login", "Falha ao conectar: "+err.Error())
 				return
 			}
 			fyne.Do(func() {
 				w.SetContent(buildExplorer(w, sess, pJobs, creds))
 				setExplorerWindow(w)
 			})
+			appendAuditLog("login", "Conexão estabelecida com sucesso para "+strings.TrimSpace(host.Text))
 			if rememberSession.Checked {
 				setTransientSecret(profileSecretKey(connName.Text, host.Text, user.Text), transientSecret{
 					Password: pass.Text,
@@ -378,6 +388,7 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 	connect.Importance = widget.HighImportance
 	testConn = widget.NewButtonWithIcon("Testar conexão", theme.ConfirmIcon(), func() {
 		status.SetText("Testando conexão…")
+		appendAuditLog("login", "Teste de conexão iniciado para "+strings.TrimSpace(host.Text))
 		creds := session.Credentials{
 			Host:            host.Text,
 			User:            user.Text,
@@ -397,12 +408,14 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 					status.SetText(msg)
 					dialog.ShowError(err, w)
 				})
+				appendAuditLog("login", "Teste de conexão com falha: "+err.Error())
 				return
 			}
 			sess.Close()
 			fyne.Do(func() {
 				status.SetText("Teste de conexão:\nSSH: OK\nSFTP: OK\nDocker: OK")
 			})
+			appendAuditLog("login", "Teste de conexão concluído com sucesso para "+strings.TrimSpace(host.Text))
 		}()
 	})
 
@@ -755,6 +768,8 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 		remoteEditSessions: map[string]*remoteEditSession{},
 		sudoTTL:        10 * time.Minute,
 	}
+	ui.opHistory = loadOperationHistoryPreference()
+	appendAuditLog("sessao", "Explorador iniciado para "+strings.TrimSpace(creds.Host))
 	for _, c := range list {
 		// Reforço no cliente: só o que está “vivo” (como no docker ps sem -a).
 		if c.State != dcontainer.StateRunning && c.State != dcontainer.StateRestarting {
@@ -913,7 +928,9 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	btnLeftSendBatch.Importance = widget.MediumImportance
 	btnRightRecvBatch.Importance = widget.MediumImportance
 	btnAddLeftFavorite := newHintIconButton(theme.ContentAddIcon(), "Salvar pasta atual nos atalhos do computador local", ui.status, func() { ui.addLeftFavoriteCurrentPath() })
+	btnRemoveLeftFavorite := newHintIconButton(theme.ContentRemoveIcon(), "Remover pasta atual dos atalhos do computador local", ui.status, func() { ui.removeLeftFavoriteCurrentPath() })
 	btnAddRightFavorite := newHintIconButton(theme.ContentAddIcon(), "Salvar pasta atual nos atalhos do servidor", ui.status, func() { ui.addRightFavoriteCurrentPath() })
+	btnRemoveRightFavorite := newHintIconButton(theme.ContentRemoveIcon(), "Remover pasta atual dos atalhos do servidor", ui.status, func() { ui.removeRightFavoriteCurrentPath() })
 	btnBackLocal := widget.NewButtonWithIcon("", theme.NavigateBackIcon(), func() { ui.goLeftBack() })
 	btnUpLocal := widget.NewButtonWithIcon("", theme.MoveUpIcon(), func() { ui.goLeftUp() })
 	btnHomeLocal := widget.NewButtonWithIcon("", theme.HomeIcon(), func() { ui.goLeftHome() })
@@ -929,6 +946,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	ui.btnDown.Importance = widget.HighImportance
 	btnHistory := widget.NewButtonWithIcon("Histórico", theme.HistoryIcon(), func() { ui.showOperationHistory() })
 	btnDisconnect := widget.NewButtonWithIcon("Sair", theme.LogoutIcon(), func() {
+		appendAuditLog("sessao", "Sessão encerrada pelo usuário")
 		s.Close()
 		goToLogin(w)
 	})
@@ -1011,6 +1029,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 			layout.NewSpacer(),
 			leftQuickWrap,
 			btnAddLeftFavorite,
+			btnRemoveLeftFavorite,
 		),
 		fynecontainer.NewBorder(nil, nil, nil, leftTypeFilterWrap, ui.leftSearch),
 		fynecontainer.NewHBox(
@@ -1040,6 +1059,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 			layout.NewSpacer(),
 			rightQuickWrap,
 			btnAddRightFavorite,
+			btnRemoveRightFavorite,
 			ctxSelectWrap,
 		),
 		fynecontainer.NewBorder(nil, nil, nil, rightTypeFilterWrap, ui.rightSearch),
@@ -3655,6 +3675,40 @@ func saveStringSlicePreference(key string, values []string) {
 	app.Preferences().SetString(key, string(buf))
 }
 
+func loadOperationHistoryPreference() []string {
+	return loadStringSlicePreference(operationHistoryPreferenceKey)
+}
+
+func saveOperationHistoryPreference(values []string) {
+	saveStringSlicePreference(operationHistoryPreferenceKey, values)
+}
+
+func auditLogPath() string {
+	base, err := os.UserConfigDir()
+	if err != nil || strings.TrimSpace(base) == "" {
+		base = os.TempDir()
+	}
+	dir := filepath.Join(base, "ContainerWay")
+	_ = os.MkdirAll(dir, 0o755)
+	return filepath.Join(dir, auditLogFileName)
+}
+
+func appendAuditLog(scope, message string) {
+	msg := strings.TrimSpace(message)
+	if msg == "" {
+		return
+	}
+	line := fmt.Sprintf("%s | %s | %s\n", time.Now().Format("2006-01-02 15:04:05"), strings.TrimSpace(scope), msg)
+	auditLogMu.Lock()
+	defer auditLogMu.Unlock()
+	f, err := os.OpenFile(auditLogPath(), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	_, _ = f.WriteString(line)
+}
+
 func (ui *explorer) localShortcutOptions() []string {
 	base := ui.defaultLocalShortcuts()
 	saved := loadStringSlicePreference(leftFavoritesPreferenceKey)
@@ -3703,6 +3757,7 @@ func (ui *explorer) addLeftFavoriteCurrentPath() {
 	saveStringSlicePreference(leftFavoritesPreferenceKey, saved)
 	ui.refreshLeftShortcutOptions(p)
 	ui.status.SetText("Atalho local salvo: " + p)
+	appendAuditLog("favoritos", "Atalho local salvo: "+p)
 }
 
 func (ui *explorer) addRightFavoriteCurrentPath() {
@@ -3714,6 +3769,56 @@ func (ui *explorer) addRightFavoriteCurrentPath() {
 	saveStringSlicePreference(rightFavoritesPreferenceKey, saved)
 	ui.refreshRightShortcutOptions(p)
 	ui.status.SetText("Atalho do servidor salvo: " + p)
+	appendAuditLog("favoritos", "Atalho remoto salvo: "+p)
+}
+
+func removePathFromList(values []string, target string) []string {
+	want := strings.TrimSpace(strings.ToLower(target))
+	if want == "" {
+		return uniqueNonEmpty(values)
+	}
+	out := make([]string, 0, len(values))
+	for _, v := range values {
+		if strings.ToLower(strings.TrimSpace(v)) == want {
+			continue
+		}
+		out = append(out, v)
+	}
+	return uniqueNonEmpty(out)
+}
+
+func (ui *explorer) removeLeftFavoriteCurrentPath() {
+	p := strings.TrimSpace(ui.leftPath)
+	if p == "" {
+		return
+	}
+	saved := loadStringSlicePreference(leftFavoritesPreferenceKey)
+	next := removePathFromList(saved, p)
+	if len(next) == len(saved) {
+		ui.status.SetText("Atalho local não está na lista de favoritos.")
+		return
+	}
+	saveStringSlicePreference(leftFavoritesPreferenceKey, next)
+	ui.refreshLeftShortcutOptions("")
+	ui.status.SetText("Atalho local removido: " + p)
+	appendAuditLog("favoritos", "Atalho local removido: "+p)
+}
+
+func (ui *explorer) removeRightFavoriteCurrentPath() {
+	p := strings.TrimSpace(ui.rightPath)
+	if p == "" {
+		return
+	}
+	saved := loadStringSlicePreference(rightFavoritesPreferenceKey)
+	next := removePathFromList(saved, p)
+	if len(next) == len(saved) {
+		ui.status.SetText("Atalho do servidor não está na lista de favoritos.")
+		return
+	}
+	saveStringSlicePreference(rightFavoritesPreferenceKey, next)
+	ui.refreshRightShortcutOptions("")
+	ui.status.SetText("Atalho do servidor removido: " + p)
+	appendAuditLog("favoritos", "Atalho remoto removido: "+p)
 }
 
 func (ui *explorer) resolveLocalShortcut(sel string) (string, bool) {
@@ -3816,10 +3921,12 @@ func (ui *explorer) appendOperationHistory(entry string) {
 	}
 	stamp := time.Now().Format("02/01 15:04:05")
 	ui.opHistory = append(ui.opHistory, fmt.Sprintf("%s | %s", stamp, msg))
-	const maxEntries = 120
+	const maxEntries = 500
 	if len(ui.opHistory) > maxEntries {
 		ui.opHistory = ui.opHistory[len(ui.opHistory)-maxEntries:]
 	}
+	saveOperationHistoryPreference(ui.opHistory)
+	appendAuditLog("operacao", msg)
 }
 
 func (ui *explorer) rememberFailedJob(job transfer.Job) {
@@ -3860,20 +3967,58 @@ func (ui *explorer) retryAllFailedOperations() {
 }
 
 func (ui *explorer) showOperationHistory() {
-	content := "Sem operações registradas nesta sessão."
-	if len(ui.opHistory) > 0 {
+	buildContent := func(term string) string {
 		lines := ui.opHistory
-		if len(lines) > 60 {
-			lines = lines[len(lines)-60:]
+		if t := strings.ToLower(strings.TrimSpace(term)); t != "" {
+			filtered := make([]string, 0, len(lines))
+			for _, line := range lines {
+				if strings.Contains(strings.ToLower(line), t) {
+					filtered = append(filtered, line)
+				}
+			}
+			lines = filtered
 		}
-		content = strings.Join(lines, "\n")
+		if len(lines) == 0 {
+			return "Sem operações registradas para este filtro."
+		}
+		if len(lines) > 120 {
+			lines = lines[len(lines)-120:]
+		}
+		return strings.Join(lines, "\n")
 	}
 	log := widget.NewMultiLineEntry()
-	log.SetText(content)
+	log.SetText(buildContent(""))
 	log.Disable()
 	log.Wrapping = fyne.TextWrapWord
 	scroll := fynecontainer.NewScroll(log)
 	scroll.SetMinSize(fyne.NewSize(820, 360))
+	filterEntry := widget.NewEntry()
+	filterEntry.SetPlaceHolder("Filtrar histórico (ex.: erro, concluído, upload)")
+	filterEntry.OnChanged = func(text string) {
+		log.SetText(buildContent(text))
+	}
+	btnExport := widget.NewButtonWithIcon("Exportar .log", theme.DocumentSaveIcon(), func() {
+		target := filepath.Join(filepath.Dir(auditLogPath()), "historico-operacoes.log")
+		content := buildContent(filterEntry.Text)
+		if err := os.WriteFile(target, []byte(content+"\n"), 0o644); err != nil {
+			dialog.ShowError(fmt.Errorf("não foi possível exportar histórico: %w", err), ui.win)
+			return
+		}
+		ui.status.SetText("Histórico exportado: " + target)
+		appendAuditLog("historico", "Histórico exportado para "+target)
+	})
+	btnOpenFullLog := widget.NewButtonWithIcon("Abrir log geral", theme.DocumentIcon(), func() {
+		logPath := auditLogPath()
+		if _, err := os.Stat(logPath); err != nil {
+			dialog.ShowError(fmt.Errorf("log geral ainda não existe: %w", err), ui.win)
+			return
+		}
+		if err := openWithDefaultApp(logPath); err != nil {
+			dialog.ShowError(fmt.Errorf("não foi possível abrir log geral: %w", err), ui.win)
+			return
+		}
+		ui.status.SetText("Log geral aberto: " + logPath)
+	})
 	btnRetry := widget.NewButtonWithIcon("Tentar novamente última falha", theme.ViewRefreshIcon(), func() {
 		ui.retryLastFailedOperation()
 	})
@@ -3883,14 +4028,22 @@ func (ui *explorer) showOperationHistory() {
 	btnClear := widget.NewButtonWithIcon("Limpar histórico", theme.DeleteIcon(), func() {
 		ui.opHistory = nil
 		ui.failedJobs = nil
+		saveOperationHistoryPreference(nil)
 		ui.status.SetText("Histórico de operações limpo.")
-		log.SetText("Sem operações registradas nesta sessão.")
+		log.SetText("Sem operações registradas para este filtro.")
+		appendAuditLog("historico", "Histórico de operações limpo")
 	})
 	if len(ui.failedJobs) == 0 {
 		btnRetry.Disable()
 		btnRetryAll.Disable()
 	}
-	contentWrap := fynecontainer.NewBorder(nil, fynecontainer.NewHBox(btnRetry, btnRetryAll, btnClear), nil, nil, scroll)
+	contentWrap := fynecontainer.NewBorder(
+		fynecontainer.NewPadded(filterEntry),
+		fynecontainer.NewHBox(btnExport, btnOpenFullLog, btnRetry, btnRetryAll, btnClear),
+		nil,
+		nil,
+		scroll,
+	)
 	historyDialog := dialog.NewCustom(
 		"Histórico de operações",
 		"Fechar",
