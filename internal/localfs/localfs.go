@@ -42,5 +42,6 @@ func List(dir string) ([]fsutil.DirEntry, error) {
 			ModTime: fi.ModTime(),
 		})
 	}
+	fsutil.SortLikeWinSCP(out)
 	return out, nil
 }

@@ -552,8 +552,8 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 	})
 	ui.ctxSelect.SetSelectedIndex(0)
 
-	ui.btnOpenLocal = widget.NewButtonWithIcon("", theme.FolderOpenIcon(), func() { ui.onLeftActivate() })
-	ui.btnOpenRemote = widget.NewButtonWithIcon("", theme.FolderOpenIcon(), func() { ui.onRightActivate() })
+	ui.btnOpenLocal = widget.NewButtonWithIcon("Abrir", theme.FolderOpenIcon(), func() { ui.onLeftActivate() })
+	ui.btnOpenRemote = widget.NewButtonWithIcon("Abrir", theme.FolderOpenIcon(), func() { ui.onRightActivate() })
 	btnBackLocal := widget.NewButtonWithIcon("", theme.NavigateBackIcon(), func() { ui.goLeftBack() })
 	btnUpLocal := widget.NewButtonWithIcon("", theme.MoveUpIcon(), func() { ui.goLeftUp() })
 	btnHomeLocal := widget.NewButtonWithIcon("", theme.HomeIcon(), func() { ui.goLeftHome() })
@@ -563,15 +563,15 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 	btnHomeRemote := widget.NewButtonWithIcon("", theme.HomeIcon(), func() { ui.goRightHome() })
 	btnReloadRemote := widget.NewButtonWithIcon("", theme.ViewRefreshIcon(), func() { ui.refreshRight() })
 
-	ui.btnUp = widget.NewButtonWithIcon("", theme.UploadIcon(), func() { ui.upload() })
+	ui.btnUp = widget.NewButtonWithIcon("Enviar", theme.UploadIcon(), func() { ui.upload() })
 	ui.btnUp.Importance = widget.HighImportance
-	ui.btnDown = widget.NewButtonWithIcon("", theme.DownloadIcon(), func() { ui.download() })
+	ui.btnDown = widget.NewButtonWithIcon("Receber", theme.DownloadIcon(), func() { ui.download() })
 	ui.btnDown.Importance = widget.HighImportance
-	btnRefresh := widget.NewButtonWithIcon("", theme.ViewRefreshIcon(), func() {
+	btnRefresh := widget.NewButtonWithIcon("Atualizar", theme.ViewRefreshIcon(), func() {
 		ui.refreshLeft()
 		ui.refreshRight()
 	})
-	btnDisconnect := widget.NewButtonWithIcon("", theme.LogoutIcon(), func() {
+	btnDisconnect := widget.NewButtonWithIcon("Sair", theme.LogoutIcon(), func() {
 		s.Close()
 		goToLogin(w)
 	})
@@ -584,7 +584,10 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 		layout.NewSpacer(),
 		btnDisconnect,
 	)
-	top := toolbar
+	top := fynecontainer.NewVBox(
+		fynecontainer.NewPadded(toolbar),
+		widget.NewSeparator(),
+	)
 
 	leftFavs := ui.defaultLocalShortcuts()
 	ui.leftQuick = widget.NewSelect(leftFavs, func(sel string) {
@@ -612,6 +615,11 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 
 	leftHead := fynecontainer.NewVBox(
 		fynecontainer.NewHBox(
+			widget.NewIcon(theme.HomeIcon()),
+			widget.NewLabelWithStyle("Computador local", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+			layout.NewSpacer(),
+		),
+		fynecontainer.NewHBox(
 			btnBackLocal,
 			btnUpLocal,
 			btnHomeLocal,
@@ -630,6 +638,11 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 
 	rightHead := fynecontainer.NewVBox(
 		fynecontainer.NewHBox(
+			widget.NewIcon(theme.StorageIcon()),
+			widget.NewLabelWithStyle("Lado do servidor", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+			layout.NewSpacer(),
+		),
+		fynecontainer.NewHBox(
 			btnBackRemote,
 			btnUpRemote,
 			btnHomeRemote,
@@ -638,7 +651,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 			layout.NewSpacer(),
 			ui.ctxSelect,
 		),
-		fynecontainer.NewHBox(ui.rightQuick, ui.rightSearch),
+		fynecontainer.NewBorder(nil, nil, ui.rightQuick, nil, ui.rightSearch),
 	)
 	rightPane := fynecontainer.NewBorder(
 		fynecontainer.NewPadded(rightHead),
@@ -650,6 +663,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 	split.SetOffset(0.48)
 
 	bottom := fynecontainer.NewVBox(
+		ui.selectionInfo,
 		ui.status,
 		ui.progress,
 	)

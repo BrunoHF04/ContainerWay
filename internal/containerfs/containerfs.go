@@ -57,6 +57,7 @@ func (f *FS) List(ctx context.Context, containerPath string) ([]fsutil.DirEntry,
 
 	rows, err := f.listDirDirect(ctx, p)
 	if err == nil {
+		fsutil.SortLikeWinSCP(rows)
 		return rows, nil
 	}
 
@@ -138,6 +139,7 @@ func (f *FS) List(ctx context.Context, containerPath string) ([]fsutil.DirEntry,
 		})
 		accepted++
 	}
+	fsutil.SortLikeWinSCP(out)
 	return out, nil
 }
 
