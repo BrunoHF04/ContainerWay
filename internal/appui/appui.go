@@ -519,8 +519,6 @@ type explorer struct {
 	btnDown       *widget.Button
 	btnLeftSend   *widget.Button
 	btnRightRecv  *widget.Button
-	btnLeftRefreshAction  *widget.Button
-	btnRightRefreshAction *widget.Button
 	lblSudoState *widget.Label
 	btnDisableSudo *widget.Button
 
@@ -843,8 +841,10 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	ui.btnOpenRemote = widget.NewButtonWithIcon("Abrir", theme.FolderOpenIcon(), func() { ui.onRightActivate() })
 	ui.btnLeftSend = widget.NewButtonWithIcon("Enviar", theme.UploadIcon(), func() { ui.upload() })
 	ui.btnRightRecv = widget.NewButtonWithIcon("Receber", theme.DownloadIcon(), func() { ui.download() })
-	ui.btnLeftRefreshAction = widget.NewButtonWithIcon("Atualizar", theme.ViewRefreshIcon(), func() { ui.refreshLeft() })
-	ui.btnRightRefreshAction = widget.NewButtonWithIcon("Atualizar", theme.ViewRefreshIcon(), func() { ui.refreshRight() })
+	ui.btnOpenLocal.Importance = widget.MediumImportance
+	ui.btnOpenRemote.Importance = widget.MediumImportance
+	ui.btnLeftSend.Importance = widget.HighImportance
+	ui.btnRightRecv.Importance = widget.HighImportance
 	btnBackLocal := widget.NewButtonWithIcon("", theme.NavigateBackIcon(), func() { ui.goLeftBack() })
 	btnUpLocal := widget.NewButtonWithIcon("", theme.MoveUpIcon(), func() { ui.goLeftUp() })
 	btnHomeLocal := widget.NewButtonWithIcon("", theme.HomeIcon(), func() { ui.goLeftHome() })
@@ -858,10 +858,6 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	ui.btnUp.Importance = widget.HighImportance
 	ui.btnDown = widget.NewButtonWithIcon("Receber", theme.DownloadIcon(), func() { ui.download() })
 	ui.btnDown.Importance = widget.HighImportance
-	btnRefresh := widget.NewButtonWithIcon("Atualizar", theme.ViewRefreshIcon(), func() {
-		ui.refreshLeft()
-		ui.refreshRight()
-	})
 	btnDisconnect := widget.NewButtonWithIcon("Sair", theme.LogoutIcon(), func() {
 		s.Close()
 		goToLogin(w)
@@ -873,7 +869,6 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	toolbar := fynecontainer.NewHBox(
 		ui.btnUp,
 		ui.btnDown,
-		btnRefresh,
 		layout.NewSpacer(),
 		ui.lblSudoState,
 		ui.btnDisableSudo,
@@ -914,10 +909,19 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	const (
 		quickSelectWidth = float32(170)
 		ctxSelectWidth   = float32(185)
+		navBtnWidth      = float32(36)
 	)
 	leftQuickWrap := fynecontainer.NewGridWrap(fyne.NewSize(quickSelectWidth, ui.leftQuick.MinSize().Height), ui.leftQuick)
 	rightQuickWrap := fynecontainer.NewGridWrap(fyne.NewSize(quickSelectWidth, ui.rightQuick.MinSize().Height), ui.rightQuick)
 	ctxSelectWrap := fynecontainer.NewGridWrap(fyne.NewSize(ctxSelectWidth, ui.ctxSelect.MinSize().Height), ui.ctxSelect)
+	leftBackWrap := fynecontainer.NewGridWrap(fyne.NewSize(navBtnWidth, btnBackLocal.MinSize().Height), btnBackLocal)
+	leftUpWrap := fynecontainer.NewGridWrap(fyne.NewSize(navBtnWidth, btnUpLocal.MinSize().Height), btnUpLocal)
+	leftHomeWrap := fynecontainer.NewGridWrap(fyne.NewSize(navBtnWidth, btnHomeLocal.MinSize().Height), btnHomeLocal)
+	leftReloadWrap := fynecontainer.NewGridWrap(fyne.NewSize(navBtnWidth, btnReloadLocal.MinSize().Height), btnReloadLocal)
+	rightBackWrap := fynecontainer.NewGridWrap(fyne.NewSize(navBtnWidth, btnBackRemote.MinSize().Height), btnBackRemote)
+	rightUpWrap := fynecontainer.NewGridWrap(fyne.NewSize(navBtnWidth, btnUpRemote.MinSize().Height), btnUpRemote)
+	rightHomeWrap := fynecontainer.NewGridWrap(fyne.NewSize(navBtnWidth, btnHomeRemote.MinSize().Height), btnHomeRemote)
+	rightReloadWrap := fynecontainer.NewGridWrap(fyne.NewSize(navBtnWidth, btnReloadRemote.MinSize().Height), btnReloadRemote)
 
 	leftHead := fynecontainer.NewVBox(
 		fynecontainer.NewHBox(
@@ -926,10 +930,10 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 			layout.NewSpacer(),
 		),
 		fynecontainer.NewHBox(
-			btnBackLocal,
-			btnUpLocal,
-			btnHomeLocal,
-			btnReloadLocal,
+			leftBackWrap,
+			leftUpWrap,
+			leftHomeWrap,
+			leftReloadWrap,
 			layout.NewSpacer(),
 			leftQuickWrap,
 		),
@@ -937,7 +941,6 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 		fynecontainer.NewHBox(
 			ui.btnOpenLocal,
 			ui.btnLeftSend,
-			ui.btnLeftRefreshAction,
 		),
 	)
 	leftPaneBase := fynecontainer.NewBorder(
@@ -954,18 +957,18 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 			layout.NewSpacer(),
 		),
 		fynecontainer.NewHBox(
-			btnBackRemote,
-			btnUpRemote,
-			btnHomeRemote,
-			btnReloadRemote,
+			rightBackWrap,
+			rightUpWrap,
+			rightHomeWrap,
+			rightReloadWrap,
 			layout.NewSpacer(),
+			rightQuickWrap,
 			ctxSelectWrap,
 		),
-		fynecontainer.NewBorder(nil, nil, rightQuickWrap, nil, ui.rightSearch),
+		ui.rightSearch,
 		fynecontainer.NewHBox(
 			ui.btnOpenRemote,
 			ui.btnRightRecv,
-			ui.btnRightRefreshAction,
 		),
 	)
 	rightPaneBase := fynecontainer.NewBorder(
@@ -2752,12 +2755,6 @@ func (ui *explorer) updateActionState() {
 			ui.btnRightRecv.Disable()
 		}
 	}
-	if ui.btnLeftRefreshAction != nil {
-		ui.btnLeftRefreshAction.Enable()
-	}
-	if ui.btnRightRefreshAction != nil {
-		ui.btnRightRefreshAction.Enable()
-	}
 	_ = left
 	_ = right
 	_ = hasLeft
@@ -2799,11 +2796,23 @@ func (ui *explorer) updateFooterPanels() {
 
 	leftSelText := "nenhum item selecionado"
 	if left, ok := ui.selectedLeftEntry(); ok {
-		leftSelText = fmt.Sprintf("selecionado: %s (%s)", left.Name, entryTypeLabel(left))
+		leftActionHint := "ações: abrir/enviar disponíveis"
+		if left.Name == ".." {
+			leftActionHint = "ações: usar voltar/subir; enviar indisponível"
+		}
+		leftSelText = fmt.Sprintf("selecionado: %s (%s) | %s", left.Name, entryTypeLabel(left), leftActionHint)
+	} else {
+		leftSelText = "nenhum item selecionado | ações: selecione um item para abrir/enviar"
 	}
 	rightSelText := "nenhum item selecionado"
 	if right, ok := ui.selectedRightEntry(); ok {
-		rightSelText = fmt.Sprintf("selecionado: %s (%s)", right.Name, entryTypeLabel(right))
+		rightActionHint := "ações: abrir/receber disponíveis"
+		if right.Name == ".." {
+			rightActionHint = "ações: usar voltar/subir; receber indisponível"
+		}
+		rightSelText = fmt.Sprintf("selecionado: %s (%s) | %s", right.Name, entryTypeLabel(right), rightActionHint)
+	} else {
+		rightSelText = "nenhum item selecionado | ações: selecione um item para abrir/receber"
 	}
 
 	rightPathLabel := fmt.Sprintf("Pasta servidor: %s", ui.rightPath)
