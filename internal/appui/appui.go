@@ -228,6 +228,7 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 	validationHint.Wrapping = fyne.TextWrapWord
 
 	var connect *widget.Button
+	var testConn *widget.Button
 	updateLoginValidation := func() {
 		hostVal := strings.TrimSpace(host.Text)
 		userVal := strings.TrimSpace(user.Text)
@@ -263,6 +264,13 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 				connect.Enable()
 			} else {
 				connect.Disable()
+			}
+		}
+		if testConn != nil {
+			if canConnect {
+				testConn.Enable()
+			} else {
+				testConn.Disable()
 			}
 		}
 	}
@@ -348,7 +356,7 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 		}()
 	})
 	connect.Importance = widget.HighImportance
-	testConn := widget.NewButtonWithIcon("Testar conexão", theme.ConfirmIcon(), func() {
+	testConn = widget.NewButtonWithIcon("Testar conexão", theme.ConfirmIcon(), func() {
 		status.SetText("Testando conexão…")
 		creds := session.Credentials{
 			Host:            host.Text,
@@ -364,15 +372,16 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 			defer cancel()
 			sess, err := session.Connect(ctx, creds)
 			if err != nil {
+				msg := formatConnectionTestStatus(err)
 				fyne.Do(func() {
-					status.SetText("Falha no teste: " + err.Error())
+					status.SetText(msg)
 					dialog.ShowError(err, w)
 				})
 				return
 			}
 			sess.Close()
 			fyne.Do(func() {
-				status.SetText("Teste concluído: SSH/SFTP/Docker OK.")
+				status.SetText("Teste de conexão:\nSSH: OK\nSFTP: OK\nDocker: OK")
 			})
 		}()
 	})
@@ -501,6 +510,26 @@ func splitKnownHostsFiles(s string) []string {
 		}
 	}
 	return out
+}
+
+func formatConnectionTestStatus(err error) string {
+	msg := strings.ToLower(strings.TrimSpace(err.Error()))
+	switch {
+	case strings.HasPrefix(msg, "conexão tcp:"),
+		strings.HasPrefix(msg, "ssh:"),
+		strings.Contains(msg, "known_hosts"),
+		strings.Contains(msg, "host key"):
+		return "Teste de conexão:\nSSH: falhou\nSFTP: não testado\nDocker: não testado"
+	case strings.HasPrefix(msg, "sftp:"):
+		return "Teste de conexão:\nSSH: OK\nSFTP: falhou\nDocker: não testado"
+	case strings.HasPrefix(msg, "docker:"),
+		strings.HasPrefix(msg, "docker ("),
+		strings.Contains(msg, "/var/run/docker.sock"),
+		strings.Contains(msg, "permission denied"):
+		return "Teste de conexão:\nSSH: OK\nSFTP: OK\nDocker: sem permissão/indisponível"
+	default:
+		return "Teste de conexão:\nSSH/SFTP/Docker: falha não classificada"
+	}
 }
 
 func profileSecretKey(name, host, user string) string {
