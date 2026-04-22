@@ -5340,11 +5340,12 @@ func (ui *explorer) showMailNotifySettings() {
 	})
 
 	scrollRecipients := fynecontainer.NewScroll(mailList)
-	scrollRecipients.SetMinSize(fyne.NewSize(400, 220))
-	// Campo ocupa a largura; botão "Adicionar" fixo à direita (evita sobreposição com HBox simples).
+	scrollRecipients.SetMinSize(fyne.NewSize(220, 120))
 	addRow := fynecontainer.NewBorder(nil, nil, nil, btnAddAddr, newAddrEntry)
-	removeRow := fynecontainer.NewHBox(layout.NewSpacer(), btnRemoveAddr, btnRemoveByEmail)
-	recipientsBlock := fynecontainer.NewVBox(
+	removeRow := fynecontainer.NewHBox(btnRemoveAddr, btnRemoveByEmail, layout.NewSpacer())
+
+	recipientsCol := fynecontainer.NewVBox(
+		widget.NewLabelWithStyle("Destinatários dos alertas", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		lblRecipientCount,
 		fynecontainer.NewPadded(scrollRecipients),
 		widget.NewSeparator(),
@@ -5352,30 +5353,45 @@ func (ui *explorer) showMailNotifySettings() {
 		removeRow,
 	)
 
+	portWrap := fynecontainer.NewGridWrap(fyne.NewSize(76, 0), portEntry)
+	smtpLbl := func(text string) fyne.CanvasObject {
+		return fynecontainer.NewGridWrap(fyne.NewSize(100, 0), widget.NewLabel(text))
+	}
+	smtpFieldRow := func(label string, field fyne.CanvasObject) fyne.CanvasObject {
+		return fynecontainer.NewBorder(nil, nil, smtpLbl(label), nil, field)
+	}
+	hostPortRow := fynecontainer.NewBorder(nil, nil, nil, fynecontainer.NewHBox(widget.NewLabel("Porta"), portWrap), hostEntry)
+	smtpCol := fynecontainer.NewVBox(
+		widget.NewLabelWithStyle("Servidor de e-mail (SMTP)", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		fynecontainer.NewBorder(nil, nil, smtpLbl("Host"), nil, hostPortRow),
+		smtpFieldRow("Usuário", userEntry),
+		smtpFieldRow("Senha", passEntry),
+		smtpFieldRow("Remetente", fromEntry),
+	)
+
+	cols := fynecontainer.NewHSplit(
+		fynecontainer.NewPadded(recipientsCol),
+		fynecontainer.NewPadded(smtpCol),
+	)
+	cols.SetOffset(0.42)
+
+	infoScroll := fynecontainer.NewScroll(info)
+	infoScroll.SetMinSize(fyne.NewSize(200, 88))
+
 	scrollContent := fynecontainer.NewVBox(
-		info,
+		infoScroll,
 		widget.NewSeparator(),
 		enabled,
-		widget.NewLabelWithStyle("Destinatários dos alertas", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		fynecontainer.NewPadded(recipientsBlock),
 		widget.NewSeparator(),
-		widget.NewForm(
-			widget.NewFormItem("Servidor SMTP", hostEntry),
-			widget.NewFormItem("Porta", portEntry),
-			widget.NewFormItem("Usuário SMTP", userEntry),
-			widget.NewFormItem("Senha SMTP", passEntry),
-			widget.NewFormItem("Remetente (From)", fromEntry),
-		),
+		fynecontainer.NewMax(cols),
 	)
 	scrollCentral := fynecontainer.NewScroll(scrollContent)
 	scrollCentral.SetMinSize(fyne.NewSize(400, 200))
 
 	actionBar := fynecontainer.NewVBox(
 		widget.NewSeparator(),
-		fynecontainer.NewHBox(btnSave, btnTest, layout.NewSpacer()),
-		fynecontainer.NewHBox(btnTestSelf, layout.NewSpacer()),
+		fynecontainer.NewHBox(btnSave, btnTest, layout.NewSpacer(), btnTestSelf),
 	)
-	// Barra inferior fixa; formulário rola no centro.
 	fullBody := fynecontainer.NewBorder(nil, fynecontainer.NewPadded(actionBar), nil, nil, scrollCentral)
 
 	ui.openSettingsFullscreen("Alertas por e-mail (admin)", fullBody)

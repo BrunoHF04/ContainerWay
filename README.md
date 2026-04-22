@@ -14,19 +14,31 @@ Antes da tela de conexão SSH/SFTP, o app pede **login de acesso local** (usuár
 
 - **Usuário padrão:** `admin`
 - **Senha padrão:** `!q1w2e3r4$`
-- **Cadastro de usuários:** após entrar como `admin`, use o botão **Usuários** na barra superior do explorador para criar, atualizar ou remover usuários de acesso local (o `admin` não pode ser removido). No mesmo diálogo há o atalho **Abrir configuração de alertas por e-mail…**.
+- **Cadastro de usuários:** após entrar como `admin`, use **Usuários** na tela inicial da sessão (cartão **Configurações**) ou na barra superior do explorador. A tela de gestão abre **em janela maximizada**, com **Voltar** para retornar ao hub ou ao explorador. O `admin` não pode ser removido; no mesmo lugar há o atalho **Abrir configuração de alertas por e-mail…**.
 - **Logs:** o nome exibido nos logs segue o cadastro de cada usuário.
 
 > Atenção: isso **não** substitui autenticação do servidor SSH; é apenas uma trava local do app. Em ambientes sensíveis, altere a senha do `admin` e cadastre usuários com senhas fortes.
 
+## Após conectar (tela inicial da sessão)
+
+Depois de **Conectar** com sucesso, abre-se primeiro a **tela inicial da sessão** (janela compacta e centralizada), com:
+
+- **Pesquisar módulos** (filtro por palavra-chave);
+- **Gerenciador de arquivos** — abre o explorador em painel duplo (no Windows/macOS a janela tende a **maximizar**);
+- **Contêineres Docker** — lista e ações no host remoto;
+- **Configurações** (somente **admin**) — atalhos para **Usuários** e **Alertas por e-mail**.
+
+No explorador, o botão **Início** volta para essa tela **sem desconectar**. O botão **Sair** encerra a sessão SSH e retorna ao login de acesso local (a janela volta ao tamanho adequado).
+
 ## Alertas por e-mail (admin)
 
-Somente o usuário **admin** vê o botão **E-mail** na barra superior do explorador (ao lado de **Usuários**). Ali é possível:
+Somente o usuário **admin** vê **E-mail** na barra do explorador ou no cartão **Configurações** do hub. A configuração abre em **tela cheia maximizada**, com **Voltar** no topo.
 
-- ativar o envio e cadastrar **vários destinatários** (lista com adicionar/remover);
-- configurar **SMTP** (servidor, porta, usuário, senha, remetente **From**);
-- **Salvar**, **Enviar teste** (para todos os destinatários) e **Teste só no remetente (Gmail)** (útil se o e-mail corporativo bloquear o teste geral);
-- o diálogo tem **área rolável** e barra de ações fixa na parte inferior (inclui **Fechar**).
+- ativar o envio e cadastrar **vários destinatários** (lista com **Adicionar**, **Remover selecionado** e **Remover e-mail digitado** — este último dispensa seleção na lista);
+- alterações na lista são **gravadas automaticamente** no disco; se o envio estiver ativo e a lista ficar vazia, o app **desativa o envio** e informa (evita estado inválido);
+- painel em **duas colunas** (destinatários | SMTP): texto de ajuda em bloco **rolável e compacto**; host e porta na mesma linha;
+- **Salvar** (demais campos SMTP), **Enviar teste** e **Teste só no remetente (Gmail)** na barra inferior;
+- a lista de destinatários em disco usa JSON; o legado de um único e-mail não sobrescreve mais uma lista vazia.
 
 **Quando o app envia e-mails**
 
@@ -77,6 +89,7 @@ Somente o usuário **admin** vê o botão **E-mail** na barra superior do explor
   - esquerda: computador local;
   - direita: host remoto ou contêiner selecionado.
 - Ações principais no topo:
+  - **Início** (volta à tela inicial da sessão);
   - `Enviar`;
   - `Receber`;
   - `Histórico`;
@@ -250,7 +263,8 @@ Fluxo recomendado:
 3. Ajuste `Chave e segurança` (se necessário).
 4. Use `Testar conexão` para validar acesso.
 5. Clique em `Conectar`.
-6. No painel direito, escolha contexto:
+6. Na **tela inicial da sessão**, abra o **Gerenciador de arquivos** (ou outro módulo).
+7. No painel direito do explorador, escolha o contexto:
    - pastas do servidor;
    - ou um contêiner em execução.
 
