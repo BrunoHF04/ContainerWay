@@ -309,6 +309,10 @@ type explorer struct {
 	btnOpenRemote *widget.Button
 	btnUp         *widget.Button
 	btnDown       *widget.Button
+	btnLeftSend   *widget.Button
+	btnRightRecv  *widget.Button
+	btnLeftRefreshAction  *widget.Button
+	btnRightRefreshAction *widget.Button
 
 	// Evita aplicar listagens antigas se o usuário mudar de pasta/contexto a meio.
 	rightRefreshSeq atomic.Uint64
@@ -554,6 +558,10 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 
 	ui.btnOpenLocal = widget.NewButtonWithIcon("Abrir", theme.FolderOpenIcon(), func() { ui.onLeftActivate() })
 	ui.btnOpenRemote = widget.NewButtonWithIcon("Abrir", theme.FolderOpenIcon(), func() { ui.onRightActivate() })
+	ui.btnLeftSend = widget.NewButtonWithIcon("Enviar", theme.UploadIcon(), func() { ui.upload() })
+	ui.btnRightRecv = widget.NewButtonWithIcon("Receber", theme.DownloadIcon(), func() { ui.download() })
+	ui.btnLeftRefreshAction = widget.NewButtonWithIcon("Atualizar", theme.ViewRefreshIcon(), func() { ui.refreshLeft() })
+	ui.btnRightRefreshAction = widget.NewButtonWithIcon("Atualizar", theme.ViewRefreshIcon(), func() { ui.refreshRight() })
 	btnBackLocal := widget.NewButtonWithIcon("", theme.NavigateBackIcon(), func() { ui.goLeftBack() })
 	btnUpLocal := widget.NewButtonWithIcon("", theme.MoveUpIcon(), func() { ui.goLeftUp() })
 	btnHomeLocal := widget.NewButtonWithIcon("", theme.HomeIcon(), func() { ui.goLeftHome() })
@@ -632,11 +640,15 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 			btnUpLocal,
 			btnHomeLocal,
 			btnReloadLocal,
-			ui.btnOpenLocal,
 			layout.NewSpacer(),
 			leftQuickWrap,
 		),
 		ui.leftSearch,
+		fynecontainer.NewHBox(
+			ui.btnOpenLocal,
+			ui.btnLeftSend,
+			ui.btnLeftRefreshAction,
+		),
 	)
 	leftPane := fynecontainer.NewBorder(
 		fynecontainer.NewPadded(leftHead),
@@ -655,11 +667,15 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int) fyne.Can
 			btnUpRemote,
 			btnHomeRemote,
 			btnReloadRemote,
-			ui.btnOpenRemote,
 			layout.NewSpacer(),
 			ctxSelectWrap,
 		),
 		fynecontainer.NewBorder(nil, nil, rightQuickWrap, nil, ui.rightSearch),
+		fynecontainer.NewHBox(
+			ui.btnOpenRemote,
+			ui.btnRightRecv,
+			ui.btnRightRefreshAction,
+		),
 	)
 	rightPane := fynecontainer.NewBorder(
 		fynecontainer.NewPadded(rightHead),
@@ -1373,6 +1389,26 @@ func (ui *explorer) updateActionState() {
 		} else {
 			ui.btnOpenRemote.Disable()
 		}
+	}
+	if ui.btnLeftSend != nil {
+		if hasLeft && left.Name != ".." {
+			ui.btnLeftSend.Enable()
+		} else {
+			ui.btnLeftSend.Disable()
+		}
+	}
+	if ui.btnRightRecv != nil {
+		if hasRight && right.Name != ".." {
+			ui.btnRightRecv.Enable()
+		} else {
+			ui.btnRightRecv.Disable()
+		}
+	}
+	if ui.btnLeftRefreshAction != nil {
+		ui.btnLeftRefreshAction.Enable()
+	}
+	if ui.btnRightRefreshAction != nil {
+		ui.btnRightRefreshAction.Enable()
 	}
 	switch ui.activePane {
 	case "left":
