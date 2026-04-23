@@ -1,5 +1,7 @@
 # ContainerWay
 
+![ContainerWay - Gestão de Arquivos e Contêineres Remotos](assets/containerway-banner-simple.png)
+
 Gestor de arquivos de painel duplo (estilo WinSCP) para **Windows**, com foco em uso prático no dia a dia:
 
 - painel esquerdo no **computador local**;
@@ -9,22 +11,6 @@ Gestor de arquivos de painel duplo (estilo WinSCP) para **Windows**, com foco em
 Toda a interface está em **pt-BR**.
 
 ## Navegacao rapida
-
-- Acesso local ao aplicativo
-- Após conectar (tela inicial da sessão)
-- Alertas por e-mail (admin)
-- Visão geral das funcionalidades
-- Atalhos de teclado
-- Tecnologias utilizadas
-- Requisitos
-- Compilação
-- Execução
-- Compatibilidade gráfica no Windows Server
-- Estrutura do projeto
-- Documentação para desenvolvimento
-- Segurança
-
----
 
 <details>
 <summary><strong>Acesso local ao aplicativo</strong></summary>
