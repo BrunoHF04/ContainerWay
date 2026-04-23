@@ -21,6 +21,7 @@ type FS struct {
 	ID     string
 }
 
+// join executa parte da logica deste modulo.
 func (f *FS) join(containerPath string, names ...string) string {
 	base := strings.TrimSuffix(containerPath, "/")
 	if base == "" {
@@ -143,6 +144,7 @@ func (f *FS) List(ctx context.Context, containerPath string) ([]fsutil.DirEntry,
 	return out, nil
 }
 
+// listDirDirect executa parte da logica deste modulo.
 func (f *FS) listDirDirect(ctx context.Context, p string) ([]fsutil.DirEntry, error) {
 	execCfg := container.ExecOptions{
 		AttachStdout: true,
@@ -200,6 +202,7 @@ func (f *FS) listDirDirect(ctx context.Context, p string) ([]fsutil.DirEntry, er
 	return out, nil
 }
 
+// runExec executa parte da logica deste modulo.
 func (f *FS) runExec(ctx context.Context, cmd []string) error {
 	execCfg := container.ExecOptions{
 		AttachStdout: true,
@@ -228,6 +231,7 @@ func (f *FS) runExec(ctx context.Context, cmd []string) error {
 	return nil
 }
 
+// Mkdir executa parte da logica deste modulo.
 func (f *FS) Mkdir(ctx context.Context, p string) error {
 	target := path.Clean(p)
 	if !strings.HasPrefix(target, "/") {
@@ -236,6 +240,7 @@ func (f *FS) Mkdir(ctx context.Context, p string) error {
 	return f.runExec(ctx, []string{"mkdir", target})
 }
 
+// Rename executa parte da logica deste modulo.
 func (f *FS) Rename(ctx context.Context, oldPath, newPath string) error {
 	oldTarget := path.Clean(oldPath)
 	newTarget := path.Clean(newPath)
@@ -248,6 +253,7 @@ func (f *FS) Rename(ctx context.Context, oldPath, newPath string) error {
 	return f.runExec(ctx, []string{"mv", oldTarget, newTarget})
 }
 
+// Remove executa parte da logica deste modulo.
 func (f *FS) Remove(ctx context.Context, p string, recursive bool) error {
 	target := path.Clean(p)
 	if !strings.HasPrefix(target, "/") {
@@ -294,10 +300,12 @@ type tarFileReader struct {
 	tr *tar.Reader
 }
 
+// Read executa parte da logica deste modulo.
 func (r *tarFileReader) Read(b []byte) (int, error) {
 	return r.tr.Read(b)
 }
 
+// Close executa parte da logica deste modulo.
 func (r *tarFileReader) Close() error {
 	return r.rc.Close()
 }

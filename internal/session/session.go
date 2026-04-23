@@ -34,6 +34,7 @@ type Session struct {
 	hostAddr string
 }
 
+// Close executa parte da logica deste modulo.
 func (s *Session) Close() {
 	if s.Docker != nil {
 		_ = s.Docker.Close()
@@ -46,6 +47,7 @@ func (s *Session) Close() {
 	}
 }
 
+// dialAddress executa parte da logica deste modulo.
 func dialAddress(host string) string {
 	h := strings.TrimSpace(host)
 	if h == "" {
@@ -57,6 +59,7 @@ func dialAddress(host string) string {
 	return h
 }
 
+// authMethods executa parte da logica deste modulo.
 func authMethods(c Credentials) ([]ssh.AuthMethod, error) {
 	var methods []ssh.AuthMethod
 	if strings.TrimSpace(c.Password) != "" {

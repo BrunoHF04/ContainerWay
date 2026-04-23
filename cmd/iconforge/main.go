@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 )
 
+// main inicializa e executa o fluxo principal deste binario.
 func main() {
 	const size = 256
 	icon := buildIcon(size)
@@ -26,6 +27,7 @@ func main() {
 	}
 }
 
+// writePNG executa parte da logica deste modulo.
 func writePNG(img image.Image, path string) error {
 	f, err := os.Create(path)
 	if err != nil {
@@ -35,6 +37,7 @@ func writePNG(img image.Image, path string) error {
 	return png.Encode(f, img)
 }
 
+// writeICO executa parte da logica deste modulo.
 func writeICO(img image.Image, path string) error {
 	var pngBuf []byte
 	{
@@ -94,6 +97,7 @@ func writeICO(img image.Image, path string) error {
 	return err
 }
 
+// buildIcon executa parte da logica deste modulo.
 func buildIcon(size int) image.Image {
 	img := image.NewNRGBA(image.Rect(0, 0, size, size))
 
@@ -150,6 +154,7 @@ func buildIcon(size int) image.Image {
 	return img
 }
 
+// drawArrow executa parte da logica deste modulo.
 func drawArrow(img *image.NRGBA, cx, y, width float64, c color.NRGBA) {
 	h := width * 0.32
 	half := width / 2
@@ -168,6 +173,7 @@ func drawArrow(img *image.NRGBA, cx, y, width float64, c color.NRGBA) {
 	}
 }
 
+// drawRoundedRect executa parte da logica deste modulo.
 func drawRoundedRect(img *image.NRGBA, x, y, w, h, r float64, c color.NRGBA) {
 	for yy := int(y); yy < int(y+h); yy++ {
 		for xx := int(x); xx < int(x+w); xx++ {
@@ -178,6 +184,7 @@ func drawRoundedRect(img *image.NRGBA, x, y, w, h, r float64, c color.NRGBA) {
 	}
 }
 
+// insideRoundedRect executa parte da logica deste modulo.
 func insideRoundedRect(px, py, x, y, w, h, r float64) bool {
 	if px < x || px > x+w || py < y || py > y+h {
 		return false
@@ -206,6 +213,7 @@ func insideRoundedRect(px, py, x, y, w, h, r float64) bool {
 	return false
 }
 
+// setPixelBlend executa parte da logica deste modulo.
 func setPixelBlend(img *image.NRGBA, x, y int, src color.NRGBA) {
 	if !(image.Pt(x, y).In(img.Rect)) {
 		return
@@ -222,6 +230,7 @@ func setPixelBlend(img *image.NRGBA, x, y int, src color.NRGBA) {
 	img.SetNRGBA(x, y, out)
 }
 
+// lerp executa parte da logica deste modulo.
 func lerp(a, b color.NRGBA, t float64) color.NRGBA {
 	t = clamp01(t)
 	return color.NRGBA{
@@ -232,6 +241,7 @@ func lerp(a, b color.NRGBA, t float64) color.NRGBA {
 	}
 }
 
+// clamp01 executa parte da logica deste modulo.
 func clamp01(v float64) float64 {
 	if v < 0 {
 		return 0
@@ -246,11 +256,13 @@ type bytesBuffer struct {
 	buf []byte
 }
 
+// Write executa parte da logica deste modulo.
 func (b *bytesBuffer) Write(p []byte) (int, error) {
 	b.buf = append(b.buf, p...)
 	return len(p), nil
 }
 
+// Bytes executa parte da logica deste modulo.
 func (b *bytesBuffer) Bytes() []byte {
 	return b.buf
 }

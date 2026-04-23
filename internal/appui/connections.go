@@ -21,6 +21,7 @@ type savedConnection struct {
 	ParallelJobs    string `json:"parallelJobs,omitempty"`
 }
 
+// connectionsFilePath executa parte da logica deste modulo.
 func connectionsFilePath() (string, error) {
 	cfgDir, err := os.UserConfigDir()
 	if err != nil {
@@ -33,6 +34,7 @@ func connectionsFilePath() (string, error) {
 	return filepath.Join(dir, "connections.json"), nil
 }
 
+// loadSavedConnections executa parte da logica deste modulo.
 func loadSavedConnections() ([]savedConnection, error) {
 	p, err := connectionsFilePath()
 	if err != nil {
@@ -58,6 +60,7 @@ func loadSavedConnections() ([]savedConnection, error) {
 	return out, nil
 }
 
+// saveConnections executa parte da logica deste modulo.
 func saveConnections(list []savedConnection) error {
 	p, err := connectionsFilePath()
 	if err != nil {
@@ -76,6 +79,7 @@ func saveConnections(list []savedConnection) error {
 	return nil
 }
 
+// upsertConnection executa parte da logica deste modulo.
 func upsertConnection(list []savedConnection, c savedConnection) []savedConnection {
 	for i := range list {
 		if strings.EqualFold(strings.TrimSpace(list[i].Name), strings.TrimSpace(c.Name)) {
@@ -86,6 +90,7 @@ func upsertConnection(list []savedConnection, c savedConnection) []savedConnecti
 	return append(list, c)
 }
 
+// removeConnectionByName executa parte da logica deste modulo.
 func removeConnectionByName(list []savedConnection, name string) []savedConnection {
 	target := strings.TrimSpace(name)
 	out := make([]savedConnection, 0, len(list))
@@ -97,6 +102,7 @@ func removeConnectionByName(list []savedConnection, name string) []savedConnecti
 	return out
 }
 
+// findConnectionByName executa parte da logica deste modulo.
 func findConnectionByName(list []savedConnection, name string) (savedConnection, bool) {
 	target := strings.TrimSpace(name)
 	for _, c := range list {

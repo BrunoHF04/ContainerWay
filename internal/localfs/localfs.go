@@ -46,6 +46,7 @@ func List(dir string) ([]fsutil.DirEntry, error) {
 	return out, nil
 }
 
+// Mkdir executa parte da logica deste modulo.
 func Mkdir(dir string) error {
 	d := strings.TrimSpace(dir)
 	if d == "" {
@@ -54,12 +55,14 @@ func Mkdir(dir string) error {
 	return os.Mkdir(filepath.Clean(d), 0o755)
 }
 
+// Rename executa parte da logica deste modulo.
 func Rename(oldPath, newPath string) error {
 	oldClean := filepath.Clean(strings.TrimSpace(oldPath))
 	newClean := filepath.Clean(strings.TrimSpace(newPath))
 	return os.Rename(oldClean, newClean)
 }
 
+// Remove executa parte da logica deste modulo.
 func Remove(p string, recursive bool) error {
 	clean := filepath.Clean(strings.TrimSpace(p))
 	if recursive {

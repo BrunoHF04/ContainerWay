@@ -26,6 +26,7 @@ func appWindowIcon() fyne.Resource {
 	return iconRes
 }
 
+// buildAppIconImage executa parte da logica deste modulo.
 func buildAppIconImage() image.Image {
 	const s = 64
 	img := image.NewNRGBA(image.Rect(0, 0, s, s))

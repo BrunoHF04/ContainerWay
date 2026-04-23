@@ -282,6 +282,16 @@ Fluxo recomendado:
 | `internal/tarxfer` | Transferências recursivas com tar |
 | `internal/transfer` | Fila, progresso e workers de transferência |
 
+## Documentação para desenvolvimento
+
+- Guia rápido de manutenção e estudo: `SUMARIO_DESENVOLVEDOR.md`.
+- Convenção adotada no código Go:
+  - comentários de função em pt-BR imediatamente acima da função;
+  - texto curto e objetivo, focando intenção e efeito da rotina.
+- Recomendação para novas mudanças:
+  - ao criar uma função nova, já adicionar o comentário no mesmo commit;
+  - ao refatorar, manter o comentário alinhado com o comportamento atual.
+
 ## Segurança
 
 - Em produção, prefira validação de host por `known_hosts` e evite `Ignorar chave de host`.

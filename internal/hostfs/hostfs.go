@@ -17,6 +17,7 @@ type FS struct {
 	Client *sftp.Client
 }
 
+// List executa parte da logica deste modulo.
 func (f *FS) List(ctx context.Context, dir string) ([]fsutil.DirEntry, error) {
 	_ = ctx
 	p := normalize(dir)
@@ -50,6 +51,7 @@ func (f *FS) List(ctx context.Context, dir string) ([]fsutil.DirEntry, error) {
 	return out, nil
 }
 
+// normalize executa parte da logica deste modulo.
 func normalize(dir string) string {
 	d := strings.TrimSpace(dir)
 	if d == "" || d == "." {
@@ -81,10 +83,12 @@ func (f *FS) Mkdir(p string) error {
 	return f.Client.Mkdir(normalize(p))
 }
 
+// Rename executa parte da logica deste modulo.
 func (f *FS) Rename(oldPath, newPath string) error {
 	return f.Client.Rename(normalize(oldPath), normalize(newPath))
 }
 
+// Remove executa parte da logica deste modulo.
 func (f *FS) Remove(p string, recursive bool) error {
 	target := normalize(p)
 	if !recursive {
@@ -93,6 +97,7 @@ func (f *FS) Remove(p string, recursive bool) error {
 	return f.removeRecursive(target)
 }
 
+// removeRecursive executa parte da logica deste modulo.
 func (f *FS) removeRecursive(p string) error {
 	fi, err := f.Client.Stat(p)
 	if err != nil {

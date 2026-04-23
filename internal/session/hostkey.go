@@ -10,6 +10,7 @@ import (
 	"golang.org/x/crypto/ssh/knownhosts"
 )
 
+// buildHostKeyCallback executa parte da logica deste modulo.
 func buildHostKeyCallback(c Credentials) (ssh.HostKeyCallback, error) {
 	if c.InsecureHostKey {
 		return ssh.InsecureIgnoreHostKey(), nil

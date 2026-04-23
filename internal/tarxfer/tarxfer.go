@@ -66,6 +66,7 @@ func WriteLocalDirToTar(ctx context.Context, absDir string, out io.Writer) error
 	})
 }
 
+// posixSafeJoin executa parte da logica deste modulo.
 func posixSafeJoin(root, rel string) (string, error) {
 	root = path.Clean(root)
 	if !strings.HasPrefix(root, "/") {
@@ -78,6 +79,7 @@ func posixSafeJoin(root, rel string) (string, error) {
 	return candidate, nil
 }
 
+// localSafeJoin executa parte da logica deste modulo.
 func localSafeJoin(root, rel string) (string, error) {
 	root = filepath.Clean(root)
 	candidate := filepath.Clean(filepath.Join(root, filepath.FromSlash(rel)))
@@ -87,6 +89,7 @@ func localSafeJoin(root, rel string) (string, error) {
 	return candidate, nil
 }
 
+// posixRel executa parte da logica deste modulo.
 func posixRel(root, full string) (string, error) {
 	root = path.Clean(root)
 	full = path.Clean(full)

@@ -31,6 +31,7 @@ func (m *Manager) Enqueue(j Job) {
 	m.mu.Unlock()
 }
 
+// pop executa parte da logica deste modulo.
 func (m *Manager) pop() (Job, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -99,6 +100,7 @@ type CountingReader struct {
 	Total int64
 }
 
+// Read executa parte da logica deste modulo.
 func (c *CountingReader) Read(p []byte) (int, error) {
 	n, err := c.R.Read(p)
 	if n > 0 && c.N != nil {
@@ -114,6 +116,7 @@ type CountingWriter struct {
 	Total int64
 }
 
+// Write executa parte da logica deste modulo.
 func (c *CountingWriter) Write(p []byte) (int, error) {
 	n, err := c.W.Write(p)
 	if n > 0 && c.N != nil {

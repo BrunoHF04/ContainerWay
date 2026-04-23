@@ -12,10 +12,12 @@ type modernTheme struct {
 	base fyne.Theme
 }
 
+// newModernTheme executa parte da logica deste modulo.
 func newModernTheme() fyne.Theme {
 	return &modernTheme{base: theme.DarkTheme()}
 }
 
+// Color executa parte da logica deste modulo.
 func (m *modernTheme) Color(n fyne.ThemeColorName, v fyne.ThemeVariant) color.Color {
 	switch n {
 	case theme.ColorNamePrimary:
@@ -38,14 +40,17 @@ func (m *modernTheme) Color(n fyne.ThemeColorName, v fyne.ThemeVariant) color.Co
 	return m.base.Color(n, v)
 }
 
+// Font executa parte da logica deste modulo.
 func (m *modernTheme) Font(style fyne.TextStyle) fyne.Resource {
 	return m.base.Font(style)
 }
 
+// Icon executa parte da logica deste modulo.
 func (m *modernTheme) Icon(n fyne.ThemeIconName) fyne.Resource {
 	return m.base.Icon(n)
 }
 
+// Size executa parte da logica deste modulo.
 func (m *modernTheme) Size(n fyne.ThemeSizeName) float32 {
 	switch n {
 	case theme.SizeNamePadding:

@@ -24,6 +24,7 @@ var (
 	_ fyne.Draggable      = (*dirListRow)(nil)
 )
 
+// newDirListRow executa parte da logica deste modulo.
 func newDirListRow(ui *explorer, left bool) *dirListRow {
 	r := &dirListRow{
 		ui: ui,
@@ -39,10 +40,12 @@ func newDirListRow(ui *explorer, left bool) *dirListRow {
 	return r
 }
 
+// CreateRenderer executa parte da logica deste modulo.
 func (r *dirListRow) CreateRenderer() fyne.WidgetRenderer {
 	return widget.NewSimpleRenderer(r.box)
 }
 
+// Tapped executa parte da logica deste modulo.
 func (r *dirListRow) Tapped(_ *fyne.PointEvent) {
 	if r.left {
 		r.ui.leftList.Select(r.itemID)
@@ -51,6 +54,7 @@ func (r *dirListRow) Tapped(_ *fyne.PointEvent) {
 	}
 }
 
+// DoubleTapped executa parte da logica deste modulo.
 func (r *dirListRow) DoubleTapped(_ *fyne.PointEvent) {
 	id := r.itemID
 	left := r.left
@@ -78,10 +82,12 @@ func (r *dirListRow) DoubleTapped(_ *fyne.PointEvent) {
 	})
 }
 
+// TappedSecondary executa parte da logica deste modulo.
 func (r *dirListRow) TappedSecondary(ev *fyne.PointEvent) {
 	r.ui.showRowContextMenu(r.left, r.itemID, ev.AbsolutePosition)
 }
 
+// Dragged executa parte da logica deste modulo.
 func (r *dirListRow) Dragged(ev *fyne.DragEvent) {
 	if !r.ui.dragActive || r.ui.dragItemID != r.itemID || r.ui.dragFromLeft != r.left {
 		r.ui.startRowDrag(r.left, r.itemID)
@@ -89,6 +95,7 @@ func (r *dirListRow) Dragged(ev *fyne.DragEvent) {
 	r.ui.updateRowDrag(ev.Dragged.DX)
 }
 
+// DragEnd executa parte da logica deste modulo.
 func (r *dirListRow) DragEnd() {
 	r.ui.finishRowDrag()
 }

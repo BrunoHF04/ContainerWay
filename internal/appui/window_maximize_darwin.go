@@ -34,6 +34,7 @@ import (
 	"fyne.io/fyne/v2/driver"
 )
 
+// maximizeMainWindow executa parte da logica deste modulo.
 func maximizeMainWindow(w fyne.Window) {
 	if w == nil {
 		return
@@ -51,6 +52,7 @@ func maximizeMainWindow(w fyne.Window) {
 	})
 }
 
+// restoreNormalMainWindow executa parte da logica deste modulo.
 func restoreNormalMainWindow(w fyne.Window) {
 	if w == nil {
 		return

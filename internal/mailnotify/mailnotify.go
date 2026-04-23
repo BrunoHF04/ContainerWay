@@ -22,6 +22,7 @@ type Settings struct {
 	Recipients []string
 }
 
+// resolvedFromAddr executa parte da logica deste modulo.
 func resolvedFromAddr(s Settings) string {
 	from := strings.TrimSpace(s.From)
 	if from == "" {
@@ -76,6 +77,7 @@ func NormalizeRecipients(in []string) []string {
 	return normalizedRecipients(in)
 }
 
+// normalizedRecipients executa parte da logica deste modulo.
 func normalizedRecipients(in []string) []string {
 	seen := map[string]struct{}{}
 	out := make([]string, 0, len(in))
@@ -100,6 +102,7 @@ func smtpPasswordForAuth(p string) string {
 	return strings.ReplaceAll(strings.TrimSpace(p), " ", "")
 }
 
+// messageIDDomain executa parte da logica deste modulo.
 func messageIDDomain(from string) string {
 	if i := strings.LastIndex(from, "@"); i >= 0 && i < len(from)-1 {
 		return strings.TrimSpace(from[i+1:])
@@ -107,6 +110,7 @@ func messageIDDomain(from string) string {
 	return "localhost"
 }
 
+// formatFromHeader executa parte da logica deste modulo.
 func formatFromHeader(envelopeEmail string) string {
 	email := strings.TrimSpace(envelopeEmail)
 	if email == "" {
@@ -134,6 +138,7 @@ func smtpDotStuffCRLF(body string) string {
 	return strings.Join(lines, "\r\n")
 }
 
+// buildMessage executa parte da logica deste modulo.
 func buildMessage(envelopeFrom, toHeader, subject, body string) []byte {
 	domain := messageIDDomain(envelopeFrom)
 	idRand := make([]byte, 10)
@@ -156,6 +161,7 @@ func buildMessage(envelopeFrom, toHeader, subject, body string) []byte {
 	return []byte(b.String())
 }
 
+// send executa parte da logica deste modulo.
 func (s Settings) send(envelopeFrom string, rec []string, subject, body string) error {
 	rec = normalizedRecipients(rec)
 	if len(rec) == 0 {

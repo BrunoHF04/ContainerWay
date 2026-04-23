@@ -102,17 +102,20 @@ func Run() {
 	w.ShowAndRun()
 }
 
+// setAccessLoginWindow executa parte da logica deste modulo.
 func setAccessLoginWindow(w fyne.Window) {
 	w.Resize(fyne.NewSize(480, 360))
 	w.CenterOnScreen()
 }
 
+// setLoginWindow executa parte da logica deste modulo.
 func setLoginWindow(w fyne.Window) {
 	// Tamanho compatível com abas e formulário; evitar ficar menor que o MinSize do conteúdo.
 	w.Resize(fyne.NewSize(520, 640))
 	w.CenterOnScreen()
 }
 
+// setExplorerWindow executa parte da logica deste modulo.
 func setExplorerWindow(w fyne.Window) {
 	switch runtime.GOOS {
 	case "windows", "darwin":
@@ -125,6 +128,7 @@ func setExplorerWindow(w fyne.Window) {
 	}
 }
 
+// setSessionHubWindow executa parte da logica deste modulo.
 func setSessionHubWindow(w fyne.Window) {
 	// Tela inicial da sessão: compacta e centralizada. Se a janela vinha maximizada (explorador),
 	// é preciso restaurar antes do Resize — senão o Windows mantém estado maximizado e o layout fica inconsistente.
@@ -138,6 +142,7 @@ func setSessionHubWindow(w fyne.Window) {
 	})
 }
 
+// goToLogin executa parte da logica deste modulo.
 func goToLogin(w fyne.Window) {
 	w.SetCloseIntercept(nil)
 	// Volta do explorador/hub maximizado: restaurar antes de trocar conteúdo e redimensionar (igual tela Início).
@@ -150,6 +155,7 @@ func goToLogin(w fyne.Window) {
 	})
 }
 
+// buildAccessLogin executa parte da logica deste modulo.
 func buildAccessLogin(w fyne.Window) fyne.CanvasObject {
 	username := widget.NewEntry()
 	username.SetPlaceHolder("Usuário")
@@ -204,6 +210,7 @@ func buildAccessLogin(w fyne.Window) fyne.CanvasObject {
 	return fynecontainer.NewCenter(card)
 }
 
+// buildLogin executa parte da logica deste modulo.
 func buildLogin(w fyne.Window) fyne.CanvasObject {
 	host := widget.NewEntry()
 	host.SetPlaceHolder("ex.: 192.168.1.10 ou servidor:22")
@@ -558,6 +565,7 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 	return fynecontainer.NewCenter(card)
 }
 
+// loadThemeMode executa parte da logica deste modulo.
 func loadThemeMode(a fyne.App) string {
 	mode := strings.TrimSpace(a.Preferences().StringWithFallback(themePreferenceKey, themeModeSystem))
 	switch mode {
@@ -568,6 +576,7 @@ func loadThemeMode(a fyne.App) string {
 	}
 }
 
+// applyThemeMode executa parte da logica deste modulo.
 func applyThemeMode(a fyne.App, mode string) {
 	switch mode {
 	case themeModeLight:
@@ -579,6 +588,7 @@ func applyThemeMode(a fyne.App, mode string) {
 	}
 }
 
+// themeLabelForMode executa parte da logica deste modulo.
 func themeLabelForMode(mode string) string {
 	switch mode {
 	case themeModeLight:
@@ -590,6 +600,7 @@ func themeLabelForMode(mode string) string {
 	}
 }
 
+// themeModeFromLabel executa parte da logica deste modulo.
 func themeModeFromLabel(label string) string {
 	switch strings.TrimSpace(label) {
 	case "Claro":
@@ -716,6 +727,7 @@ type hintIconButton struct {
 	hover   bool
 }
 
+// newHintIconButton executa parte da logica deste modulo.
 func newHintIconButton(icon fyne.Resource, hint string, status *widget.Label, tapped func()) *hintIconButton {
 	b := &hintIconButton{
 		hint:   strings.TrimSpace(hint),
@@ -728,6 +740,7 @@ func newHintIconButton(icon fyne.Resource, hint string, status *widget.Label, ta
 	return b
 }
 
+// MouseIn executa parte da logica deste modulo.
 func (b *hintIconButton) MouseIn(ev *desktop.MouseEvent) {
 	b.Button.MouseIn(ev)
 	if b.status == nil || b.hint == "" {
@@ -738,6 +751,7 @@ func (b *hintIconButton) MouseIn(ev *desktop.MouseEvent) {
 	b.status.SetText(b.hint)
 }
 
+// MouseOut executa parte da logica deste modulo.
 func (b *hintIconButton) MouseOut() {
 	b.Button.MouseOut()
 	if b.status == nil || !b.hover {
@@ -749,6 +763,7 @@ func (b *hintIconButton) MouseOut() {
 	b.hover = false
 }
 
+// splitKnownHostsFiles executa parte da logica deste modulo.
 func splitKnownHostsFiles(s string) []string {
 	var out []string
 	for _, part := range strings.Split(s, "|") {
@@ -759,6 +774,7 @@ func splitKnownHostsFiles(s string) []string {
 	return out
 }
 
+// formatConnectionTestStatus executa parte da logica deste modulo.
 func formatConnectionTestStatus(err error) string {
 	msg := strings.ToLower(strings.TrimSpace(err.Error()))
 	switch {
@@ -779,6 +795,7 @@ func formatConnectionTestStatus(err error) string {
 	}
 }
 
+// profileSecretKey executa parte da logica deste modulo.
 func profileSecretKey(name, host, user string) string {
 	n := strings.TrimSpace(name)
 	if n != "" {
@@ -787,6 +804,7 @@ func profileSecretKey(name, host, user string) string {
 	return "hostuser:" + strings.ToLower(strings.TrimSpace(host)) + "|" + strings.ToLower(strings.TrimSpace(user))
 }
 
+// getTransientSecret executa parte da logica deste modulo.
 func getTransientSecret(key string) (transientSecret, bool) {
 	loginSecretMu.Lock()
 	defer loginSecretMu.Unlock()
@@ -794,18 +812,21 @@ func getTransientSecret(key string) (transientSecret, bool) {
 	return sec, ok
 }
 
+// setTransientSecret executa parte da logica deste modulo.
 func setTransientSecret(key string, sec transientSecret) {
 	loginSecretMu.Lock()
 	defer loginSecretMu.Unlock()
 	loginSessionSecrets[key] = sec
 }
 
+// deleteTransientSecret executa parte da logica deste modulo.
 func deleteTransientSecret(key string) {
 	loginSecretMu.Lock()
 	defer loginSecretMu.Unlock()
 	delete(loginSessionSecrets, key)
 }
 
+// parseParallelWorkers executa parte da logica deste modulo.
 func parseParallelWorkers(s string) int {
 	v, err := strconv.Atoi(strings.TrimSpace(s))
 	if err != nil || v < 1 {
@@ -855,6 +876,7 @@ func containerDisplayName(c dcontainer.Summary) string {
 	return name
 }
 
+// buildExplorer executa parte da logica deste modulo.
 func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds session.Credentials) fyne.CanvasObject {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -1266,6 +1288,7 @@ func hubSessionCard(title, description string, footer fyne.CanvasObject) fyne.Ca
 	return panelCard(fynecontainer.NewPadded(inner))
 }
 
+// buildSessionHub executa parte da logica deste modulo.
 func buildSessionHub(ui *explorer) fyne.CanvasObject {
 	host := strings.TrimSpace(ui.connCreds.Host)
 	if host == "" {
@@ -1416,6 +1439,7 @@ func buildSessionHub(ui *explorer) fyne.CanvasObject {
 	return fynecontainer.NewPadded(root)
 }
 
+// showSessionHub executa parte da logica deste modulo.
 func (ui *explorer) showSessionHub() {
 	if ui.sessionHub == nil || ui.explorerMain == nil {
 		return
@@ -1425,6 +1449,7 @@ func (ui *explorer) showSessionHub() {
 	setSessionHubWindow(ui.win)
 }
 
+// homeOrRoot executa parte da logica deste modulo.
 func homeOrRoot() string {
 	h, err := os.UserHomeDir()
 	if err != nil || h == "" {
@@ -1433,6 +1458,7 @@ func homeOrRoot() string {
 	return h
 }
 
+// sizeLabel executa parte da logica deste modulo.
 func sizeLabel(e fsutil.DirEntry) string {
 	if e.Name == ".." {
 		return ""
@@ -1443,6 +1469,7 @@ func sizeLabel(e fsutil.DirEntry) string {
 	return transfer.FormatBytes(e.Size)
 }
 
+// panelCard executa parte da logica deste modulo.
 func panelCard(content fyne.CanvasObject) fyne.CanvasObject {
 	border := canvas.NewRectangle(theme.DisabledColor())
 	border.FillColor = color.Transparent
@@ -1451,6 +1478,7 @@ func panelCard(content fyne.CanvasObject) fyne.CanvasObject {
 	return fynecontainer.NewMax(border, content)
 }
 
+// startRowDrag executa parte da logica deste modulo.
 func (ui *explorer) startRowDrag(left bool, id widget.ListItemID) {
 	if left {
 		if id < 0 || int(id) >= len(ui.leftRows) {
@@ -1474,6 +1502,7 @@ func (ui *explorer) startRowDrag(left bool, id widget.ListItemID) {
 	ui.updateActionState()
 }
 
+// updateRowDrag executa parte da logica deste modulo.
 func (ui *explorer) updateRowDrag(deltaX float32) {
 	if !ui.dragActive {
 		return
@@ -1481,6 +1510,7 @@ func (ui *explorer) updateRowDrag(deltaX float32) {
 	ui.dragAccumX += deltaX
 }
 
+// finishRowDrag executa parte da logica deste modulo.
 func (ui *explorer) finishRowDrag() {
 	if !ui.dragActive {
 		return
@@ -1503,6 +1533,7 @@ func (ui *explorer) finishRowDrag() {
 	}
 }
 
+// copySelectedEntry executa parte da logica deste modulo.
 func (ui *explorer) copySelectedEntry(left bool, id widget.ListItemID) {
 	if left {
 		if id < 0 || int(id) >= len(ui.leftRows) {
@@ -1536,6 +1567,7 @@ func (ui *explorer) copySelectedEntry(left bool, id widget.ListItemID) {
 	ui.status.SetText("Copiado (servidor): " + e.Name)
 }
 
+// pasteCopiedTo executa parte da logica deste modulo.
 func (ui *explorer) pasteCopiedTo(leftTarget bool, targetDir string) {
 	if ui.copiedEntry == nil {
 		dialog.ShowInformation("Colar", "Copie um arquivo ou pasta antes de colar.", ui.win)
@@ -1583,6 +1615,7 @@ func (ui *explorer) pasteCopiedTo(leftTarget bool, targetDir string) {
 	ui.startDrain()
 }
 
+// copyLocalFile executa parte da logica deste modulo.
 func copyLocalFile(ctx context.Context, src, dst string) error {
 	in, err := os.Open(src)
 	if err != nil {
@@ -1604,6 +1637,7 @@ func copyLocalFile(ctx context.Context, src, dst string) error {
 	return err
 }
 
+// copyLocalDir executa parte da logica deste modulo.
 func copyLocalDir(ctx context.Context, srcDir, dstDir string) error {
 	return filepath.WalkDir(srcDir, func(full string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -1627,6 +1661,7 @@ func copyLocalDir(ctx context.Context, srcDir, dstDir string) error {
 	})
 }
 
+// updateBreadcrumb executa parte da logica deste modulo.
 func (ui *explorer) updateBreadcrumb() {
 	ui.leftPathLbl.SetText(fmt.Sprintf("Pasta local: %s", ui.leftPath))
 	ui.leftCrumbs.Objects = ui.makePathButtons(ui.leftPath, true)
@@ -1646,6 +1681,7 @@ func (ui *explorer) updateBreadcrumb() {
 	ui.rightCrumbs.Refresh()
 }
 
+// refreshLeft executa parte da logica deste modulo.
 func (ui *explorer) refreshLeft() {
 	rows, err := localfs.List(ui.leftPath)
 	if err != nil {
@@ -1656,6 +1692,7 @@ func (ui *explorer) refreshLeft() {
 	ui.applyLeftFilter()
 }
 
+// applyLeftFilter executa parte da logica deste modulo.
 func (ui *explorer) applyLeftFilter() {
 	if ui.leftList == nil {
 		return
@@ -1709,6 +1746,7 @@ func (ui *explorer) applyLeftFilter() {
 	ui.updateSummaryInfo()
 }
 
+// refreshRight executa parte da logica deste modulo.
 func (ui *explorer) refreshRight() {
 	ui.refreshRightImpl(true)
 }
@@ -1718,6 +1756,7 @@ func (ui *explorer) refreshRightQuiet() {
 	ui.refreshRightImpl(false)
 }
 
+// refreshRightImpl executa parte da logica deste modulo.
 func (ui *explorer) refreshRightImpl(showLoading bool) {
 	_ = showLoading
 	seq := ui.rightRefreshSeq.Add(1)
@@ -1786,6 +1825,7 @@ func (ui *explorer) refreshRightImpl(showLoading bool) {
 	}(seq)
 }
 
+// maybePromptRootAccess executa parte da logica deste modulo.
 func (ui *explorer) maybePromptRootAccess(listErr error) {
 	if listErr == nil || !ui.hostMode {
 		return
@@ -1834,6 +1874,7 @@ func (ui *explorer) maybePromptRootAccess(listErr error) {
 	)
 }
 
+// isPermissionDeniedError executa parte da logica deste modulo.
 func isPermissionDeniedError(err error) bool {
 	if err == nil {
 		return false
@@ -1842,6 +1883,7 @@ func isPermissionDeniedError(err error) bool {
 	return strings.Contains(msg, "permission denied")
 }
 
+// enableSudoMode executa parte da logica deste modulo.
 func (ui *explorer) enableSudoMode(user, password string) {
 	ui.status.SetText("Validando sudo no servidor…")
 	go func() {
@@ -1874,6 +1916,7 @@ func (ui *explorer) enableSudoMode(user, password string) {
 	}()
 }
 
+// disableSudoMode executa parte da logica deste modulo.
 func (ui *explorer) disableSudoMode() {
 	ui.sudoEnabled = false
 	ui.sudoUser = ""
@@ -1883,6 +1926,7 @@ func (ui *explorer) disableSudoMode() {
 	ui.status.SetText("Sudo desativado.")
 }
 
+// updateSudoUIState executa parte da logica deste modulo.
 func (ui *explorer) updateSudoUIState() {
 	if ui.lblSudoState == nil || ui.btnDisableSudo == nil {
 		return
@@ -1896,10 +1940,12 @@ func (ui *explorer) updateSudoUIState() {
 	ui.btnDisableSudo.Disable()
 }
 
+// shellQuote executa parte da logica deste modulo.
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'"
 }
 
+// appendSudoDebugLog executa parte da logica deste modulo.
 func appendSudoDebugLog(line string) {
 	logPath := filepath.Join(os.TempDir(), "containerway-sudo-debug.log")
 	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
@@ -1910,6 +1956,7 @@ func appendSudoDebugLog(line string) {
 	_, _ = f.WriteString(time.Now().Format("2006-01-02 15:04:05") + " " + line + "\n")
 }
 
+// formatSudoErrorMessage executa parte da logica deste modulo.
 func formatSudoErrorMessage(err error) string {
 	msg := strings.TrimSpace(err.Error())
 	low := strings.ToLower(msg)
@@ -1925,6 +1972,7 @@ func formatSudoErrorMessage(err error) string {
 	}
 }
 
+// runSSHCommandWithInput executa parte da logica deste modulo.
 func (ui *explorer) runSSHCommandWithInput(ctx context.Context, cmd, input string) (string, string, error) {
 	if ui.s == nil || ui.s.SSH == nil {
 		return "", "", fmt.Errorf("sessão SSH indisponível")
@@ -1987,6 +2035,7 @@ func (ui *explorer) runSSHCommandWithInput(ctx context.Context, cmd, input strin
 	}
 }
 
+// ensureSudoSession executa parte da logica deste modulo.
 func (ui *explorer) ensureSudoSession(ctx context.Context) error {
 	if !ui.sudoEnabled || strings.TrimSpace(ui.sudoUser) == "" || strings.TrimSpace(ui.sudoPass) == "" {
 		return fmt.Errorf("sudo não configurado")
@@ -2009,6 +2058,7 @@ func (ui *explorer) ensureSudoSession(ctx context.Context) error {
 	return nil
 }
 
+// copyHostFileWithSudoToLocal executa parte da logica deste modulo.
 func (ui *explorer) copyHostFileWithSudoToLocal(ctx context.Context, remotePath, localPath string) error {
 	if err := ui.ensureSudoSession(ctx); err != nil {
 		return err
@@ -2064,6 +2114,7 @@ func (ui *explorer) copyHostFileWithSudoToLocal(ctx context.Context, remotePath,
 	return nil
 }
 
+// copyLocalFileToHostWithSudo executa parte da logica deste modulo.
 func (ui *explorer) copyLocalFileToHostWithSudo(ctx context.Context, localPath, remotePath string) error {
 	if err := ui.ensureSudoSession(ctx); err != nil {
 		return err
@@ -2126,6 +2177,7 @@ func (ui *explorer) copyLocalFileToHostWithSudo(ctx context.Context, localPath, 
 	return nil
 }
 
+// localDirTotalBytes executa parte da logica deste modulo.
 func localDirTotalBytes(root string) int64 {
 	var total int64
 	_ = filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
@@ -2141,6 +2193,7 @@ func localDirTotalBytes(root string) int64 {
 	return total
 }
 
+// copyLocalDirToHostWithSudo executa parte da logica deste modulo.
 func (ui *explorer) copyLocalDirToHostWithSudo(ctx context.Context, localDir, remoteDestDir string) (int64, error) {
 	if err := ui.ensureSudoSession(ctx); err != nil {
 		return 0, err
@@ -2188,6 +2241,7 @@ func (ui *explorer) copyLocalDirToHostWithSudo(ctx context.Context, localDir, re
 	return localDirTotalBytes(localDir), nil
 }
 
+// copyHostDirWithSudoToLocal executa parte da logica deste modulo.
 func (ui *explorer) copyHostDirWithSudoToLocal(ctx context.Context, remoteDir, destLocalDir string) (int64, error) {
 	if err := ui.ensureSudoSession(ctx); err != nil {
 		return 0, err
@@ -2273,6 +2327,7 @@ func (ui *explorer) copyHostDirWithSudoToLocal(ctx context.Context, remoteDir, d
 	return written, nil
 }
 
+// testSudoAccess executa parte da logica deste modulo.
 func (ui *explorer) testSudoAccess(ctx context.Context, user, password string) (string, error) {
 	target := strings.TrimSpace(user)
 	if target == "" {
@@ -2300,6 +2355,7 @@ func (ui *explorer) testSudoAccess(ctx context.Context, user, password string) (
 	return "", fmt.Errorf("sudo não elevou privilégios (uid=%s)", uid)
 }
 
+// sudoUID executa parte da logica deste modulo.
 func (ui *explorer) sudoUID(ctx context.Context, user, password string) (string, error) {
 	cmd := fmt.Sprintf("sudo -k -S -p '' -u %s sh -lc 'id -u'", shellQuote(user))
 	stdout, stderr, err := ui.runSSHCommandWithInput(ctx, cmd, password)
@@ -2312,6 +2368,7 @@ func (ui *explorer) sudoUID(ctx context.Context, user, password string) (string,
 	return strings.TrimSpace(stdout), nil
 }
 
+// listHostWithSudo executa parte da logica deste modulo.
 func (ui *explorer) listHostWithSudo(ctx context.Context, p string) ([]fsutil.DirEntry, error) {
 	if !ui.sudoEnabled || strings.TrimSpace(ui.sudoUser) == "" || strings.TrimSpace(ui.sudoPass) == "" {
 		return nil, fmt.Errorf("sudo não configurado")
@@ -2376,6 +2433,7 @@ func (ui *explorer) listHostWithSudo(ctx context.Context, p string) ([]fsutil.Di
 	return out, nil
 }
 
+// applyRightFilter executa parte da logica deste modulo.
 func (ui *explorer) applyRightFilter() {
 	if ui.rightList == nil {
 		return
@@ -2435,6 +2493,7 @@ type rightFilterCriteria struct {
 	kind string
 }
 
+// parseRightFilterCriteria executa parte da logica deste modulo.
 func parseRightFilterCriteria(raw string) rightFilterCriteria {
 	out := rightFilterCriteria{}
 	parts := strings.Fields(strings.TrimSpace(raw))
@@ -2466,6 +2525,7 @@ func parseRightFilterCriteria(raw string) rightFilterCriteria {
 	return out
 }
 
+// rightEntryMatches executa parte da logica deste modulo.
 func rightEntryMatches(e fsutil.DirEntry, c rightFilterCriteria, typeChoice string) bool {
 	name := strings.ToLower(e.Name)
 	if c.term != "" && !strings.Contains(name, c.term) {
@@ -2497,6 +2557,7 @@ func rightEntryMatches(e fsutil.DirEntry, c rightFilterCriteria, typeChoice stri
 	return true
 }
 
+// goLeftBack executa parte da logica deste modulo.
 func (ui *explorer) goLeftBack() {
 	n := len(ui.leftBack)
 	if n == 0 {
@@ -2509,6 +2570,7 @@ func (ui *explorer) goLeftBack() {
 	ui.refreshLeft()
 }
 
+// goRightBack executa parte da logica deste modulo.
 func (ui *explorer) goRightBack() {
 	n := len(ui.rightBack)
 	if n == 0 {
@@ -2521,6 +2583,7 @@ func (ui *explorer) goRightBack() {
 	ui.refreshRight()
 }
 
+// goLeftUp executa parte da logica deste modulo.
 func (ui *explorer) goLeftUp() {
 	parent := filepath.Dir(ui.leftPath)
 	if parent == ui.leftPath {
@@ -2532,6 +2595,7 @@ func (ui *explorer) goLeftUp() {
 	ui.refreshLeft()
 }
 
+// goRightUp executa parte da logica deste modulo.
 func (ui *explorer) goRightUp() {
 	parent := path.Dir(ui.rightPath)
 	if parent == "" || parent == "." {
@@ -2546,6 +2610,7 @@ func (ui *explorer) goRightUp() {
 	ui.refreshRight()
 }
 
+// goLeftHome executa parte da logica deste modulo.
 func (ui *explorer) goLeftHome() {
 	if ui.leftPath == homeOrRoot() {
 		return
@@ -2556,6 +2621,7 @@ func (ui *explorer) goLeftHome() {
 	ui.refreshLeft()
 }
 
+// goRightHome executa parte da logica deste modulo.
 func (ui *explorer) goRightHome() {
 	if ui.rightPath == "/" {
 		return
@@ -2566,18 +2632,21 @@ func (ui *explorer) goRightHome() {
 	ui.refreshRight()
 }
 
+// pushLeftHistory executa parte da logica deste modulo.
 func (ui *explorer) pushLeftHistory(next string) {
 	if next != "" && next != ui.leftPath {
 		ui.leftBack = append(ui.leftBack, ui.leftPath)
 	}
 }
 
+// pushRightHistory executa parte da logica deste modulo.
 func (ui *explorer) pushRightHistory(next string) {
 	if next != "" && next != ui.rightPath {
 		ui.rightBack = append(ui.rightBack, ui.rightPath)
 	}
 }
 
+// onLeftActivate executa parte da logica deste modulo.
 func (ui *explorer) onLeftActivate() {
 	if ui.leftSel < 0 || ui.leftSel >= len(ui.leftRows) {
 		dialog.ShowInformation("ContainerWay", "Selecione uma pasta no painel local para abrir.", ui.win)
@@ -2593,6 +2662,7 @@ func (ui *explorer) onLeftActivate() {
 	}
 }
 
+// onLeftDoubleAction executa parte da logica deste modulo.
 func (ui *explorer) onLeftDoubleAction() {
 	e, ok := ui.selectedLeftEntry()
 	if !ok {
@@ -2613,6 +2683,7 @@ func (ui *explorer) onLeftDoubleAction() {
 	ui.status.SetText("Arquivo local aberto: " + e.Name)
 }
 
+// onRightActivate executa parte da logica deste modulo.
 func (ui *explorer) onRightActivate() {
 	if ui.rightSel < 0 || ui.rightSel >= len(ui.rightRows) {
 		dialog.ShowInformation("ContainerWay", "Selecione uma pasta no painel do servidor para abrir.", ui.win)
@@ -2629,6 +2700,7 @@ func (ui *explorer) onRightActivate() {
 	}
 }
 
+// onRightDoubleAction executa parte da logica deste modulo.
 func (ui *explorer) onRightDoubleAction() {
 	e, ok := ui.selectedRightEntry()
 	if !ok {
@@ -2655,6 +2727,7 @@ func (ui *explorer) onRightDoubleAction() {
 	)
 }
 
+// upload executa parte da logica deste modulo.
 func (ui *explorer) upload() {
 	if ui.leftSel < 0 || ui.leftSel >= len(ui.leftRows) {
 		dialog.ShowInformation("ContainerWay", "Selecione um arquivo ou pasta na lista à esquerda (seu computador).", ui.win)
@@ -2813,6 +2886,7 @@ func (ui *explorer) upload() {
 	ui.startDrain()
 }
 
+// download executa parte da logica deste modulo.
 func (ui *explorer) download() {
 	if ui.rightSel < 0 || ui.rightSel >= len(ui.rightRows) {
 		dialog.ShowInformation("ContainerWay", "Selecione um arquivo ou pasta na lista à direita (servidor ou contêiner).", ui.win)
@@ -2959,6 +3033,7 @@ func (ui *explorer) download() {
 	ui.startDrain()
 }
 
+// transferableEntries executa parte da logica deste modulo.
 func transferableEntries(rows []fsutil.DirEntry) []fsutil.DirEntry {
 	out := make([]fsutil.DirEntry, 0, len(rows))
 	for _, e := range rows {
@@ -2970,6 +3045,7 @@ func transferableEntries(rows []fsutil.DirEntry) []fsutil.DirEntry {
 	return out
 }
 
+// uploadVisibleBatch executa parte da logica deste modulo.
 func (ui *explorer) uploadVisibleBatch() {
 	items := transferableEntries(ui.leftRows)
 	if len(items) == 0 {
@@ -2990,6 +3066,7 @@ func (ui *explorer) uploadVisibleBatch() {
 	}, ui.win)
 }
 
+// downloadVisibleBatch executa parte da logica deste modulo.
 func (ui *explorer) downloadVisibleBatch() {
 	items := transferableEntries(ui.rightRows)
 	if len(items) == 0 {
@@ -3018,6 +3095,7 @@ func (ui *explorer) downloadVisibleBatch() {
 	}, ui.win)
 }
 
+// beginBatch executa parte da logica deste modulo.
 func (ui *explorer) beginBatch(label string, total int) {
 	ui.batchMu.Lock()
 	defer ui.batchMu.Unlock()
@@ -3028,12 +3106,14 @@ func (ui *explorer) beginBatch(label string, total int) {
 	ui.batchFailures = nil
 }
 
+// batchSnapshot executa parte da logica deste modulo.
 func (ui *explorer) batchSnapshot() (running bool, done int, total int) {
 	ui.batchMu.Lock()
 	defer ui.batchMu.Unlock()
 	return ui.batchRunning, ui.batchDone, ui.batchTotal
 }
 
+// consumeBatchResult executa parte da logica deste modulo.
 func (ui *explorer) consumeBatchResult(job transfer.Job, err error) (active bool, finished bool, done int, total int, progress string, summary string, summaryErr error) {
 	ui.batchMu.Lock()
 	defer ui.batchMu.Unlock()
@@ -3072,6 +3152,7 @@ func (ui *explorer) consumeBatchResult(job transfer.Job, err error) (active bool
 	return true, true, total, total, "", "", errors.New(msg)
 }
 
+// enqueueLocalToRemote executa parte da logica deste modulo.
 func (ui *explorer) enqueueLocalToRemote(src fsutil.DirEntry, dstDir string) {
 	dstName := filepath.Base(src.Path)
 	if src.IsDir {
@@ -3139,6 +3220,7 @@ func (ui *explorer) enqueueLocalToRemote(src fsutil.DirEntry, dstDir string) {
 	})
 }
 
+// enqueueRemoteToLocal executa parte da logica deste modulo.
 func (ui *explorer) enqueueRemoteToLocal(src copiedItem, dstDir string) {
 	dstPath := filepath.Join(dstDir, path.Base(src.entry.Path))
 	if src.entry.IsDir {
@@ -3216,6 +3298,7 @@ func (ui *explorer) enqueueRemoteToLocal(src copiedItem, dstDir string) {
 	})
 }
 
+// enqueueRemoteToRemote executa parte da logica deste modulo.
 func (ui *explorer) enqueueRemoteToRemote(src copiedItem, dstDir string) {
 	name := path.Base(src.entry.Path)
 	if src.entry.IsDir {
@@ -3292,6 +3375,7 @@ func (ui *explorer) enqueueRemoteToRemote(src copiedItem, dstDir string) {
 	})
 }
 
+// startDrain executa parte da logica deste modulo.
 func (ui *explorer) startDrain() {
 	ctx := context.Background()
 	ui.tm.DrainAsync(ctx, ui.parallelJobs,
@@ -3373,6 +3457,7 @@ func (ui *explorer) startDrain() {
 	)
 }
 
+// selectedLeftEntry executa parte da logica deste modulo.
 func (ui *explorer) selectedLeftEntry() (fsutil.DirEntry, bool) {
 	if ui.leftSel < 0 || ui.leftSel >= len(ui.leftRows) {
 		return fsutil.DirEntry{}, false
@@ -3380,6 +3465,7 @@ func (ui *explorer) selectedLeftEntry() (fsutil.DirEntry, bool) {
 	return ui.leftRows[ui.leftSel], true
 }
 
+// selectedRightEntry executa parte da logica deste modulo.
 func (ui *explorer) selectedRightEntry() (fsutil.DirEntry, bool) {
 	if ui.rightSel < 0 || ui.rightSel >= len(ui.rightRows) {
 		return fsutil.DirEntry{}, false
@@ -3387,6 +3473,7 @@ func (ui *explorer) selectedRightEntry() (fsutil.DirEntry, bool) {
 	return ui.rightRows[ui.rightSel], true
 }
 
+// updateActionState executa parte da logica deste modulo.
 func (ui *explorer) updateActionState() {
 	left, hasLeft := ui.selectedLeftEntry()
 	right, hasRight := ui.selectedRightEntry()
@@ -3439,6 +3526,7 @@ func (ui *explorer) updateActionState() {
 	ui.updateFooterPanels()
 }
 
+// entryTypeLabel executa parte da logica deste modulo.
 func entryTypeLabel(e fsutil.DirEntry) string {
 	if e.IsDir {
 		return "pasta"
@@ -3446,6 +3534,7 @@ func entryTypeLabel(e fsutil.DirEntry) string {
 	return "arquivo"
 }
 
+// summarizeEntries executa parte da logica deste modulo.
 func summarizeEntries(rows []fsutil.DirEntry) (dirs int, files int) {
 	for _, e := range rows {
 		if e.Name == ".." {
@@ -3460,10 +3549,12 @@ func summarizeEntries(rows []fsutil.DirEntry) (dirs int, files int) {
 	return dirs, files
 }
 
+// updateSummaryInfo executa parte da logica deste modulo.
 func (ui *explorer) updateSummaryInfo() {
 	ui.updateFooterPanels()
 }
 
+// updateFooterPanels executa parte da logica deste modulo.
 func (ui *explorer) updateFooterPanels() {
 	if ui.leftFooterInfo == nil || ui.rightFooterInfo == nil {
 		return
@@ -3511,6 +3602,7 @@ func (ui *explorer) updateFooterPanels() {
 	))
 }
 
+// registerExplorerShortcuts executa parte da logica deste modulo.
 func (ui *explorer) registerExplorerShortcuts() {
 	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyEscape}, func(fyne.Shortcut) {
 		ui.triggerDialogCancel()
@@ -3600,6 +3692,7 @@ func (ui *explorer) registerExplorerShortcuts() {
 	})
 }
 
+// triggerDialogConfirm executa parte da logica deste modulo.
 func (ui *explorer) triggerDialogConfirm() {
 	if !ui.dialogShortcutActive.Load() {
 		return
@@ -3609,6 +3702,7 @@ func (ui *explorer) triggerDialogConfirm() {
 	}
 }
 
+// triggerDialogCancel executa parte da logica deste modulo.
 func (ui *explorer) triggerDialogCancel() {
 	if !ui.dialogShortcutActive.Load() {
 		return
@@ -3618,6 +3712,7 @@ func (ui *explorer) triggerDialogCancel() {
 	}
 }
 
+// openFormDialogWithShortcuts executa parte da logica deste modulo.
 func (ui *explorer) openFormDialogWithShortcuts(
 	title string,
 	confirmText string,
@@ -3690,6 +3785,7 @@ func (ui *explorer) openFormDialogWithShortcuts(
 	formDlg.Show()
 }
 
+// focusActiveSearch executa parte da logica deste modulo.
 func (ui *explorer) focusActiveSearch() {
 	if ui.activePane == "left" {
 		ui.win.Canvas().Focus(ui.leftSearch)
@@ -3698,6 +3794,7 @@ func (ui *explorer) focusActiveSearch() {
 	ui.win.Canvas().Focus(ui.rightSearch)
 }
 
+// resetLeftSearch executa parte da logica deste modulo.
 func (ui *explorer) resetLeftSearch() {
 	if ui.leftSearch != nil && strings.TrimSpace(ui.leftSearch.Text) != "" {
 		ui.leftSearch.SetText("")
@@ -3707,6 +3804,7 @@ func (ui *explorer) resetLeftSearch() {
 	}
 }
 
+// resetRightSearch executa parte da logica deste modulo.
 func (ui *explorer) resetRightSearch() {
 	if ui.rightSearch != nil && strings.TrimSpace(ui.rightSearch.Text) != "" {
 		ui.rightSearch.SetText("")
@@ -3716,6 +3814,7 @@ func (ui *explorer) resetRightSearch() {
 	}
 }
 
+// renameActive executa parte da logica deste modulo.
 func (ui *explorer) renameActive() {
 	if ui.activePane == "left" {
 		e, ok := ui.selectedLeftEntry()
@@ -3790,6 +3889,7 @@ func (ui *explorer) renameActive() {
 	)
 }
 
+// deleteActive executa parte da logica deste modulo.
 func (ui *explorer) deleteActive() {
 	if ui.activePane == "left" {
 		e, ok := ui.selectedLeftEntry()
@@ -3840,17 +3940,20 @@ func (ui *explorer) deleteActive() {
 	}, ui.win)
 }
 
+// createFolderActive executa parte da logica deste modulo.
 func (ui *explorer) createFolderActive() {
 	name := widget.NewEntry()
+	name.SetPlaceHolder("Digite o nome da pasta")
 	title := "Nova pasta (local)"
 	if ui.activePane == "right" {
 		title = "Nova pasta (servidor)"
 	}
+	dialogSize := fyne.NewSize(520, 220)
 	ui.openFormDialogWithShortcuts(
 		title,
 		"Criar",
 		"Cancelar",
-		fyne.Size{},
+		dialogSize,
 		[]*widget.FormItem{
 			widget.NewFormItem("Nome da pasta", name),
 		},
@@ -3889,6 +3992,7 @@ func (ui *explorer) createFolderActive() {
 	)
 }
 
+// makePathButtons executa parte da logica deste modulo.
 func (ui *explorer) makePathButtons(p string, left bool) []fyne.CanvasObject {
 	if left {
 		clean := filepath.Clean(p)
@@ -3963,14 +4067,17 @@ func (ui *explorer) makePathButtons(p string, left bool) []fyne.CanvasObject {
 	return out
 }
 
+// defaultLocalShortcuts executa parte da logica deste modulo.
 func (ui *explorer) defaultLocalShortcuts() []string {
 	return []string{"Diretório inicial", "Desktop", "Documentos", "Downloads"}
 }
 
+// defaultRemoteShortcuts executa parte da logica deste modulo.
 func defaultRemoteShortcuts() []string {
 	return []string{"/", "/home", "/opt", "/var", "/tmp"}
 }
 
+// uniqueNonEmpty executa parte da logica deste modulo.
 func uniqueNonEmpty(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
 	out := make([]string, 0, len(values))
@@ -3989,6 +4096,7 @@ func uniqueNonEmpty(values []string) []string {
 	return out
 }
 
+// loadStringSlicePreference executa parte da logica deste modulo.
 func loadStringSlicePreference(key string) []string {
 	app := fyne.CurrentApp()
 	if app == nil {
@@ -4005,6 +4113,7 @@ func loadStringSlicePreference(key string) []string {
 	return uniqueNonEmpty(values)
 }
 
+// saveStringSlicePreference executa parte da logica deste modulo.
 func saveStringSlicePreference(key string, values []string) {
 	app := fyne.CurrentApp()
 	if app == nil {
@@ -4022,14 +4131,17 @@ func saveStringSlicePreference(key string, values []string) {
 	app.Preferences().SetString(key, string(buf))
 }
 
+// loadOperationHistoryPreference executa parte da logica deste modulo.
 func loadOperationHistoryPreference() []string {
 	return loadStringSlicePreference(operationHistoryPreferenceKey)
 }
 
+// saveOperationHistoryPreference executa parte da logica deste modulo.
 func saveOperationHistoryPreference(values []string) {
 	saveStringSlicePreference(operationHistoryPreferenceKey, values)
 }
 
+// defaultAccessAccounts executa parte da logica deste modulo.
 func defaultAccessAccounts() []accessUser {
 	return []accessUser{
 		{
@@ -4040,10 +4152,12 @@ func defaultAccessAccounts() []accessUser {
 	}
 }
 
+// normalizeAccessUsername executa parte da logica deste modulo.
 func normalizeAccessUsername(username string) string {
 	return strings.ToLower(strings.TrimSpace(username))
 }
 
+// loadAccessAccounts executa parte da logica deste modulo.
 func loadAccessAccounts() []accessUser {
 	app := fyne.CurrentApp()
 	if app == nil {
@@ -4092,6 +4206,7 @@ func loadAccessAccounts() []accessUser {
 	return out
 }
 
+// saveAccessAccounts executa parte da logica deste modulo.
 func saveAccessAccounts(users []accessUser) {
 	app := fyne.CurrentApp()
 	if app == nil {
@@ -4125,6 +4240,7 @@ func saveAccessAccounts(users []accessUser) {
 	app.Preferences().SetString(accessUsersPreferenceKey, string(buf))
 }
 
+// findAccessAccount executa parte da logica deste modulo.
 func findAccessAccount(users []accessUser, username string) (accessUser, bool) {
 	key := normalizeAccessUsername(username)
 	for _, u := range users {
@@ -4135,6 +4251,7 @@ func findAccessAccount(users []accessUser, username string) (accessUser, bool) {
 	return accessUser{}, false
 }
 
+// upsertAccessAccount executa parte da logica deste modulo.
 func upsertAccessAccount(users []accessUser, user accessUser) []accessUser {
 	key := normalizeAccessUsername(user.Username)
 	if key == "" || strings.TrimSpace(user.Password) == "" {
@@ -4153,6 +4270,7 @@ func upsertAccessAccount(users []accessUser, user accessUser) []accessUser {
 	return append(users, user)
 }
 
+// setAuditActor executa parte da logica deste modulo.
 func setAuditActor(name string) {
 	auditActorMu.Lock()
 	defer auditActorMu.Unlock()
@@ -4163,28 +4281,33 @@ func setAuditActor(name string) {
 	auditActorName = clean
 }
 
+// setCurrentAccessUser executa parte da logica deste modulo.
 func setCurrentAccessUser(username string) {
 	accessUserMu.Lock()
 	defer accessUserMu.Unlock()
 	currentAccessUserName = normalizeAccessUsername(username)
 }
 
+// currentAccessUser executa parte da logica deste modulo.
 func currentAccessUser() string {
 	accessUserMu.Lock()
 	defer accessUserMu.Unlock()
 	return currentAccessUserName
 }
 
+// isCurrentAccessAdmin executa parte da logica deste modulo.
 func isCurrentAccessAdmin() bool {
 	return currentAccessUser() == normalizeAccessUsername(defaultAccessUser)
 }
 
+// currentAuditActor executa parte da logica deste modulo.
 func currentAuditActor() string {
 	auditActorMu.Lock()
 	defer auditActorMu.Unlock()
 	return auditActorName
 }
 
+// auditLogPath executa parte da logica deste modulo.
 func auditLogPath() string {
 	base, err := os.UserConfigDir()
 	if err != nil || strings.TrimSpace(base) == "" {
@@ -4195,12 +4318,14 @@ func auditLogPath() string {
 	return filepath.Join(dir, auditLogFileName)
 }
 
+// resetSessionAuditBuffer executa parte da logica deste modulo.
 func resetSessionAuditBuffer() {
 	sessionAuditMu.Lock()
 	sessionAuditLines = nil
 	sessionAuditMu.Unlock()
 }
 
+// appendSessionAuditLine executa parte da logica deste modulo.
 func appendSessionAuditLine(line string) {
 	if currentAccessUser() == "" {
 		return
@@ -4214,6 +4339,7 @@ func appendSessionAuditLine(line string) {
 	sessionAuditMu.Unlock()
 }
 
+// snapshotSessionAuditLines executa parte da logica deste modulo.
 func snapshotSessionAuditLines() []string {
 	sessionAuditMu.Lock()
 	defer sessionAuditMu.Unlock()
@@ -4222,6 +4348,7 @@ func snapshotSessionAuditLines() []string {
 	return out
 }
 
+// loadMailRecipientListFromPrefs executa parte da logica deste modulo.
 func loadMailRecipientListFromPrefs(p fyne.Preferences) []string {
 	raw := strings.TrimSpace(p.String(notifyRecipientsJSONPreferenceKey))
 	if raw != "" {
@@ -4245,6 +4372,7 @@ func loadMailRecipientListFromPrefs(p fyne.Preferences) []string {
 	return mailnotify.NormalizeRecipients(parts)
 }
 
+// loadMailNotifySettings executa parte da logica deste modulo.
 func loadMailNotifySettings() mailnotify.Settings {
 	a := fyne.CurrentApp()
 	if a == nil {
@@ -4266,6 +4394,7 @@ func loadMailNotifySettings() mailnotify.Settings {
 	}
 }
 
+// saveMailNotifySettings executa parte da logica deste modulo.
 func saveMailNotifySettings(s mailnotify.Settings) {
 	a := fyne.CurrentApp()
 	if a == nil {
@@ -4293,12 +4422,14 @@ func saveMailNotifySettings(s mailnotify.Settings) {
 	p.SetString(notifySMTPFromPreferenceKey, strings.TrimSpace(s.From))
 }
 
+// copyMailNotifySettingsForAsync executa parte da logica deste modulo.
 func copyMailNotifySettingsForAsync(s mailnotify.Settings) mailnotify.Settings {
 	out := s
 	out.Recipients = append([]string(nil), s.Recipients...)
 	return out
 }
 
+// sendNotifyLoginEmailWithConfig executa parte da logica deste modulo.
 func sendNotifyLoginEmailWithConfig(cfg mailnotify.Settings, acc accessUser) {
 	if !cfg.Valid() {
 		return
@@ -4320,6 +4451,7 @@ func sendNotifyLoginEmailWithConfig(cfg mailnotify.Settings, acc accessUser) {
 	}
 }
 
+// clipSessionLinesForEmail executa parte da logica deste modulo.
 func clipSessionLinesForEmail(lines []string, maxLines int) ([]string, bool) {
 	if maxLines < 1 {
 		maxLines = sessionEmailMaxLines
@@ -4330,6 +4462,7 @@ func clipSessionLinesForEmail(lines []string, maxLines int) ([]string, bool) {
 	return lines[len(lines)-maxLines:], true
 }
 
+// sendNotifySessionEndWithConfig executa parte da logica deste modulo.
 func sendNotifySessionEndWithConfig(cfg mailnotify.Settings, lines []string) {
 	if !cfg.Valid() {
 		return
@@ -4360,6 +4493,7 @@ func sendNotifySessionEndWithConfig(cfg mailnotify.Settings, lines []string) {
 	appendAuditLog("email", "Resumo de sessão enviado por e-mail aos destinatários configurados")
 }
 
+// finalizeLocalAccessSession executa parte da logica deste modulo.
 func finalizeLocalAccessSession(w fyne.Window, s *session.Session, endMsg string) {
 	appendAuditLog("sessao", endMsg)
 	lines := snapshotSessionAuditLines()
@@ -4379,6 +4513,7 @@ func finalizeLocalAccessSession(w fyne.Window, s *session.Session, endMsg string
 	goToLogin(w)
 }
 
+// appendAuditLog executa parte da logica deste modulo.
 func appendAuditLog(scope, message string) {
 	msg := strings.TrimSpace(message)
 	if msg == "" {
@@ -4408,6 +4543,7 @@ func appendAuditLog(scope, message string) {
 	_, _ = f.WriteString(line)
 }
 
+// readAuditLogLines executa parte da logica deste modulo.
 func readAuditLogLines(maxLines int, filter string) []string {
 	if maxLines < 1 {
 		maxLines = 1
@@ -4435,18 +4571,21 @@ func readAuditLogLines(maxLines int, filter string) []string {
 	return filtered
 }
 
+// localShortcutOptions executa parte da logica deste modulo.
 func (ui *explorer) localShortcutOptions() []string {
 	base := ui.defaultLocalShortcuts()
 	saved := loadStringSlicePreference(leftFavoritesPreferenceKey)
 	return uniqueNonEmpty(append(base, saved...))
 }
 
+// remoteShortcutOptions executa parte da logica deste modulo.
 func (ui *explorer) remoteShortcutOptions() []string {
 	base := defaultRemoteShortcuts()
 	saved := loadStringSlicePreference(rightFavoritesPreferenceKey)
 	return uniqueNonEmpty(append(base, saved...))
 }
 
+// refreshLeftShortcutOptions executa parte da logica deste modulo.
 func (ui *explorer) refreshLeftShortcutOptions(selectPath string) {
 	if ui.leftQuick == nil {
 		return
@@ -4458,6 +4597,7 @@ func (ui *explorer) refreshLeftShortcutOptions(selectPath string) {
 	}
 }
 
+// refreshRightShortcutOptions executa parte da logica deste modulo.
 func (ui *explorer) refreshRightShortcutOptions(selectPath string) {
 	if ui.rightQuick == nil {
 		return
@@ -4469,6 +4609,7 @@ func (ui *explorer) refreshRightShortcutOptions(selectPath string) {
 	}
 }
 
+// addLeftFavoriteCurrentPath executa parte da logica deste modulo.
 func (ui *explorer) addLeftFavoriteCurrentPath() {
 	p := strings.TrimSpace(ui.leftPath)
 	if p == "" {
@@ -4486,6 +4627,7 @@ func (ui *explorer) addLeftFavoriteCurrentPath() {
 	appendAuditLog("favoritos", "Atalho local salvo: "+p)
 }
 
+// addRightFavoriteCurrentPath executa parte da logica deste modulo.
 func (ui *explorer) addRightFavoriteCurrentPath() {
 	p := strings.TrimSpace(ui.rightPath)
 	if p == "" {
@@ -4498,6 +4640,7 @@ func (ui *explorer) addRightFavoriteCurrentPath() {
 	appendAuditLog("favoritos", "Atalho remoto salvo: "+p)
 }
 
+// removePathFromList executa parte da logica deste modulo.
 func removePathFromList(values []string, target string) []string {
 	want := strings.TrimSpace(strings.ToLower(target))
 	if want == "" {
@@ -4513,6 +4656,7 @@ func removePathFromList(values []string, target string) []string {
 	return uniqueNonEmpty(out)
 }
 
+// removeLeftFavoriteCurrentPath executa parte da logica deste modulo.
 func (ui *explorer) removeLeftFavoriteCurrentPath() {
 	p := strings.TrimSpace(ui.leftPath)
 	if p == "" {
@@ -4530,6 +4674,7 @@ func (ui *explorer) removeLeftFavoriteCurrentPath() {
 	appendAuditLog("favoritos", "Atalho local removido: "+p)
 }
 
+// removeRightFavoriteCurrentPath executa parte da logica deste modulo.
 func (ui *explorer) removeRightFavoriteCurrentPath() {
 	p := strings.TrimSpace(ui.rightPath)
 	if p == "" {
@@ -4547,6 +4692,7 @@ func (ui *explorer) removeRightFavoriteCurrentPath() {
 	appendAuditLog("favoritos", "Atalho remoto removido: "+p)
 }
 
+// resolveLocalShortcut executa parte da logica deste modulo.
 func (ui *explorer) resolveLocalShortcut(sel string) (string, bool) {
 	home := homeOrRoot()
 	switch sel {
@@ -4566,6 +4712,7 @@ func (ui *explorer) resolveLocalShortcut(sel string) (string, bool) {
 	}
 }
 
+// showRowContextMenu executa parte da logica deste modulo.
 func (ui *explorer) showRowContextMenu(left bool, id widget.ListItemID, pos fyne.Position) {
 	if left {
 		if id < 0 || int(id) >= len(ui.leftRows) {
@@ -4640,6 +4787,7 @@ func (ui *explorer) showRowContextMenu(left bool, id widget.ListItemID, pos fyne
 	widget.ShowPopUpMenuAtPosition(fyne.NewMenu("", items...), ui.win.Canvas(), pos)
 }
 
+// appendOperationHistory executa parte da logica deste modulo.
 func (ui *explorer) appendOperationHistory(entry string) {
 	msg := strings.TrimSpace(entry)
 	if msg == "" {
@@ -4655,6 +4803,7 @@ func (ui *explorer) appendOperationHistory(entry string) {
 	appendAuditLog("operacao", msg)
 }
 
+// rememberFailedJob executa parte da logica deste modulo.
 func (ui *explorer) rememberFailedJob(job transfer.Job) {
 	if job.Run == nil {
 		return
@@ -4666,6 +4815,7 @@ func (ui *explorer) rememberFailedJob(job transfer.Job) {
 	}
 }
 
+// retryLastFailedOperation executa parte da logica deste modulo.
 func (ui *explorer) retryLastFailedOperation() {
 	if len(ui.failedJobs) == 0 {
 		dialog.ShowInformation("Histórico", "Não há falhas recentes para tentar novamente.", ui.win)
@@ -4678,6 +4828,7 @@ func (ui *explorer) retryLastFailedOperation() {
 	ui.startDrain()
 }
 
+// retryAllFailedOperations executa parte da logica deste modulo.
 func (ui *explorer) retryAllFailedOperations() {
 	if len(ui.failedJobs) == 0 {
 		dialog.ShowInformation("Histórico", "Não há falhas recentes para tentar novamente.", ui.win)
@@ -4702,6 +4853,7 @@ func (ui *explorer) retryAllFailedOperations() {
 	)
 }
 
+// showOperationHistory executa parte da logica deste modulo.
 func (ui *explorer) showOperationHistory() {
 	buildSessionContent := func(term string) string {
 		lines := ui.opHistory
@@ -4831,6 +4983,7 @@ func (ui *explorer) showOperationHistory() {
 	historyDialog.Show()
 }
 
+// userManualText executa parte da logica deste modulo.
 func userManualText() string {
 	return strings.TrimSpace(`
 ContainerWay - Manual de uso
@@ -4917,6 +5070,7 @@ ContainerWay - Manual de uso
 `)
 }
 
+// showUserManual executa parte da logica deste modulo.
 func (ui *explorer) showUserManual() {
 	appendAuditLog("manual", "Manual do usuário aberto")
 	text := widget.NewRichTextWithText(userManualText())
@@ -4931,6 +5085,7 @@ func (ui *explorer) showUserManual() {
 	).Show()
 }
 
+// snapshotSettingsReturnTarget executa parte da logica deste modulo.
 func (ui *explorer) snapshotSettingsReturnTarget() {
 	switch ui.win.Content() {
 	case ui.explorerMain:
@@ -4942,6 +5097,7 @@ func (ui *explorer) snapshotSettingsReturnTarget() {
 	}
 }
 
+// closeSettingsFullscreen executa parte da logica deste modulo.
 func (ui *explorer) closeSettingsFullscreen() {
 	if ui.settingsReturnToExplorer {
 		ui.win.SetContent(ui.explorerMain)
@@ -4981,6 +5137,7 @@ func (ui *explorer) openSettingsFullscreen(title string, content fyne.CanvasObje
 	ui.openSettingsFullscreenWithBack(title, content, nil)
 }
 
+// showAccessUserManager executa parte da logica deste modulo.
 func (ui *explorer) showAccessUserManager() {
 	if !isCurrentAccessAdmin() {
 		dialog.ShowInformation("Usuários", "Somente o usuário admin pode gerenciar usuários.", ui.win)
@@ -5102,6 +5259,7 @@ func (ui *explorer) showAccessUserManager() {
 	ui.openSettingsFullscreen("Gerenciar usuários", scroll)
 }
 
+// showMailNotifySettings executa parte da logica deste modulo.
 func (ui *explorer) showMailNotifySettings() {
 	if !isCurrentAccessAdmin() {
 		dialog.ShowInformation("Alertas por e-mail", "Somente o usuário admin pode configurar alertas por e-mail.", ui.win)
@@ -5406,6 +5564,7 @@ func (ui *explorer) showMailNotifySettings() {
 	ui.openSettingsFullscreen("Alertas por e-mail (admin)", fullBody)
 }
 
+// openRemoteForEdit executa parte da logica deste modulo.
 func (ui *explorer) openRemoteForEdit(e fsutil.DirEntry) {
 	go func() {
 		fyne.Do(func() {
@@ -5525,6 +5684,7 @@ func (ui *explorer) openRemoteForEdit(e fsutil.DirEntry) {
 	}()
 }
 
+// trackRemoteEditSession executa parte da logica deste modulo.
 func (ui *explorer) trackRemoteEditSession(s *remoteEditSession) {
 	ui.remoteEditMu.Lock()
 	defer ui.remoteEditMu.Unlock()
@@ -5534,6 +5694,7 @@ func (ui *explorer) trackRemoteEditSession(s *remoteEditSession) {
 	ui.remoteEditSessions[s.tempPath] = s
 }
 
+// startRemoteEditWatcher executa parte da logica deste modulo.
 func (ui *explorer) startRemoteEditWatcher(s *remoteEditSession) {
 	go func() {
 		ticker := time.NewTicker(2 * time.Second)
@@ -5577,6 +5738,7 @@ func (ui *explorer) startRemoteEditWatcher(s *remoteEditSession) {
 	}()
 }
 
+// syncEditedFileBack executa parte da logica deste modulo.
 func (ui *explorer) syncEditedFileBack(s *remoteEditSession) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
@@ -5605,6 +5767,7 @@ func (ui *explorer) syncEditedFileBack(s *remoteEditSession) error {
 	return cfs.UploadFile(ctx, path.Dir(s.remotePath), path.Base(s.remotePath), in, st.Size())
 }
 
+// openWithDefaultApp executa parte da logica deste modulo.
 func openWithDefaultApp(filePath string) error {
 	switch runtime.GOOS {
 	case "windows":

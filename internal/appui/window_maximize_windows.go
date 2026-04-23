@@ -34,6 +34,7 @@ func restoreNormalMainWindow(w fyne.Window) {
 	})
 }
 
+// maximizeMainWindow executa parte da logica deste modulo.
 func maximizeMainWindow(w fyne.Window) {
 	if w == nil {
 		return

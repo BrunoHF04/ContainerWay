@@ -8,6 +8,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// parsePrivateKey executa parte da logica deste modulo.
 func parsePrivateKey(pemData []byte, passphrase string) (ssh.Signer, error) {
 	if len(pemData) == 0 {
 		return nil, fmt.Errorf("a chave está vazia")

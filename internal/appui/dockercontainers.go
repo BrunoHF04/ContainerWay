@@ -66,6 +66,7 @@ type dockerRateSample struct {
 	DiskWrite uint64
 }
 
+// dockerStateLabelPT executa parte da logica deste modulo.
 func dockerStateLabelPT(state string) string {
 	switch strings.ToLower(strings.TrimSpace(state)) {
 	case "running":
@@ -90,6 +91,7 @@ func dockerStateLabelPT(state string) string {
 	}
 }
 
+// buildDockerManagerRows executa parte da logica deste modulo.
 func buildDockerManagerRows(list []dcontainer.Summary) []dockerManagerRow {
 	out := make([]dockerManagerRow, 0, len(list))
 	for _, c := range list {
@@ -122,6 +124,7 @@ func buildDockerManagerRows(list []dcontainer.Summary) []dockerManagerRow {
 	return out
 }
 
+// formatBytes executa parte da logica deste modulo.
 func formatBytes(v uint64) string {
 	if v < 1024 {
 		return fmt.Sprintf("%d B", v)
@@ -136,10 +139,12 @@ func formatBytes(v uint64) string {
 	return fmt.Sprintf("%.1f %s", f, units[idx])
 }
 
+// formatRateBytes executa parte da logica deste modulo.
 func formatRateBytes(v uint64) string {
 	return formatBytes(v) + "/s"
 }
 
+// computeCPUPercent executa parte da logica deste modulo.
 func computeCPUPercent(stats dcontainertypes.StatsResponse) float64 {
 	cpuDelta := float64(stats.CPUStats.CPUUsage.TotalUsage) - float64(stats.PreCPUStats.CPUUsage.TotalUsage)
 	systemDelta := float64(stats.CPUStats.SystemUsage) - float64(stats.PreCPUStats.SystemUsage)
@@ -156,6 +161,7 @@ func computeCPUPercent(stats dcontainertypes.StatsResponse) float64 {
 	return (cpuDelta / systemDelta) * cpus * 100.0
 }
 
+// collectNetIO executa parte da logica deste modulo.
 func collectNetIO(stats dcontainertypes.StatsResponse) (rx, tx uint64) {
 	for _, nw := range stats.Networks {
 		rx += nw.RxBytes
@@ -164,6 +170,7 @@ func collectNetIO(stats dcontainertypes.StatsResponse) (rx, tx uint64) {
 	return rx, tx
 }
 
+// collectBlockIO executa parte da logica deste modulo.
 func collectBlockIO(stats dcontainertypes.StatsResponse) (read, write uint64) {
 	for _, e := range stats.BlkioStats.IoServiceBytesRecursive {
 		switch strings.ToLower(strings.TrimSpace(e.Op)) {
@@ -176,6 +183,7 @@ func collectBlockIO(stats dcontainertypes.StatsResponse) (read, write uint64) {
 	return read, write
 }
 
+// calcUptimeLabel executa parte da logica deste modulo.
 func calcUptimeLabel(startedAt string) string {
 	t := strings.TrimSpace(startedAt)
 	if t == "" {
@@ -201,6 +209,7 @@ func calcUptimeLabel(startedAt string) string {
 	return fmt.Sprintf("%dd %dh", int(d.Hours())/24, int(d.Hours())%24)
 }
 
+// alertLevel executa parte da logica deste modulo.
 func alertLevel(cpuPct, memPct float64) int {
 	if cpuPct >= 90 || memPct >= 90 {
 		return 2
@@ -211,6 +220,7 @@ func alertLevel(cpuPct, memPct float64) int {
 	return 0
 }
 
+// rowBgByAlert executa parte da logica deste modulo.
 func rowBgByAlert(level int) color.Color {
 	switch level {
 	case 2:
@@ -222,6 +232,7 @@ func rowBgByAlert(level int) color.Color {
 	}
 }
 
+// sortRows executa parte da logica deste modulo.
 func sortRows(rows []dockerManagerRow, key string) {
 	switch key {
 	case "Nome (A-Z)":
@@ -245,6 +256,7 @@ func sortRows(rows []dockerManagerRow, key string) {
 	}
 }
 
+// matchRowFilter executa parte da logica deste modulo.
 func matchRowFilter(r dockerManagerRow, q string) bool {
 	q = strings.TrimSpace(strings.ToLower(q))
 	if q == "" {
@@ -260,6 +272,7 @@ func matchRowFilter(r dockerManagerRow, q string) bool {
 	return strings.Contains(h, q)
 }
 
+// loadDockerStatsRow executa parte da logica deste modulo.
 func (ui *explorer) loadDockerStatsRow(containerID string, prev dockerRateSample) (dockerManagerRow, dockerRateSample, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 	defer cancel()
@@ -353,6 +366,7 @@ func (ui *explorer) loadDockerStatsRow(containerID string, prev dockerRateSample
 	}, sample, nil
 }
 
+// loadDockerContainerLogs executa parte da logica deste modulo.
 func (ui *explorer) loadDockerContainerLogs(containerID string, tail int) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
@@ -400,6 +414,7 @@ func (ui *explorer) loadDockerContainerLogs(containerID string, tail int) (strin
 	return text, nil
 }
 
+// showDockerContainerManager executa parte da logica deste modulo.
 func (ui *explorer) showDockerContainerManager() {
 	if ui.s == nil || ui.s.Docker == nil {
 		dialog.ShowError(fmt.Errorf("cliente Docker indisponível"), ui.win)
@@ -466,10 +481,9 @@ func (ui *explorer) showDockerContainerManager() {
 
 	statusLbl := widget.NewLabel("")
 	statusLbl.Wrapping = fyne.TextWrapOff
-	detailsPanel := widget.NewMultiLineEntry()
-	detailsPanel.Disable()
-	detailsPanel.SetMinRowsVisible(10)
+	detailsPanel := widget.NewLabel("")
 	detailsPanel.Wrapping = fyne.TextWrapWord
+	detailsScroll := fynecontainer.NewScroll(detailsPanel)
 
 	var selectedID widget.ListItemID = -1
 	selectedContainerID := ""
@@ -727,23 +741,37 @@ func (ui *explorer) showDockerContainerManager() {
 			return
 		}
 		row := rows[selectedID]
-		logText := widget.NewMultiLineEntry()
-		logText.Disable()
-		logText.Wrapping = fyne.TextWrapOff
-		logText.SetMinRowsVisible(22)
+		logText := widget.NewTextGrid()
+		logText.ShowLineNumbers = false
+		logScroll := fynecontainer.NewScroll(logText)
 		logStatus := widget.NewLabel("Carregando logs…")
 		logStatus.Wrapping = fyne.TextWrapWord
+		currentLogText := ""
+		logAuto := atomic.Bool{}
+		logAuto.Store(true)
+		logRefreshing := atomic.Bool{}
+		stopLogs := make(chan struct{})
+		var stopLogsOnce sync.Once
 
 		loadLogs := func() {
+			if !logRefreshing.CompareAndSwap(false, true) {
+				return
+			}
 			go func() {
+				defer logRefreshing.Store(false)
 				text, err := ui.loadDockerContainerLogs(row.ID, 500)
 				fyne.Do(func() {
 					if err != nil {
 						logStatus.SetText("Falha ao carregar logs: " + err.Error())
 						return
 					}
+					currentLogText = text
 					logText.SetText(text)
-					logStatus.SetText(fmt.Sprintf("Exibindo últimos logs de %s (%s).", row.Name, row.ShortID))
+					mode := "tempo real: ligado"
+					if !logAuto.Load() {
+						mode = "tempo real: pausado"
+					}
+					logStatus.SetText(fmt.Sprintf("Exibindo últimos logs de %s (%s) — %s (%s).", row.Name, row.ShortID, time.Now().Format("15:04:05"), mode))
 				})
 			}()
 		}
@@ -753,6 +781,22 @@ func (ui *explorer) showDockerContainerManager() {
 			loadLogs()
 		})
 		btnRefreshLogs.Importance = widget.MediumImportance
+		var btnAutoLogs *widget.Button
+		btnAutoLogs = widget.NewButtonWithIcon("Pausar tempo real", theme.MediaPauseIcon(), func() {
+			if logAuto.Load() {
+				logAuto.Store(false)
+				btnAutoLogs.SetText("Iniciar tempo real")
+				btnAutoLogs.SetIcon(theme.MediaPlayIcon())
+				logStatus.SetText("Tempo real dos logs pausado.")
+				return
+			}
+			logAuto.Store(true)
+			btnAutoLogs.SetText("Pausar tempo real")
+			btnAutoLogs.SetIcon(theme.MediaPauseIcon())
+			logStatus.SetText("Tempo real dos logs ligado. Atualizando…")
+			loadLogs()
+		})
+		btnAutoLogs.Importance = widget.MediumImportance
 		btnDownloadLogs := widget.NewButtonWithIcon("Baixar logs", theme.DownloadIcon(), func() {
 			saveDlg := dialog.NewFileSave(func(dst fyne.URIWriteCloser, err error) {
 				if err != nil {
@@ -763,7 +807,7 @@ func (ui *explorer) showDockerContainerManager() {
 					return
 				}
 				defer dst.Close()
-				if _, wErr := io.WriteString(dst, logText.Text); wErr != nil {
+				if _, wErr := io.WriteString(dst, currentLogText); wErr != nil {
 					dialog.ShowError(fmt.Errorf("falha ao salvar logs: %w", wErr), ui.win)
 					return
 				}
@@ -775,11 +819,11 @@ func (ui *explorer) showDockerContainerManager() {
 		btnDownloadLogs.Importance = widget.MediumImportance
 
 		body := fynecontainer.NewBorder(
-			fynecontainer.NewVBox(logStatus, widget.NewSeparator(), fynecontainer.NewHBox(btnRefreshLogs, btnDownloadLogs)),
+			fynecontainer.NewVBox(logStatus, widget.NewSeparator(), fynecontainer.NewHBox(btnRefreshLogs, btnAutoLogs, btnDownloadLogs)),
 			nil,
 			nil,
 			nil,
-			logText,
+			logScroll,
 		)
 		dlg := dialog.NewCustom(
 			fmt.Sprintf("Logs: %s (%s)", row.Name, row.ShortID),
@@ -788,8 +832,25 @@ func (ui *explorer) showDockerContainerManager() {
 			ui.win,
 		)
 		dlg.Resize(fyne.NewSize(960, 620))
+		dlg.SetOnClosed(func() {
+			stopLogsOnce.Do(func() { close(stopLogs) })
+		})
 		dlg.Show()
 		loadLogs()
+		go func() {
+			ticker := time.NewTicker(2 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-stopLogs:
+					return
+				case <-ticker.C:
+					if logAuto.Load() {
+						loadLogs()
+					}
+				}
+			}
+		}()
 	}
 
 	doRestartOne := func(containerID, humanName string, onDone func(err error)) {
@@ -896,7 +957,7 @@ func (ui *explorer) showDockerContainerManager() {
 	)
 	mainSplit := fynecontainer.NewHSplit(
 		fynecontainer.NewPadded(listWidget),
-		fynecontainer.NewPadded(detailsPanel),
+		fynecontainer.NewPadded(detailsScroll),
 	)
 	mainSplit.SetOffset(0.68)
 	content := fynecontainer.NewBorder(
