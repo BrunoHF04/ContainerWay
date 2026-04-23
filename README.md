@@ -8,7 +8,25 @@ Gestor de arquivos de painel duplo (estilo WinSCP) para **Windows**, com foco em
 
 Toda a interface está em **pt-BR**.
 
-## Acesso local ao aplicativo
+## Navegacao rapida
+
+- Acesso local ao aplicativo
+- Após conectar (tela inicial da sessão)
+- Alertas por e-mail (admin)
+- Visão geral das funcionalidades
+- Atalhos de teclado
+- Tecnologias utilizadas
+- Requisitos
+- Compilação
+- Execução
+- Estrutura do projeto
+- Documentação para desenvolvimento
+- Segurança
+
+---
+
+<details>
+<summary><strong>Acesso local ao aplicativo</strong></summary>
 
 Antes da tela de conexão SSH/SFTP, o app pede **login de acesso local** (usuário e senha armazenados nas preferências do app no Windows).
 
@@ -19,7 +37,11 @@ Antes da tela de conexão SSH/SFTP, o app pede **login de acesso local** (usuár
 
 > Atenção: isso **não** substitui autenticação do servidor SSH; é apenas uma trava local do app. Em ambientes sensíveis, altere a senha do `admin` e cadastre usuários com senhas fortes.
 
-## Após conectar (tela inicial da sessão)
+
+</details>
+
+<details>
+<summary><strong>Após conectar (tela inicial da sessão)</strong></summary>
 
 Depois de **Conectar** com sucesso, abre-se primeiro a **tela inicial da sessão** (janela compacta e centralizada), com:
 
@@ -30,7 +52,11 @@ Depois de **Conectar** com sucesso, abre-se primeiro a **tela inicial da sessão
 
 No explorador, o botão **Início** volta para essa tela **sem desconectar**. O botão **Sair** encerra a sessão SSH e retorna ao login de acesso local (a janela volta ao tamanho adequado).
 
-## Alertas por e-mail (admin)
+
+</details>
+
+<details>
+<summary><strong>Alertas por e-mail (admin)</strong></summary>
 
 Somente o usuário **admin** vê **E-mail** na barra do explorador ou no cartão **Configurações** do hub. A configuração abre em **tela cheia maximizada**, com **Voltar** no topo.
 
@@ -55,7 +81,11 @@ Somente o usuário **admin** vê **E-mail** na barra do explorador ou no cartão
 
 > Encerrar o processo pelo Gerenciador de Tarefas ou fechar o app na tela de login pode impedir o envio do resumo de sessão.
 
-## Visão geral das funcionalidades
+
+</details>
+
+<details>
+<summary><strong>Visão geral das funcionalidades</strong></summary>
 
 ### Conexão e login
 
@@ -192,7 +222,11 @@ Somente o usuário **admin** vê **E-mail** na barra do explorador ou no cartão
   - upload/download de arquivo;
   - upload/download recursivo de pasta.
 
-## Atalhos de teclado
+
+</details>
+
+<details>
+<summary><strong>Atalhos de teclado</strong></summary>
 
 - `Enter`: abrir pasta no painel ativo.
 - `Backspace`: subir um nível no painel ativo.
@@ -205,7 +239,11 @@ Somente o usuário **admin** vê **E-mail** na barra do explorador ou no cartão
 - `Del`: excluir item selecionado (com confirmação).
 - `Ctrl+Shift+N`: criar pasta no painel ativo.
 
-## Tecnologias utilizadas
+
+</details>
+
+<details>
+<summary><strong>Tecnologias utilizadas</strong></summary>
 
 | Área | Tecnologias / pacotes |
 |------|------------------------|
@@ -219,7 +257,11 @@ Somente o usuário **admin** vê **E-mail** na barra do explorador ou no cartão
 | Docker remoto | `github.com/docker/docker` (cliente Moby) |
 | Concorrência | goroutines, `sync`, `sync/atomic` |
 
-## Requisitos
+
+</details>
+
+<details>
+<summary><strong>Requisitos</strong></summary>
 
 - [Go](https://go.dev/dl/) 1.21+ (ou versão definida no `go.mod`).
 - No Windows, Fyne requer **CGO**:
@@ -236,7 +278,11 @@ Somente o usuário **admin** vê **E-mail** na barra do explorador ou no cartão
   - OpenSSH com SFTP;
   - permissão de acesso ao Docker socket (`/var/run/docker.sock`) quando for usar contêineres.
 
-## Compilação
+
+</details>
+
+<details>
+<summary><strong>Compilação</strong></summary>
 
 ```powershell
 .\build.ps1
@@ -250,7 +296,11 @@ Build de validação sem GUI (CI/ambiente sem GCC para Fyne):
 go build -tags ci -o containerway_ci.exe ./cmd/containerway/
 ```
 
-## Execução
+
+</details>
+
+<details>
+<summary><strong>Execução</strong></summary>
 
 ```powershell
 .\ContainerWay.exe
@@ -268,7 +318,11 @@ Fluxo recomendado:
    - pastas do servidor;
    - ou um contêiner em execução.
 
-## Estrutura do projeto
+
+</details>
+
+<details>
+<summary><strong>Estrutura do projeto</strong></summary>
 
 | Caminho | Responsabilidade |
 |---------|------------------|
@@ -282,7 +336,11 @@ Fluxo recomendado:
 | `internal/tarxfer` | Transferências recursivas com tar |
 | `internal/transfer` | Fila, progresso e workers de transferência |
 
-## Documentação para desenvolvimento
+
+</details>
+
+<details>
+<summary><strong>Documentação para desenvolvimento</strong></summary>
 
 - Guia rápido de manutenção e estudo: `SUMARIO_DESENVOLVEDOR.md`.
 - Convenção adotada no código Go:
@@ -292,10 +350,16 @@ Fluxo recomendado:
   - ao criar uma função nova, já adicionar o comentário no mesmo commit;
   - ao refatorar, manter o comentário alinhado com o comportamento atual.
 
-## Segurança
+
+</details>
+
+<details>
+<summary><strong>Segurança</strong></summary>
 
 - Em produção, prefira validação de host por `known_hosts` e evite `Ignorar chave de host`.
 - Segredos podem ser:
   - persistidos na conexão local (quando marcado);
   - ou mantidos somente na sessão atual (não persistente em disco).
 - Fluxo sudo é usado apenas quando necessário para acesso a caminhos protegidos.
+
+</details>
