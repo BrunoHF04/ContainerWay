@@ -4954,10 +4954,14 @@ func (ui *explorer) closeSettingsFullscreen() {
 	setSessionHubWindow(ui.win)
 }
 
-// openSettingsFullscreen troca o conteúdo da janela por uma tela cheia maximizada (admin: usuários / e-mail).
-func (ui *explorer) openSettingsFullscreen(title string, content fyne.CanvasObject) {
+// openSettingsFullscreenWithBack troca o conteúdo da janela por uma tela cheia maximizada
+// e permite executar uma ação antes de voltar.
+func (ui *explorer) openSettingsFullscreenWithBack(title string, content fyne.CanvasObject, onBack func()) {
 	ui.snapshotSettingsReturnTarget()
 	btnBack := widget.NewButtonWithIcon("Voltar", theme.NavigateBackIcon(), func() {
+		if onBack != nil {
+			onBack()
+		}
 		ui.closeSettingsFullscreen()
 	})
 	btnBack.Importance = widget.MediumImportance
@@ -4970,6 +4974,11 @@ func (ui *explorer) openSettingsFullscreen(title string, content fyne.CanvasObje
 	ui.win.SetContent(root)
 	ui.explorerOnTop.Store(false)
 	setExplorerWindow(ui.win)
+}
+
+// openSettingsFullscreen troca o conteúdo da janela por uma tela cheia maximizada (admin: usuários / e-mail).
+func (ui *explorer) openSettingsFullscreen(title string, content fyne.CanvasObject) {
+	ui.openSettingsFullscreenWithBack(title, content, nil)
 }
 
 func (ui *explorer) showAccessUserManager() {
