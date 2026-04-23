@@ -19,6 +19,7 @@ Toda a interface está em **pt-BR**.
 - Requisitos
 - Compilação
 - Execução
+- Compatibilidade gráfica no Windows Server
 - Estrutura do projeto
 - Documentação para desenvolvimento
 - Segurança
@@ -200,6 +201,10 @@ Somente o usuário **admin** vê **E-mail** na barra do explorador ou no cartão
 - Identificação amigável com nome e ID curto no seletor.
 - Listagem de diretório preferencial por `docker exec ls -1Ap` (direta e rápida).
 - Fallback para método por tar quando necessário.
+- No gerenciador de contêineres, os botões de reinício priorizam **recriação via Compose**:
+  - tenta `docker compose up -d --force-recreate --pull always <serviço>`;
+  - fallback para `docker compose ... --force-recreate` e `docker-compose ...`;
+  - quando o contêiner não é Compose, usa `docker restart` como fallback.
 
 ### Ordenação de itens
 
@@ -274,6 +279,10 @@ Somente o usuário **admin** vê **E-mail** na barra do explorador ou no cartão
   - recarrega `PATH` de usuário/sistema;
   - define `CGO_ENABLED=1`;
   - compila com `-H=windowsgui` (sem console abrindo junto).
+- Execução no Windows Server (RDP/VM):
+  - o app detecta falha de OpenGL automaticamente;
+  - baixa runtime de fallback (`opengl32sw-64.7z`), extrai e relança o processo;
+  - cria `opengl32.dll` local quando necessário e marca o arquivo como oculto.
 - Servidor remoto:
   - OpenSSH com SFTP;
   - permissão de acesso ao Docker socket (`/var/run/docker.sock`) quando for usar contêineres.
@@ -318,6 +327,26 @@ Fluxo recomendado:
    - pastas do servidor;
    - ou um contêiner em execução.
 
+Ao iniciar no Windows Server sem OpenGL nativo, o aplicativo tenta autoajuste de runtime e pode relançar automaticamente uma vez.
+
+
+</details>
+
+<details>
+<summary><strong>Compatibilidade gráfica no Windows Server</strong></summary>
+
+Para reduzir intervenção manual em servidores sem OpenGL nativo, o `ContainerWay.exe`:
+
+1. testa criação de contexto OpenGL na inicialização;
+2. se falhar, baixa pacote de software rendering (Mesa llvmpipe);
+3. extrai o pacote (com fallback em Go puro quando `tar` não suporta `.7z`);
+4. prepara `opengl32.dll` em caminho local carregável;
+5. relança o processo com ambiente ajustado.
+
+Diagnóstico:
+
+- Log de bootstrap: `%LOCALAPPDATA%\ContainerWay\startup.log`.
+- Cache de runtime: `%LOCALAPPDATA%\ContainerWay\runtime-mesa`.
 
 </details>
 

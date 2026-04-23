@@ -25,13 +25,13 @@ Este arquivo serve como guia rapido para manutencao do projeto `ContainerWay`.
 
 ## Mapa de Arquivos Go (o que cada um faz)
 
-- `cmd/containerway/main.go`: inicializa e sobe a aplicacao principal.
+- `cmd/containerway/main.go`: bootstrap do executavel, logs de startup e fallback automatico de OpenGL no Windows Server.
 - `cmd/iconforge/main.go`: comandos para geracao/manipulacao de icones.
 - `internal/appui/appui.go`: fluxo principal da UI, janelas, estados e eventos.
 - `internal/appui/appicon.go`: carga e definicao de icone da aplicacao.
 - `internal/appui/connections.go`: tela/acoes relacionadas a conexoes.
 - `internal/appui/dirrow.go`: componente visual para linhas de diretorio/arquivo.
-- `internal/appui/dockercontainers.go`: listagem e manipulacao de conteineres Docker na UI.
+- `internal/appui/dockercontainers.go`: listagem de conteineres, metricas e reinicio/recriacao de servicos Docker Compose na UI.
 - `internal/appui/theme.go`: definicao e aplicacao de tema visual.
 - `internal/appui/window_maximize_darwin.go`: comportamento de maximizar janela no macOS.
 - `internal/appui/window_maximize_windows.go`: comportamento de maximizar janela no Windows.
@@ -61,4 +61,13 @@ Este arquivo serve como guia rapido para manutencao do projeto `ContainerWay`.
 - Todas as funcoes devem ter comentario imediatamente acima.
 - Comentarios devem ser curtos, objetivos e em pt-BR.
 - Sempre descrever intencao/efeito da funcao (o "por que" e "o que"), evitando obviedades.
+
+## Notas recentes de manutencao
+
+- Reinicio de contêineres na UI:
+  - para contêineres Compose, a acao de "Reiniciar" tenta recriar servico com `docker compose up -d --force-recreate` (com tentativa de pull).
+  - para contêineres fora de Compose, o fallback continua sendo `docker restart`.
+- Bootstrap grafico no Windows Server:
+  - quando OpenGL nativo falha, o executavel baixa e extrai runtime de software (`opengl32sw-64.7z`), prepara `opengl32.dll` local, relanca o processo e registra em `startup.log`.
+  - a DLL local criada ao lado do executavel e marcada como oculta para nao poluir a area de trabalho.
 

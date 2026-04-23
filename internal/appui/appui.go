@@ -18,9 +18,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/canvas"
 	fynecontainer "fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/driver/desktop"
@@ -52,38 +52,38 @@ type accessUser struct {
 }
 
 var (
-	loginSecretMu       sync.Mutex
-	loginSessionSecrets = map[string]transientSecret{}
-	auditLogMu          sync.Mutex
-	auditActorMu        sync.Mutex
-	auditActorName      = "desconhecido"
-	accessUserMu        sync.Mutex
+	loginSecretMu         sync.Mutex
+	loginSessionSecrets   = map[string]transientSecret{}
+	auditLogMu            sync.Mutex
+	auditActorMu          sync.Mutex
+	auditActorName        = "desconhecido"
+	accessUserMu          sync.Mutex
 	currentAccessUserName = ""
 	sessionAuditMu        sync.Mutex
 	sessionAuditLines     []string
 )
 
 const (
-	themePreferenceKey = "ui.theme.mode"
-	leftFavoritesPreferenceKey  = "explorer.left.favorites"
-	rightFavoritesPreferenceKey = "explorer.right.favorites"
-	operationHistoryPreferenceKey = "explorer.operation.history"
-	accessUsersPreferenceKey      = "access.users"
-	notifyEnabledPreferenceKey           = "notify.email.enabled"
-	notifyRecipientPreferenceKey         = "notify.email.to" // legado: um endereço; ainda sincronizado ao salvar
-	notifyRecipientsJSONPreferenceKey    = "notify.email.recipients"
-	notifySMTPHostPreferenceKey  = "notify.smtp.host"
-	notifySMTPPortPreferenceKey  = "notify.smtp.port"
-	notifySMTPUserPreferenceKey  = "notify.smtp.user"
-	notifySMTPPasswordPreferenceKey = "notify.smtp.password"
-	notifySMTPFromPreferenceKey  = "notify.smtp.from"
-	auditLogFileName             = "containerway-activity.log"
-	defaultAccessUser            = "admin"
-	defaultAccessPass            = "!q1w2e3r4$"
-	themeModeSystem    = "system"
-	themeModeLight     = "light"
-	themeModeDark      = "dark"
-	sessionEmailMaxLines = 1500 // máx. de linhas do registro no e-mail de fim de sessão
+	themePreferenceKey                = "ui.theme.mode"
+	leftFavoritesPreferenceKey        = "explorer.left.favorites"
+	rightFavoritesPreferenceKey       = "explorer.right.favorites"
+	operationHistoryPreferenceKey     = "explorer.operation.history"
+	accessUsersPreferenceKey          = "access.users"
+	notifyEnabledPreferenceKey        = "notify.email.enabled"
+	notifyRecipientPreferenceKey      = "notify.email.to" // legado: um endereço; ainda sincronizado ao salvar
+	notifyRecipientsJSONPreferenceKey = "notify.email.recipients"
+	notifySMTPHostPreferenceKey       = "notify.smtp.host"
+	notifySMTPPortPreferenceKey       = "notify.smtp.port"
+	notifySMTPUserPreferenceKey       = "notify.smtp.user"
+	notifySMTPPasswordPreferenceKey   = "notify.smtp.password"
+	notifySMTPFromPreferenceKey       = "notify.smtp.from"
+	auditLogFileName                  = "containerway-activity.log"
+	defaultAccessUser                 = "admin"
+	defaultAccessPass                 = "!q1w2e3r4$"
+	themeModeSystem                   = "system"
+	themeModeLight                    = "light"
+	themeModeDark                     = "dark"
+	sessionEmailMaxLines              = 1500 // máx. de linhas do registro no e-mail de fim de sessão
 )
 
 // Run inicia a aplicação Fyne.
@@ -470,13 +470,13 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 		status.SetText("Conectando…")
 		appendAuditLog("login", "Tentativa de conexão para "+strings.TrimSpace(host.Text))
 		creds := session.Credentials{
-			Host:              host.Text,
-			User:              user.Text,
-			Password:          pass.Text,
-			KeyPath:           strings.TrimSpace(keyPath.Text),
-			KeyPass:           keyPass.Text,
-			KnownHostsFiles:   splitKnownHostsFiles(knownHosts.Text),
-			InsecureHostKey:   insecureHost.Checked,
+			Host:            host.Text,
+			User:            user.Text,
+			Password:        pass.Text,
+			KeyPath:         strings.TrimSpace(keyPath.Text),
+			KeyPass:         keyPass.Text,
+			KnownHostsFiles: splitKnownHostsFiles(knownHosts.Text),
+			InsecureHostKey: insecureHost.Checked,
 		}
 		pJobs := parseParallelWorkers(parallelJobsEntry.Text)
 		go func() {
@@ -613,10 +613,10 @@ func themeModeFromLabel(label string) string {
 }
 
 type explorer struct {
-	win fyne.Window
-	s   *session.Session
-	hfs *hostfs.FS
-	cfs *containerfs.FS
+	win       fyne.Window
+	s         *session.Session
+	hfs       *hostfs.FS
+	cfs       *containerfs.FS
 	connCreds session.Credentials
 
 	leftPath  string
@@ -633,50 +633,50 @@ type explorer struct {
 	leftSel   int
 	rightSel  int
 
-	leftList    *widget.List
-	rightList   *widget.List
-	leftPathLbl *widget.Label
-	breadcrumb  *widget.Label
-	leftCrumbs  *fyne.Container
-	rightCrumbs *fyne.Container
-	ctxSelect   *widget.Select
-	leftQuick   *widget.Select
-	rightQuick  *widget.Select
-	status      *widget.Label
-	progress    *widget.ProgressBar
-	lastJobText *widget.Label
+	leftList        *widget.List
+	rightList       *widget.List
+	leftPathLbl     *widget.Label
+	breadcrumb      *widget.Label
+	leftCrumbs      *fyne.Container
+	rightCrumbs     *fyne.Container
+	ctxSelect       *widget.Select
+	leftQuick       *widget.Select
+	rightQuick      *widget.Select
+	status          *widget.Label
+	progress        *widget.ProgressBar
+	lastJobText     *widget.Label
 	leftFooterInfo  *widget.Label
 	rightFooterInfo *widget.Label
-	leftSearch  *widget.Entry
-	rightSearch *widget.Entry
+	leftSearch      *widget.Entry
+	rightSearch     *widget.Entry
 	leftTypeFilter  *widget.Select
 	rightTypeFilter *widget.Select
-	leftBack    []string
-	rightBack   []string
+	leftBack        []string
+	rightBack       []string
 
-	tm            *transfer.Manager
-	parallelJobs int
-	activePane    string
-	btnOpenLocal  *widget.Button
-	btnOpenRemote *widget.Button
-	btnUp         *widget.Button
-	btnDown       *widget.Button
-	btnLeftSend   *widget.Button
-	btnRightRecv  *widget.Button
-	lblSudoState *widget.Label
+	tm             *transfer.Manager
+	parallelJobs   int
+	activePane     string
+	btnOpenLocal   *widget.Button
+	btnOpenRemote  *widget.Button
+	btnUp          *widget.Button
+	btnDown        *widget.Button
+	btnLeftSend    *widget.Button
+	btnRightRecv   *widget.Button
+	lblSudoState   *widget.Label
 	btnDisableSudo *widget.Button
 
 	// Evita aplicar listagens antigas se o usuário mudar de pasta/contexto a meio.
 	rightRefreshSeq atomic.Uint64
 
-	remoteEditMu       sync.Mutex
-	remoteEditSessions map[string]*remoteEditSession
-	rootPromptOpen     atomic.Bool
-	sudoEnabled        bool
-	sudoUser           string
-	sudoPass           string
-	sudoValidatedAt    time.Time
-	sudoTTL            time.Duration
+	remoteEditMu         sync.Mutex
+	remoteEditSessions   map[string]*remoteEditSession
+	rootPromptOpen       atomic.Bool
+	sudoEnabled          bool
+	sudoUser             string
+	sudoPass             string
+	sudoValidatedAt      time.Time
+	sudoTTL              time.Duration
 	dialogShortcutActive atomic.Bool
 	dialogConfirmAction  func()
 	dialogCancelAction   func()
@@ -694,9 +694,9 @@ type explorer struct {
 	opHistory            []string
 	failedJobs           []transfer.Job
 
-	explorerMain   fyne.CanvasObject
-	sessionHub     fyne.CanvasObject
-	explorerOnTop  atomic.Bool // true quando a janela mostra o gerenciador (atalhos do explorador ativos)
+	explorerMain  fyne.CanvasObject
+	sessionHub    fyne.CanvasObject
+	explorerOnTop atomic.Bool // true quando a janela mostra o gerenciador (atalhos do explorador ativos)
 
 	// Destino do botão Voltar nas telas cheias de configuração (admin): explorador ou hub da sessão.
 	settingsReturnToExplorer bool
@@ -897,22 +897,22 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	}
 
 	ui := &explorer{
-		win:           w,
-		s:             s,
-		hfs:           &hostfs.FS{Client: s.SFTP},
-		connCreds:     creds,
-		leftPath:      homeOrRoot(),
-		rightPath:     "/",
-		hostMode:      true,
-		containerOpts: []string{"Pastas do servidor (fora dos contêineres)"},
-		containerIDs:  []string{""},
-		leftSel:        -1,
-		rightSel:       -1,
-		tm:             &transfer.Manager{},
-		parallelJobs:   parallelJobs,
-		activePane:     "left",
+		win:                w,
+		s:                  s,
+		hfs:                &hostfs.FS{Client: s.SFTP},
+		connCreds:          creds,
+		leftPath:           homeOrRoot(),
+		rightPath:          "/",
+		hostMode:           true,
+		containerOpts:      []string{"Pastas do servidor (fora dos contêineres)"},
+		containerIDs:       []string{""},
+		leftSel:            -1,
+		rightSel:           -1,
+		tm:                 &transfer.Manager{},
+		parallelJobs:       parallelJobs,
+		activePane:         "left",
 		remoteEditSessions: map[string]*remoteEditSession{},
-		sudoTTL:        10 * time.Minute,
+		sudoTTL:            10 * time.Minute,
 	}
 	ui.opHistory = loadOperationHistoryPreference()
 	appendAuditLog("sessao", "Explorador iniciado para "+strings.TrimSpace(creds.Host))

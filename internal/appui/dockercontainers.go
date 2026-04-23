@@ -5,15 +5,17 @@ import (
 	"context"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"image/color"
 	"io"
 	"math"
-	"image/color"
+	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
-	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -24,8 +26,8 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	dcontainertypes "github.com/docker/docker/api/types/container"
 	dcontainer "github.com/docker/docker/api/types/container"
+	dcontainertypes "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/pkg/stdcopy"
 )
 
@@ -54,17 +56,19 @@ type dockerManagerRow struct {
 	RestartCnt  int
 	UptimeLabel string
 	Running     bool
-	Restarting bool
-	AlertLevel int // 0 normal, 1 alerta, 2 crítico
+	Restarting  bool
+	AlertLevel  int // 0 normal, 1 alerta, 2 crítico
 }
 
 type dockerRateSample struct {
-	At       time.Time
-	NetRx    uint64
-	NetTx    uint64
-	DiskRead uint64
+	At        time.Time
+	NetRx     uint64
+	NetTx     uint64
+	DiskRead  uint64
 	DiskWrite uint64
 }
+
+var errComposeMetadataMissing = errors.New("metadados do docker compose ausentes")
 
 // dockerStateLabelPT executa parte da logica deste modulo.
 func dockerStateLabelPT(state string) string {
@@ -118,7 +122,7 @@ func buildDockerManagerRows(list []dcontainer.Summary) []dockerManagerRow {
 			DetailsLine: fmt.Sprintf("%s  ·  ID %s", dockerStateLabelPT(st), short),
 			ExtraLine:   "",
 			Running:     c.State == dcontainer.StateRunning,
-			Restarting: c.State == dcontainer.StateRestarting,
+			Restarting:  c.State == dcontainer.StateRestarting,
 		})
 	}
 	return out
@@ -412,6 +416,72 @@ func (ui *explorer) loadDockerContainerLogs(containerID string, tail int) (strin
 		return "Sem logs disponíveis para este contêiner.", nil
 	}
 	return text, nil
+}
+
+// forceRecreateContainer tenta recriar via Docker Compose quando possível.
+func (ui *explorer) forceRecreateContainer(containerID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	inspect, err := ui.s.Docker.ContainerInspect(ctx, containerID)
+	if err != nil {
+		return err
+	}
+	labels := inspect.Config.Labels
+	project := strings.TrimSpace(labels["com.docker.compose.project"])
+	service := strings.TrimSpace(labels["com.docker.compose.service"])
+	if project == "" || service == "" {
+		return errComposeMetadataMissing
+	}
+	workingDir := strings.TrimSpace(labels["com.docker.compose.project.working_dir"])
+	configFilesRaw := strings.TrimSpace(labels["com.docker.compose.project.config_files"])
+	configFiles := make([]string, 0, 4)
+	for _, f := range strings.Split(configFilesRaw, ",") {
+		f = strings.TrimSpace(f)
+		if f == "" {
+			continue
+		}
+		if !filepath.IsAbs(f) && workingDir != "" {
+			f = filepath.Join(workingDir, f)
+		}
+		configFiles = append(configFiles, f)
+	}
+
+	base := "docker compose -p " + shellQuote(project)
+	for _, f := range configFiles {
+		base += " -f " + shellQuote(f)
+	}
+	commandVariants := []string{
+		base + " up -d --force-recreate --pull always " + shellQuote(service),
+		base + " up -d --force-recreate " + shellQuote(service),
+		"docker-compose -p " + shellQuote(project) + " up -d --force-recreate " + shellQuote(service),
+	}
+	if workingDir != "" {
+		for i, cmd := range commandVariants {
+			commandVariants[i] = "cd " + shellQuote(workingDir) + " && " + cmd
+		}
+	}
+
+	var lastErr error
+	for _, cmd := range commandVariants {
+		stdout, stderr, runErr := ui.runSSHCommandWithInput(ctx, "sh -lc "+shellQuote(cmd), "")
+		if runErr == nil {
+			return nil
+		}
+		detail := strings.TrimSpace(stderr)
+		if detail == "" {
+			detail = strings.TrimSpace(stdout)
+		}
+		if detail != "" {
+			lastErr = fmt.Errorf("%v: %s", runErr, detail)
+		} else {
+			lastErr = runErr
+		}
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("falha ao recriar serviço %s", service)
+	}
+	return lastErr
 }
 
 // showDockerContainerManager executa parte da logica deste modulo.
@@ -859,9 +929,12 @@ func (ui *explorer) showDockerContainerManager() {
 				fyne.Do(func() { onDone(fmt.Errorf("sessão indisponível")) })
 				return
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
-			defer cancel()
-			err := ui.s.Docker.ContainerRestart(ctx, containerID, dcontainer.StopOptions{})
+			err := ui.forceRecreateContainer(containerID)
+			if errors.Is(err, errComposeMetadataMissing) {
+				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+				defer cancel()
+				err = ui.s.Docker.ContainerRestart(ctx, containerID, dcontainer.StopOptions{})
+			}
 			fyne.Do(func() { onDone(err) })
 			if err == nil {
 				appendAuditLog("docker", "Contêiner reiniciado: "+humanName)
@@ -918,9 +991,12 @@ func (ui *explorer) showDockerContainerManager() {
 							errs = append(errs, "sessão indisponível")
 							break
 						}
-						ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
-						err := ui.s.Docker.ContainerRestart(ctx, t.ID, dcontainer.StopOptions{})
-						cancel()
+						err := ui.forceRecreateContainer(t.ID)
+						if errors.Is(err, errComposeMetadataMissing) {
+							ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+							err = ui.s.Docker.ContainerRestart(ctx, t.ID, dcontainer.StopOptions{})
+							cancel()
+						}
 						if err != nil {
 							errs = append(errs, fmt.Sprintf("%s: %v", truncateRunes(t.Name, 48), err))
 						} else {
