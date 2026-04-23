@@ -24,7 +24,6 @@ Antes da tela de conexão SSH/SFTP, o app pede **login de acesso local** (usuár
 
 > Atenção: isso **não** substitui autenticação do servidor SSH; é apenas uma trava local do app. Em ambientes sensíveis, altere a senha do `admin` e cadastre usuários com senhas fortes.
 
-
 </details>
 
 <details>
