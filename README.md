@@ -392,3 +392,10 @@ Diagnóstico:
 - Fluxo sudo é usado apenas quando necessário para acesso a caminhos protegidos.
 
 </details>
+
+---
+
+## Créditos
+
+- Coordenador e idealizador do projeto: [Bruno Fernandes](https://bruno-fernandes.online)
+- Apoio no desenvolvimento: [Hugo Januario](https://hugojanuario.online)
