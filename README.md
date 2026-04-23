@@ -229,7 +229,6 @@ Somente o usuário **admin** vê **E-mail** na barra do explorador ou no cartão
 - `Del`: excluir item selecionado (com confirmação).
 - `Ctrl+Shift+N`: criar pasta no painel ativo.
 
-
 </details>
 
 <details>
