@@ -1,0 +1,797 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ContainerWay - Gestao de arquivos e containers remotos</title>
+  <meta name="description" content="ContainerWay e um gestor de arquivos estilo WinSCP para Windows, com SSH, SFTP e Docker remoto via SSH.">
+  <link rel="canonical" href="https://brunohf04.github.io/ContainerWay/">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="ContainerWay - Gestao de arquivos e containers remotos">
+  <meta property="og:description" content="Gestor de arquivos estilo WinSCP para Windows com SSH, SFTP e Docker remoto via SSH.">
+  <meta property="og:url" content="https://brunohf04.github.io/ContainerWay/">
+  <meta property="og:image" content="https://raw.githubusercontent.com/BrunoHF04/ContainerWay/main/assets/containerway-banner-simple.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="ContainerWay - Gestao de arquivos e containers remotos">
+  <meta name="twitter:description" content="Gestor de arquivos estilo WinSCP para Windows com SSH, SFTP e Docker remoto via SSH.">
+  <meta name="twitter:image" content="https://raw.githubusercontent.com/BrunoHF04/ContainerWay/main/assets/containerway-banner-simple.png">
+  <link rel="icon" href="https://raw.githubusercontent.com/BrunoHF04/ContainerWay/main/assets/containerway-icon.png" type="image/png">
+  <style>
+    :root {
+      --bg: #0b1220;
+      --bg-soft: #111a2e;
+      --bg-soft-2: #131f38;
+      --bg-glass: rgba(17, 26, 46, 0.62);
+      --text: #e7ecf7;
+      --muted: #9ca9c5;
+      --primary: #56a8ff;
+      --primary-hover: #7ab9ff;
+      --border: #21304f;
+      --card: #0f182b;
+      --shadow: 0 20px 45px rgba(3, 8, 20, 0.38);
+      --radius-lg: 16px;
+      --radius-md: 12px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      position: relative;
+      overflow-x: hidden;
+      margin: 0;
+      font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: radial-gradient(circle at top, #17233d, var(--bg) 55%);
+      color: var(--text);
+      line-height: 1.55;
+      text-rendering: optimizeLegibility;
+    }
+    body::before,
+    body::after {
+      content: "";
+      position: fixed;
+      inset: -20%;
+      pointer-events: none;
+      z-index: -1;
+      filter: blur(48px);
+      opacity: 0.35;
+      animation: ambient-float 22s ease-in-out infinite alternate;
+    }
+    body::before {
+      background:
+        radial-gradient(circle at 20% 30%, rgba(86, 168, 255, 0.28), transparent 42%),
+        radial-gradient(circle at 75% 75%, rgba(42, 127, 255, 0.22), transparent 46%);
+      transform: translate3d(0, 0, 0) scale(1.04);
+    }
+    body::after {
+      background:
+        radial-gradient(circle at 65% 20%, rgba(29, 205, 191, 0.18), transparent 40%),
+        radial-gradient(circle at 30% 80%, rgba(86, 168, 255, 0.16), transparent 44%);
+      animation-duration: 28s;
+      animation-direction: alternate-reverse;
+      opacity: 0.28;
+    }
+    a { color: var(--primary); }
+    .container { width: min(1120px, 92%); margin: 0 auto; }
+    .tag {
+      display: inline-block;
+      border: 1px solid var(--border);
+      background: rgba(17, 26, 46, 0.46);
+      color: var(--muted);
+      border-radius: 999px;
+      font-size: 0.84rem;
+      padding: 5px 10px;
+      width: fit-content;
+      justify-self: start;
+      backdrop-filter: blur(8px) saturate(1.06);
+      -webkit-backdrop-filter: blur(8px) saturate(1.06);
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-bottom: 1px solid rgba(95, 126, 176, 0.28);
+      background: rgba(10, 16, 30, 0.62);
+      backdrop-filter: blur(12px) saturate(1.1);
+      -webkit-backdrop-filter: blur(12px) saturate(1.1);
+      transition: background 220ms ease, border-color 220ms ease;
+    }
+    .header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 0;
+    }
+    .brand { font-size: 1.08rem; font-weight: 700; letter-spacing: 0.2px; }
+    .menu {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .menu a {
+      text-decoration: none;
+      color: var(--muted);
+      font-size: 0.94rem;
+      position: relative;
+      transition: color 180ms ease;
+    }
+    .menu a::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      bottom: -4px;
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--primary), transparent);
+      transform: scaleX(0);
+      transform-origin: center;
+      transition: transform 220ms ease;
+      opacity: 0.85;
+    }
+    .menu a:hover { color: var(--text); }
+    .menu a:hover::after { transform: scaleX(1); }
+    .menu a.active {
+      color: var(--text);
+      font-weight: 600;
+    }
+    .menu a.active::after { transform: scaleX(1); }
+    .btn {
+      display: inline-block;
+      text-decoration: none;
+      color: #081024;
+      background: linear-gradient(135deg, #9ad2ff, #56a8ff);
+      padding: 11px 16px;
+      border-radius: 999px;
+      font-weight: 700;
+      box-shadow: 0 8px 18px rgba(86, 168, 255, 0.22);
+      transition: transform 160ms ease, filter 160ms ease, box-shadow 160ms ease;
+    }
+    .btn:hover {
+      transform: translateY(-2px);
+      filter: saturate(1.08);
+      box-shadow: 0 12px 24px rgba(86, 168, 255, 0.3);
+    }
+    .btn-secondary {
+      color: var(--text);
+      background: transparent;
+      border: 1px solid var(--border);
+      box-shadow: none;
+    }
+    .btn-secondary:hover { background: var(--bg-soft); color: var(--text); }
+    .hero {
+      padding: 28px 0 36px;
+      display: grid;
+      gap: 18px;
+    }
+    h1 {
+      margin: 0;
+      line-height: 1.15;
+      font-size: clamp(2rem, 4vw, 3.1rem);
+    }
+    .subtitle {
+      color: var(--muted);
+      max-width: 76ch;
+      font-size: 1.05rem;
+      margin: 0;
+    }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
+    .trust-points {
+      margin-top: 4px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .trust-points span {
+      border: 1px solid rgba(92, 124, 179, 0.42);
+      background: rgba(15, 26, 48, 0.52);
+      color: #bfd2f8;
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 0.82rem;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    .stats {
+      margin-top: 8px;
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    }
+    .stat {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      background: linear-gradient(180deg, rgba(24, 38, 66, 0.74), rgba(17, 29, 53, 0.58));
+      box-shadow: var(--shadow);
+      transition: transform 200ms ease, border-color 200ms ease;
+      backdrop-filter: blur(12px) saturate(1.05);
+      -webkit-backdrop-filter: blur(12px) saturate(1.05);
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
+    }
+    .stat::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background: radial-gradient(180px circle at var(--mx, 50%) var(--my, 50%), rgba(110, 193, 255, 0.2), transparent 62%);
+      opacity: 0;
+      transition: opacity 220ms ease;
+    }
+    .stat > * { position: relative; z-index: 1; }
+    .stat:hover {
+      transform: translateY(-4px);
+      border-color: #3b5e95;
+    }
+    .stat:hover::after { opacity: 1; }
+    .stat strong { display: block; font-size: 1rem; }
+    .stat span { color: var(--muted); font-size: 0.95rem; }
+    .section { padding: 28px 0; }
+    .release-strip {
+      border: 1px solid rgba(90, 125, 184, 0.45);
+      background: linear-gradient(180deg, rgba(18, 31, 56, 0.72), rgba(14, 24, 44, 0.58));
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      display: grid;
+      grid-template-columns: 1.3fr 1fr auto;
+      gap: 12px;
+      align-items: center;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px) saturate(1.07);
+      -webkit-backdrop-filter: blur(12px) saturate(1.07);
+    }
+    .release-strip strong { font-size: 1.02rem; }
+    .release-strip p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 0.94rem;
+    }
+    .release-meta {
+      color: #bfd2f8;
+      font-size: 0.9rem;
+    }
+    .section h2 {
+      margin: 0 0 14px;
+      font-size: clamp(1.35rem, 2vw, 1.8rem);
+    }
+    .section-intro {
+      margin: 0 0 16px;
+      color: var(--muted);
+      max-width: 75ch;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 14px;
+    }
+    .card {
+      background: linear-gradient(180deg, rgba(20, 34, 60, 0.74), rgba(14, 26, 47, 0.58));
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      box-shadow: var(--shadow);
+      transition: transform 220ms ease, border-color 220ms ease, background 220ms ease;
+      position: relative;
+      overflow: hidden;
+      backdrop-filter: blur(14px) saturate(1.07);
+      -webkit-backdrop-filter: blur(14px) saturate(1.07);
+    }
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: -40% auto auto -15%;
+      width: 220px;
+      height: 220px;
+      background: radial-gradient(circle, rgba(86, 168, 255, 0.17), transparent 58%);
+      opacity: 0;
+      transition: opacity 240ms ease;
+      pointer-events: none;
+    }
+    .card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background: radial-gradient(200px circle at var(--mx, 50%) var(--my, 50%), rgba(110, 193, 255, 0.2), transparent 64%);
+      opacity: 0;
+      transition: opacity 220ms ease;
+    }
+    .card > * { position: relative; z-index: 1; }
+    .card:hover {
+      transform: translateY(-5px);
+      border-color: #4065a0;
+    }
+    .card:hover::before { opacity: 1; }
+    .card:hover::after { opacity: 1; }
+    .card h3 {
+      margin: 0 0 8px;
+      font-size: 1.03rem;
+    }
+    .card p { margin: 0; color: var(--muted); }
+    .card ul {
+      margin: 10px 0 0;
+      padding-left: 18px;
+      color: var(--muted);
+    }
+    .card li + li { margin-top: 6px; }
+    .split {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    }
+    .panel {
+      border: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(25, 39, 68, 0.74), rgba(16, 27, 50, 0.58));
+      border-radius: var(--radius-md);
+      padding: 16px;
+      box-shadow: var(--shadow);
+      transition: transform 220ms ease, border-color 220ms ease;
+      backdrop-filter: blur(14px) saturate(1.06);
+      -webkit-backdrop-filter: blur(14px) saturate(1.06);
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
+    }
+    .panel::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background: radial-gradient(210px circle at var(--mx, 50%) var(--my, 50%), rgba(110, 193, 255, 0.18), transparent 64%);
+      opacity: 0;
+      transition: opacity 220ms ease;
+    }
+    .panel > * { position: relative; z-index: 1; }
+    .panel:hover {
+      transform: translateY(-4px);
+      border-color: #4268a4;
+    }
+    .panel:hover::after { opacity: 1; }
+    .panel h3 { margin: 0 0 8px; }
+    .panel p { margin: 0 0 10px; color: var(--muted); }
+    .panel ul { margin: 0; padding-left: 18px; color: var(--muted); }
+    .panel li + li { margin-top: 6px; }
+    pre {
+      margin: 10px 0 0;
+      padding: 12px;
+      border-radius: 10px;
+      background: #081023;
+      border: 1px solid var(--border);
+      overflow-x: auto;
+      color: #d6e7ff;
+      font-size: 0.92rem;
+    }
+    .cta-final {
+      margin: 26px 0 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      background:
+        radial-gradient(circle at 15% 12%, rgba(86, 168, 255, 0.2), transparent 42%),
+        linear-gradient(160deg, rgba(16, 33, 65, 0.62), rgba(11, 22, 45, 0.5));
+      display: grid;
+      gap: 12px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px) saturate(1.08);
+      -webkit-backdrop-filter: blur(14px) saturate(1.08);
+    }
+    .reveal {
+      opacity: 0;
+      transform: translateY(22px);
+      transition: opacity 560ms cubic-bezier(.22,.61,.36,1), transform 560ms cubic-bezier(.22,.61,.36,1);
+    }
+    .reveal.in-view {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .reveal-stage {
+      opacity: 0;
+      transform: translateY(18px) scale(0.985);
+      filter: blur(3px);
+      transition:
+        opacity 620ms cubic-bezier(.22,.61,.36,1),
+        transform 620ms cubic-bezier(.22,.61,.36,1),
+        filter 620ms cubic-bezier(.22,.61,.36,1);
+      will-change: opacity, transform, filter;
+    }
+    .reveal-stage.in-view {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      filter: blur(0);
+    }
+    @keyframes fade-up {
+      from { opacity: 0; transform: translateY(18px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes ambient-float {
+      0% { transform: translate3d(-2%, -1%, 0) scale(1.03); }
+      50% { transform: translate3d(2%, 1.5%, 0) scale(1.07); }
+      100% { transform: translate3d(-1%, 2%, 0) scale(1.05); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation: none !important;
+        transition: none !important;
+      }
+      .reveal, .reveal-stage { opacity: 1; transform: none; filter: none; }
+    }
+    @media (max-width: 930px) {
+      .header-inner { justify-content: center; }
+      .menu { justify-content: center; }
+    }
+    @media (max-width: 640px) {
+      .header-inner { padding: 10px 0; }
+      .hero { padding-top: 18px; }
+      .actions .btn { width: 100%; text-align: center; }
+    }
+    @media (max-width: 900px) {
+      .release-strip {
+        grid-template-columns: 1fr;
+      }
+      .release-strip .btn {
+        width: fit-content;
+      }
+    }
+    footer {
+      border-top: 1px solid var(--border);
+      margin-top: 26px;
+      padding: 22px 0 36px;
+      color: var(--muted);
+      font-size: 0.94rem;
+    }
+    .to-top {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      z-index: 40;
+      border: 1px solid rgba(101, 138, 196, 0.5);
+      background: rgba(16, 27, 49, 0.72);
+      color: var(--text);
+      border-radius: 999px;
+      width: 48px;
+      height: 48px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      font-weight: 700;
+      line-height: 1;
+      cursor: pointer;
+      opacity: 0;
+      transform: translateY(10px);
+      pointer-events: none;
+      box-shadow: 0 10px 25px rgba(6, 11, 24, 0.38);
+      backdrop-filter: blur(10px) saturate(1.08);
+      -webkit-backdrop-filter: blur(10px) saturate(1.08);
+      transition: opacity 220ms ease, transform 220ms ease, background 200ms ease;
+    }
+    .to-top:hover {
+      background: rgba(24, 41, 73, 0.85);
+      transform: translateY(7px);
+    }
+    .to-top.show {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+    @media (max-width: 640px) {
+      .to-top {
+        right: 14px;
+        bottom: 14px;
+        width: 44px;
+        height: 44px;
+        font-size: 1.2rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container header-inner">
+      <div class="brand">ContainerWay</div>
+      <nav class="menu" aria-label="Navegacao principal">
+        <a href="#funcionalidades">Funcionalidades</a>
+        <a href="#modulos">Modulos</a>
+        <a href="#requisitos">Requisitos</a>
+        <a href="#instalacao">Instalacao</a>
+        <a href="#seguranca">Seguranca</a>
+      </nav>
+      <a class="btn" href="https://github.com/BrunoHF04/ContainerWay/releases/latest" target="_blank" rel="noopener noreferrer">Baixar EXE</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero reveal">
+      <span class="tag">Windows desktop app em Go + Fyne</span>
+      <h1>Gestao de arquivos em painel duplo para host Linux e containers Docker remotos</h1>
+      <p class="subtitle">
+        O ContainerWay entrega uma experiencia estilo WinSCP para rotina operacional: conexao via SSH/SFTP, navegacao local e remota,
+        transferencias com fila e suporte a contexto de containers em execucao, tudo com interface em pt-BR.
+      </p>
+      <div class="actions">
+        <a class="btn" href="https://github.com/BrunoHF04/ContainerWay/releases/latest" target="_blank" rel="noopener noreferrer">Baixar ultima release</a>
+        <a class="btn btn-secondary" href="https://github.com/BrunoHF04/ContainerWay" target="_blank" rel="noopener noreferrer">Repositorio no GitHub</a>
+      </div>
+      <div class="trust-points">
+        <span>Open source</span>
+        <span>Codigo publico no GitHub</span>
+        <span>Download oficial via Releases</span>
+      </div>
+      <div class="stats">
+        <div class="stat"><strong>SSH, SFTP e Docker remoto</strong><span>Docker acessado pelo socket remoto via SSH</span></div>
+        <div class="stat"><strong>Transferencia local, host e container</strong><span>Suporte recursivo, historico e retry</span></div>
+        <div class="stat"><strong>Fluxo completo em pt-BR</strong><span>Login local, hub de modulos e explorador integrado</span></div>
+      </div>
+    </section>
+
+    <section id="release" class="section reveal">
+      <div class="release-strip">
+        <div>
+          <strong>Release atual: v1.0.0</strong>
+          <p>Baixe o executavel oficial no fluxo de releases do GitHub.</p>
+        </div>
+        <div class="release-meta">
+          Canal: latest<br>
+          Distribuicao: Windows (.exe)
+        </div>
+        <a class="btn" href="https://github.com/BrunoHF04/ContainerWay/releases/latest" target="_blank" rel="noopener noreferrer">Baixar v1.0.0</a>
+      </div>
+    </section>
+
+    <section id="funcionalidades" class="section reveal">
+      <h2>Funcionalidades principais</h2>
+      <p class="section-intro">Visao geral baseada na documentacao oficial do projeto.</p>
+      <div class="grid">
+        <article class="card">
+          <h3>Conexao e seguranca</h3>
+          <p>Conexao SSH com senha, chave OpenSSH/PEM ou PPK, com suporte a known_hosts e validacao por etapas.</p>
+          <ul>
+            <li>Teste de conexao para SSH, SFTP e Docker.</li>
+            <li>Perfis de conexao salvos com opcao de manter segredo.</li>
+            <li>Validacoes de formulario em tempo real.</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h3>Explorador em painel duplo</h3>
+          <p>Painel esquerdo local e painel direito remoto/container, com navegacao rapida e foco operacional.</p>
+          <ul>
+            <li>Breadcrumbs, favoritos e busca por nome, tipo e extensao.</li>
+            <li>Menus de contexto para abrir, copiar, mover e excluir.</li>
+            <li>Edicao remota com monitoramento de alteracao e envio automatico.</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h3>Transferencias e fila</h3>
+          <p>Fluxo de transferencia local-host-container, incluindo arrastar e soltar e envio/recebimento em lote.</p>
+          <ul>
+            <li>Fila com progresso por tarefa e workers paralelos (1 a 16).</li>
+            <li>Suporte recursivo para diretorios.</li>
+            <li>Copiar/colar entre paineis com confirmacao.</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h3>Historico e log geral</h3>
+          <p>Rastreabilidade de operacoes com filtros, exportacao e reprocessamento de falhas.</p>
+          <ul>
+            <li>Aba de sessao e aba de log geral.</li>
+            <li>Retry da ultima falha ou de todas as falhas.</li>
+            <li>Abertura direta de arquivo e pasta de logs.</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h3>Docker remoto e terminal SSH</h3>
+          <p>Selecao de containers em execucao, acoes operacionais e terminal integrado na mesma sessao autenticada.</p>
+          <ul>
+            <li>Listagem de diretorio com caminho rapido e fallback.</li>
+            <li>Reinicio priorizando recriacao via Compose.</li>
+            <li>Terminal com suporte a atalhos e fallback de renderizacao.</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h3>Administracao e alertas por e-mail</h3>
+          <p>Area administrativa para usuarios locais e envio de alertas SMTP com destinatarios multiplos.</p>
+          <ul>
+            <li>Configuracao de alertas disponivel para admin.</li>
+            <li>Notificacoes de login e encerramento de sessao.</li>
+            <li>Persistencia local de configuracoes no Windows.</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section id="modulos" class="section reveal">
+      <h2>Modulos do sistema</h2>
+      <div class="split">
+        <article class="panel">
+          <h3>Tela inicial da sessao</h3>
+          <p>Apos conectar, o app abre um hub com os modulos principais da sessao ativa:</p>
+          <ul>
+            <li>Gerenciador de arquivos</li>
+            <li>Containers Docker</li>
+            <li>Terminal SSH</li>
+            <li>Configuracoes (usuario admin)</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>Atalhos de produtividade</h3>
+          <p>Atalhos inspirados em fluxo de gerenciadores de arquivos para operacoes frequentes.</p>
+          <ul>
+            <li><strong>F6</strong>: enviar/receber conforme painel ativo</li>
+            <li><strong>F5</strong>: atualizar paineis</li>
+            <li><strong>F2</strong>: renomear item selecionado</li>
+            <li><strong>Del</strong>: excluir com confirmacao</li>
+            <li><strong>Ctrl+F</strong>: focar busca do painel ativo</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section id="requisitos" class="section reveal">
+      <h2>Requisitos tecnicos</h2>
+      <div class="split">
+        <article class="panel">
+          <h3>Para desenvolvimento/build</h3>
+          <ul>
+            <li>Go 1.21+ (ou versao definida no <code>go.mod</code>).</li>
+            <li>No Windows, Fyne requer CGO com GCC/Clang no PATH.</li>
+            <li>Opcoes comuns: MSYS2 ou LLVM-MinGW.</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>Para uso com servidor remoto</h3>
+          <ul>
+            <li>OpenSSH com SFTP habilitado.</li>
+            <li>Acesso ao socket Docker remoto quando usar containers.</li>
+            <li>Preferencia por validacao de host com known_hosts.</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section id="instalacao" class="section reveal">
+      <h2>Instalacao e execucao</h2>
+      <div class="split">
+        <article class="panel">
+          <h3>Usuario final (recomendado)</h3>
+          <p>Baixe o executavel da release mais recente no GitHub e execute no Windows.</p>
+          <div class="actions">
+            <a class="btn" href="https://github.com/BrunoHF04/ContainerWay/releases/latest" target="_blank" rel="noopener noreferrer">Abrir releases</a>
+          </div>
+        </article>
+        <article class="panel">
+          <h3>Compilacao manual</h3>
+          <p>Para quem quer compilar localmente:</p>
+          <pre>.\build.ps1</pre>
+          <p>Saida esperada:</p>
+          <pre>.\ContainerWay.exe</pre>
+        </article>
+      </div>
+    </section>
+
+    <section id="seguranca" class="section reveal">
+      <h2>Boas praticas de seguranca</h2>
+      <div class="grid">
+        <article class="card">
+          <h3>Host key</h3>
+          <p>Em producao, use validacao por known_hosts e evite ignorar chave de host.</p>
+        </article>
+        <article class="card">
+          <h3>Segredos</h3>
+          <p>Prefira guardar credenciais apenas na sessao quando nao houver necessidade de persistencia local.</p>
+        </article>
+        <article class="card">
+          <h3>Permissoes elevadas</h3>
+          <p>Use sudo apenas quando necessario para caminhos protegidos no host remoto.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="cta-final reveal">
+      <h2>Pronto para usar o ContainerWay?</h2>
+      <p class="section-intro">
+        Baixe a ultima versao para Windows e acompanhe a evolucao do projeto no GitHub.
+      </p>
+      <div class="actions">
+        <a class="btn" href="https://github.com/BrunoHF04/ContainerWay/releases/latest" target="_blank" rel="noopener noreferrer">Baixar EXE agora</a>
+        <a class="btn btn-secondary" href="https://github.com/BrunoHF04/ContainerWay/blob/main/README.md" target="_blank" rel="noopener noreferrer">Ler README completa</a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">
+      ContainerWay - Coordenacao e desenvolvimento do projeto por <a href="https://bruno-fernandes.online" target="_blank" rel="noopener noreferrer">Bruno Fernandes</a>, com apoio no desenvolvimento por <a href="https://hugojanuario.online" target="_blank" rel="noopener noreferrer">Hugo Januario</a>. <span id="year"></span>
+    </div>
+  </footer>
+  <button class="to-top" id="toTopButton" type="button" aria-label="Voltar ao inicio da pagina" title="Voltar ao inicio">&#8593;</button>
+
+  <script>
+    document.getElementById("year").textContent = new Date().getFullYear();
+
+    const revealTargets = document.querySelectorAll(".reveal");
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("in-view");
+          observer.unobserve(entry.target);
+        }
+      }
+    }, {
+      threshold: 0.22,
+      rootMargin: "0px 0px -12% 0px"
+    });
+    revealTargets.forEach((target) => observer.observe(target));
+
+    const stagedTargets = document.querySelectorAll(
+      ".hero > *, .stats .stat, .grid .card, .split .panel, .cta-final .actions > *"
+    );
+    stagedTargets.forEach((element, index) => {
+      element.classList.add("reveal-stage");
+      element.style.transitionDelay = `${(index % 6) * 70}ms`;
+    });
+
+    const stagedObserver = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("in-view");
+          stagedObserver.unobserve(entry.target);
+        }
+      }
+    }, {
+      threshold: 0.28,
+      rootMargin: "0px 0px -10% 0px"
+    });
+    stagedTargets.forEach((target) => stagedObserver.observe(target));
+
+    const glowCards = document.querySelectorAll(".stat, .card, .panel");
+    glowCards.forEach((card) => {
+      card.addEventListener("mousemove", (event) => {
+        const rect = card.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        card.style.setProperty("--mx", `${x}px`);
+        card.style.setProperty("--my", `${y}px`);
+      });
+    });
+
+    const toTopButton = document.getElementById("toTopButton");
+    const toggleToTopButton = () => {
+      const shouldShow = window.scrollY > 320;
+      toTopButton.classList.toggle("show", shouldShow);
+    };
+    window.addEventListener("scroll", toggleToTopButton, { passive: true });
+    toggleToTopButton();
+
+    toTopButton.addEventListener("click", () => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+
+    const navLinks = document.querySelectorAll(".menu a");
+    const sectionMap = new Map();
+    navLinks.forEach((link) => {
+      const hash = link.getAttribute("href");
+      if (hash && hash.startsWith("#")) {
+        const section = document.querySelector(hash);
+        if (section) sectionMap.set(section, link);
+      }
+    });
+    const navObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        const link = sectionMap.get(entry.target);
+        if (!link) return;
+        if (entry.isIntersecting) {
+          navLinks.forEach((item) => item.classList.remove("active"));
+          link.classList.add("active");
+        }
+      });
+    }, {
+      threshold: 0.55,
+      rootMargin: "-20% 0px -30% 0px"
+    });
+    sectionMap.forEach((_, section) => navObserver.observe(section));
+  </script>
+</body>
+</html>
