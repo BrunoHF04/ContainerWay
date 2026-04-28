@@ -309,6 +309,20 @@
       margin: 0 0 8px;
       font-size: 1.03rem;
     }
+    .card-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      margin-bottom: 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(86, 168, 255, 0.32);
+      background: rgba(18, 34, 63, 0.72);
+      color: #b9d8ff;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
     .card p { margin: 0; color: var(--muted); }
     .card ul {
       margin: 10px 0 0;
@@ -377,6 +391,66 @@
       box-shadow: var(--shadow);
       backdrop-filter: blur(14px) saturate(1.08);
       -webkit-backdrop-filter: blur(14px) saturate(1.08);
+    }
+    .cta-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      width: fit-content;
+      color: #bcd7ff;
+      font-size: 0.9rem;
+      border: 1px solid rgba(95, 131, 188, 0.45);
+      border-radius: 999px;
+      padding: 6px 12px;
+      background: rgba(12, 26, 50, 0.58);
+    }
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+    }
+    .step {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: linear-gradient(180deg, rgba(22, 37, 66, 0.72), rgba(14, 25, 46, 0.58));
+      padding: 16px;
+      box-shadow: var(--shadow);
+    }
+    .step-number {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 999px;
+      background: rgba(86, 168, 255, 0.2);
+      color: #cde3ff;
+      font-weight: 700;
+      margin-bottom: 8px;
+      border: 1px solid rgba(95, 143, 214, 0.5);
+    }
+    .step h3 {
+      margin: 0 0 6px;
+      font-size: 1rem;
+    }
+    .step p {
+      margin: 0;
+      color: var(--muted);
+    }
+    .footer-links {
+      margin-top: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .footer-links a {
+      color: #b8cff3;
+      text-decoration: none;
+      border-bottom: 1px dotted rgba(184, 207, 243, 0.45);
+    }
+    .footer-links a:hover {
+      color: #d9e9ff;
+      border-bottom-color: rgba(217, 233, 255, 0.8);
     }
     .reveal {
       opacity: 0;
@@ -493,6 +567,8 @@
     <div class="container header-inner">
       <div class="brand">ContainerWay</div>
       <nav class="menu" aria-label="Navegacao principal">
+        <a href="#release">Download</a>
+        <a href="#como-funciona">Como funciona</a>
         <a href="#funcionalidades">Funcionalidades</a>
         <a href="#modulos">Modulos</a>
         <a href="#requisitos">Requisitos</a>
@@ -512,7 +588,7 @@
         transferencias com fila e suporte a contexto de containers em execucao, tudo com interface em pt-BR.
       </p>
       <div class="actions">
-        <a class="btn" href="https://github.com/BrunoHF04/ContainerWay/releases/latest" target="_blank" rel="noopener noreferrer">Baixar ultima release</a>
+        <a class="btn" href="https://github.com/BrunoHF04/ContainerWay/releases/latest" target="_blank" rel="noopener noreferrer">Baixar ultima release (v1.0.0)</a>
         <a class="btn btn-secondary" href="https://github.com/BrunoHF04/ContainerWay" target="_blank" rel="noopener noreferrer">Repositorio no GitHub</a>
       </div>
       <div class="trust-points">
@@ -546,6 +622,7 @@
       <p class="section-intro">Visao geral baseada na documentacao oficial do projeto.</p>
       <div class="grid">
         <article class="card">
+          <span class="card-icon" aria-hidden="true">SSH</span>
           <h3>Conexao e seguranca</h3>
           <p>Conexao SSH com senha, chave OpenSSH/PEM ou PPK, com suporte a known_hosts e validacao por etapas.</p>
           <ul>
@@ -555,6 +632,7 @@
           </ul>
         </article>
         <article class="card">
+          <span class="card-icon" aria-hidden="true">FS</span>
           <h3>Explorador em painel duplo</h3>
           <p>Painel esquerdo local e painel direito remoto/container, com navegacao rapida e foco operacional.</p>
           <ul>
@@ -564,6 +642,7 @@
           </ul>
         </article>
         <article class="card">
+          <span class="card-icon" aria-hidden="true">UP</span>
           <h3>Transferencias e fila</h3>
           <p>Fluxo de transferencia local-host-container, incluindo arrastar e soltar e envio/recebimento em lote.</p>
           <ul>
@@ -573,6 +652,7 @@
           </ul>
         </article>
         <article class="card">
+          <span class="card-icon" aria-hidden="true">LOG</span>
           <h3>Historico e log geral</h3>
           <p>Rastreabilidade de operacoes com filtros, exportacao e reprocessamento de falhas.</p>
           <ul>
@@ -582,6 +662,7 @@
           </ul>
         </article>
         <article class="card">
+          <span class="card-icon" aria-hidden="true">DOC</span>
           <h3>Docker remoto e terminal SSH</h3>
           <p>Selecao de containers em execucao, acoes operacionais e terminal integrado na mesma sessao autenticada.</p>
           <ul>
@@ -591,6 +672,7 @@
           </ul>
         </article>
         <article class="card">
+          <span class="card-icon" aria-hidden="true">ADM</span>
           <h3>Administracao e alertas por e-mail</h3>
           <p>Area administrativa para usuarios locais e envio de alertas SMTP com destinatarios multiplos.</p>
           <ul>
@@ -598,6 +680,28 @@
             <li>Notificacoes de login e encerramento de sessao.</li>
             <li>Persistencia local de configuracoes no Windows.</li>
           </ul>
+        </article>
+      </div>
+    </section>
+
+    <section id="como-funciona" class="section reveal">
+      <h2>Como funciona em 3 passos</h2>
+      <p class="section-intro">Fluxo simples para sair do zero e operar containers/arquivos rapidamente.</p>
+      <div class="steps">
+        <article class="step">
+          <span class="step-number">1</span>
+          <h3>Conecte via SSH/SFTP</h3>
+          <p>Cadastre o host, teste a conexao e autentique com senha ou chave.</p>
+        </article>
+        <article class="step">
+          <span class="step-number">2</span>
+          <h3>Escolha o contexto</h3>
+          <p>No painel remoto, alterne entre arquivos do host e diretorios de containers em execucao.</p>
+        </article>
+        <article class="step">
+          <span class="step-number">3</span>
+          <h3>Transfira e administre</h3>
+          <p>Use fila de transferencias, log de operacoes e acoes Docker no mesmo fluxo.</p>
         </article>
       </div>
     </section>
@@ -690,6 +794,7 @@
     </section>
 
     <section class="cta-final reveal">
+      <span class="cta-kicker">Versao atual disponivel: v1.0.0</span>
       <h2>Pronto para usar o ContainerWay?</h2>
       <p class="section-intro">
         Baixe a ultima versao para Windows e acompanhe a evolucao do projeto no GitHub.
@@ -704,6 +809,11 @@
   <footer>
     <div class="container">
       ContainerWay - Coordenacao e desenvolvimento do projeto por <a href="https://bruno-fernandes.online" target="_blank" rel="noopener noreferrer">Bruno Fernandes</a>, com apoio no desenvolvimento por <a href="https://hugojanuario.online" target="_blank" rel="noopener noreferrer">Hugo Januario</a>. <span id="year"></span>
+      <div class="footer-links">
+        <a href="https://github.com/BrunoHF04/ContainerWay/releases/latest" target="_blank" rel="noopener noreferrer">Release atual</a>
+        <a href="https://github.com/BrunoHF04/ContainerWay/issues" target="_blank" rel="noopener noreferrer">Issues</a>
+        <a href="https://github.com/BrunoHF04/ContainerWay/blob/main/README.md" target="_blank" rel="noopener noreferrer">Changelog/README</a>
+      </div>
     </div>
   </footer>
   <button class="to-top" id="toTopButton" type="button" aria-label="Voltar ao inicio da pagina" title="Voltar ao inicio">&#8593;</button>
