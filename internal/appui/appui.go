@@ -734,7 +734,9 @@ type hintIconButton struct {
 
 type terminalEntry struct {
 	widget.Entry
-	onTab func()
+	onTab   func()
+	onCtrlC func()
+	onF10   func()
 }
 
 func newTerminalEntry() *terminalEntry {
@@ -746,13 +748,32 @@ func newTerminalEntry() *terminalEntry {
 }
 
 func (t *terminalEntry) TypedKey(k *fyne.KeyEvent) {
-	if k != nil && k.Name == fyne.KeyTab {
-		if t.onTab != nil {
-			t.onTab()
+	if k != nil {
+		switch k.Name {
+		case fyne.KeyTab:
+			if t.onTab != nil {
+				t.onTab()
+			}
+			return
+		case fyne.KeyF10:
+			if t.onF10 != nil {
+				t.onF10()
+			}
+			return
 		}
-		return
 	}
 	t.Entry.TypedKey(k)
+}
+
+func (t *terminalEntry) TypedShortcut(s fyne.Shortcut) {
+	switch s.(type) {
+	case *fyne.ShortcutCopy:
+		if t.onCtrlC != nil {
+			t.onCtrlC()
+			return
+		}
+	}
+	t.Entry.TypedShortcut(s)
 }
 
 type terminalCellStyle struct {
@@ -856,16 +877,15 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 	grid := widget.NewTextGrid()
 	grid.ShowLineNumbers = false
 	grid.ShowWhitespace = false
-	gridScroll := fynecontainer.NewScroll(grid)
 	if err := renderVTToTextGridANSI(vt, grid); err != nil {
 		return err
 	}
 
 	status := widget.NewLabel("Conectando TTY interativo (modo ANSI)...")
 	status.Wrapping = fyne.TextWrapWord
-	clearBtn := widget.NewButtonWithIcon("Limpar", theme.ContentClearIcon(), nil)
+	clearBtn := widget.NewButton("Limpar", nil)
 	clearBtn.Importance = widget.MediumImportance
-	ctrlCBtn := widget.NewButtonWithIcon("Ctrl+C", theme.CancelIcon(), nil)
+	ctrlCBtn := widget.NewButton("Voltar", nil)
 	ctrlCBtn.Importance = widget.MediumImportance
 
 	sess, err := ui.s.SSH.NewSession()
@@ -908,6 +928,7 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 		renderDirty atomic.Bool
 		stopRender  = make(chan struct{})
 		stopOnce    sync.Once
+		lastCanvas  fyne.Size
 	)
 	closeTerminal := func() {
 		if closed.Swap(true) {
@@ -950,6 +971,46 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 			}
 		}
 	}()
+	calcTermSize := func(sz fyne.Size) (cols, rows int) {
+		// aproximação de célula mono para ajustar PTY ao viewport atual
+		cols = int(sz.Width / 8.6)
+		rows = int((sz.Height - 120) / 17.0)
+		if cols < 60 {
+			cols = 60
+		}
+		if rows < 16 {
+			rows = 16
+		}
+		return cols, rows
+	}
+	applyResize := func(sz fyne.Size) {
+		cols, rows := calcTermSize(sz)
+		vtMu.Lock()
+		vt.Resize(cols, rows)
+		vtMu.Unlock()
+		_ = sess.WindowChange(rows, cols)
+		renderDirty.Store(true)
+	}
+	go func() {
+		ticker := time.NewTicker(350 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stopRender:
+				return
+			case <-ticker.C:
+				if closed.Load() {
+					return
+				}
+				cur := ui.win.Canvas().Size()
+				if cur == lastCanvas {
+					continue
+				}
+				lastCanvas = cur
+				applyResize(cur)
+			}
+		}
+	}()
 
 	streamLoop := func(r io.Reader) {
 		buf := make([]byte, 4096)
@@ -988,6 +1049,12 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 			status.SetText("Falha ao enviar tecla.")
 		}
 	}
+	runTerminalCommand := func(cmd string) {
+		if strings.TrimSpace(cmd) == "" {
+			return
+		}
+		sendKey(cmd + "\r")
+	}
 
 	ctrlCBtn.OnTapped = func() { sendKey("\u0003") }
 	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{
@@ -1001,6 +1068,24 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 		status.SetText("Sinal Ctrl+C enviado (teclado).")
 	})
 	clearBtn.OnTapped = func() { sendKey("clear\r") }
+	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyUp}, func(fyne.Shortcut) { sendKey("\x1bOA") })
+	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyDown}, func(fyne.Shortcut) { sendKey("\x1bOB") })
+	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyRight}, func(fyne.Shortcut) { sendKey("\x1bOC") })
+	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyLeft}, func(fyne.Shortcut) { sendKey("\x1bOD") })
+	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyPageUp}, func(fyne.Shortcut) { sendKey("\x1b[5~") })
+	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyPageDown}, func(fyne.Shortcut) { sendKey("\x1b[6~") })
+	btnHtop := widget.NewButtonWithIcon("Gen. de Tarefas", theme.ComputerIcon(), func() {
+		cmd := `command -v htop >/dev/null 2>&1 || { echo '[ContainerWay] htop não encontrado. Instalando...'; if command -v apt-get >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y htop; elif command -v dnf >/dev/null 2>&1; then sudo dnf install -y htop; elif command -v yum >/dev/null 2>&1; then sudo yum install -y htop; elif command -v pacman >/dev/null 2>&1; then sudo pacman -Sy --noconfirm htop; else echo '[ContainerWay] Gerenciador de pacotes não suportado para instalação automática.'; fi; }; command -v htop >/dev/null 2>&1 && htop`
+		runTerminalCommand(cmd)
+		status.SetText("Abrindo gerenciador de tarefas (htop)...")
+	})
+	btnHtop.Importance = widget.MediumImportance
+	btnNcdu := widget.NewButtonWithIcon("Ver. Armazenamento", theme.StorageIcon(), func() {
+		cmd := `command -v ncdu >/dev/null 2>&1 || { echo '[ContainerWay] ncdu não encontrado. Instalando...'; if command -v apt-get >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y ncdu; elif command -v dnf >/dev/null 2>&1; then sudo dnf install -y ncdu; elif command -v yum >/dev/null 2>&1; then sudo yum install -y ncdu; elif command -v pacman >/dev/null 2>&1; then sudo pacman -Sy --noconfirm ncdu; else echo '[ContainerWay] Gerenciador de pacotes não suportado para instalação automática.'; fi; }; command -v ncdu >/dev/null 2>&1 && cd / && ncdu`
+		runTerminalCommand(cmd)
+		status.SetText("Abrindo análise de armazenamento (ncdu)...")
+	})
+	btnNcdu.Importance = widget.MediumImportance
 	ui.win.Canvas().SetOnTypedRune(func(r rune) { sendKey(string(r)) })
 	ui.win.Canvas().SetOnTypedKey(func(k *fyne.KeyEvent) {
 		if k == nil {
@@ -1016,13 +1101,13 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 		case fyne.KeyEscape:
 			sendKey("\x1b")
 		case fyne.KeyUp:
-			sendKey("\x1b[A")
+			sendKey("\x1bOA")
 		case fyne.KeyDown:
-			sendKey("\x1b[B")
+			sendKey("\x1bOB")
 		case fyne.KeyRight:
-			sendKey("\x1b[C")
+			sendKey("\x1bOC")
 		case fyne.KeyLeft:
-			sendKey("\x1b[D")
+			sendKey("\x1bOD")
 		case fyne.KeyHome:
 			sendKey("\x1b[H")
 		case fyne.KeyEnd:
@@ -1033,26 +1118,28 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 			sendKey("\x1b[5~")
 		case fyne.KeyPageDown:
 			sendKey("\x1b[6~")
+		case fyne.KeyF10:
+			sendKey("\x1b[21~")
 		}
 	})
 
-	controls := fynecontainer.NewHBox(
-		widget.NewLabelWithStyle("Terminal SSH", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		layout.NewSpacer(),
-		ctrlCBtn,
-		clearBtn,
-	)
-	header := fynecontainer.NewVBox(controls, widget.NewSeparator())
+	const terminalToolBtnW = float32(66)
+	ctrlCWrap := fynecontainer.NewGridWrap(fyne.NewSize(terminalToolBtnW, ctrlCBtn.MinSize().Height), ctrlCBtn)
+	clearWrap := fynecontainer.NewGridWrap(fyne.NewSize(terminalToolBtnW+8, clearBtn.MinSize().Height), clearBtn)
+	controls := fynecontainer.NewHBox(btnHtop, btnNcdu, layout.NewSpacer(), ctrlCWrap, clearWrap)
+	header := fynecontainer.NewVBox(controls)
 	footer := fynecontainer.NewVBox(widget.NewSeparator(), status)
 	body := fynecontainer.NewBorder(
 		header,
 		footer,
 		nil,
 		nil,
-		fynecontainer.NewPadded(gridScroll),
+		fynecontainer.NewPadded(fynecontainer.NewMax(grid)),
 	)
 	ui.openSettingsFullscreenWithBack("Terminal SSH", body, closeTerminal)
 	fyne.Do(func() { status.SetText("TTY ANSI ativo. Host: " + host) })
+	lastCanvas = ui.win.Canvas().Size()
+	applyResize(lastCanvas)
 	return nil
 }
 
@@ -5436,7 +5523,6 @@ func (ui *explorer) showTerminalConsoleCompat(currentDir, host string) {
 	terminal := newTerminalEntry()
 	terminal.Wrapping = fyne.TextWrapOff
 	terminal.SetMinRowsVisible(22)
-	terminalScroll := fynecontainer.NewScroll(terminal)
 
 	status := widget.NewLabel("")
 	status.Wrapping = fyne.TextWrapWord
@@ -5457,13 +5543,12 @@ func (ui *explorer) showTerminalConsoleCompat(currentDir, host string) {
 		terminal.CursorColumn = len([]rune(lines[len(lines)-1]))
 		terminal.Refresh()
 		internalSet = false
-		terminalScroll.ScrollToBottom()
 	}
 	setTerminalText(baseText)
 
-	clearBtn := widget.NewButtonWithIcon("Limpar", theme.ContentClearIcon(), nil)
+	clearBtn := widget.NewButton("Limpar", nil)
 	clearBtn.Importance = widget.MediumImportance
-	ctrlCBtn := widget.NewButtonWithIcon("Ctrl+C", theme.CancelIcon(), nil)
+	ctrlCBtn := widget.NewButton("Voltar", nil)
 	ctrlCBtn.Importance = widget.MediumImportance
 
 	sess, err := ui.s.SSH.NewSession()
@@ -5585,6 +5670,12 @@ func (ui *explorer) showTerminalConsoleCompat(currentDir, host string) {
 			status.SetText("Falha ao enviar tecla: " + strings.TrimSpace(err.Error()))
 		}
 	}
+	runTerminalCommand := func(cmd string) {
+		if strings.TrimSpace(cmd) == "" {
+			return
+		}
+		sendKey(cmd + "\r")
+	}
 	ctrlCBtn.OnTapped = func() {
 		sendKey("\u0003")
 		status.SetText("Sinal Ctrl+C enviado.")
@@ -5602,6 +5693,32 @@ func (ui *explorer) showTerminalConsoleCompat(currentDir, host string) {
 	clearBtn.OnTapped = func() {
 		sendKey("clear\r")
 		status.SetText("Comando clear enviado.")
+	}
+	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyUp}, func(fyne.Shortcut) { sendKey("\x1bOA") })
+	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyDown}, func(fyne.Shortcut) { sendKey("\x1bOB") })
+	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyRight}, func(fyne.Shortcut) { sendKey("\x1bOC") })
+	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyLeft}, func(fyne.Shortcut) { sendKey("\x1bOD") })
+	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyPageUp}, func(fyne.Shortcut) { sendKey("\x1b[5~") })
+	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyPageDown}, func(fyne.Shortcut) { sendKey("\x1b[6~") })
+	btnHtop := widget.NewButtonWithIcon("Gen. de Tarefas", theme.ComputerIcon(), func() {
+		cmd := `command -v htop >/dev/null 2>&1 || { echo '[ContainerWay] htop não encontrado. Instalando...'; if command -v apt-get >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y htop; elif command -v dnf >/dev/null 2>&1; then sudo dnf install -y htop; elif command -v yum >/dev/null 2>&1; then sudo yum install -y htop; elif command -v pacman >/dev/null 2>&1; then sudo pacman -Sy --noconfirm htop; else echo '[ContainerWay] Gerenciador de pacotes não suportado para instalação automática.'; fi; }; command -v htop >/dev/null 2>&1 && htop`
+		runTerminalCommand(cmd)
+		status.SetText("Abrindo gerenciador de tarefas (htop)...")
+	})
+	btnHtop.Importance = widget.MediumImportance
+	btnNcdu := widget.NewButtonWithIcon("Ver. Armazenamento", theme.StorageIcon(), func() {
+		cmd := `command -v ncdu >/dev/null 2>&1 || { echo '[ContainerWay] ncdu não encontrado. Instalando...'; if command -v apt-get >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y ncdu; elif command -v dnf >/dev/null 2>&1; then sudo dnf install -y ncdu; elif command -v yum >/dev/null 2>&1; then sudo yum install -y ncdu; elif command -v pacman >/dev/null 2>&1; then sudo pacman -Sy --noconfirm ncdu; else echo '[ContainerWay] Gerenciador de pacotes não suportado para instalação automática.'; fi; }; command -v ncdu >/dev/null 2>&1 && cd / && ncdu`
+		runTerminalCommand(cmd)
+		status.SetText("Abrindo análise de armazenamento (ncdu)...")
+	})
+	btnNcdu.Importance = widget.MediumImportance
+	terminal.onCtrlC = func() {
+		sendKey("\u0003")
+		status.SetText("Sinal Ctrl+C enviado (terminal).")
+	}
+	terminal.onF10 = func() {
+		sendKey("\x1b[21~")
+		status.SetText("F10 enviado (terminal).")
 	}
 
 	terminal.onTab = func() {
@@ -5664,13 +5781,13 @@ func (ui *explorer) showTerminalConsoleCompat(currentDir, host string) {
 		case fyne.KeyEscape:
 			sendKey("\x1b")
 		case fyne.KeyUp:
-			sendKey("\x1b[A")
+			sendKey("\x1bOA")
 		case fyne.KeyDown:
-			sendKey("\x1b[B")
+			sendKey("\x1bOB")
 		case fyne.KeyRight:
-			sendKey("\x1b[C")
+			sendKey("\x1bOC")
 		case fyne.KeyLeft:
-			sendKey("\x1b[D")
+			sendKey("\x1bOD")
 		case fyne.KeyHome:
 			sendKey("\x1b[H")
 		case fyne.KeyEnd:
@@ -5688,20 +5805,18 @@ func (ui *explorer) showTerminalConsoleCompat(currentDir, host string) {
 		status.SetText("TTY interativo ativo (modo compatibilidade). Host: " + host)
 	})
 
-	controls := fynecontainer.NewHBox(
-		widget.NewLabelWithStyle("Terminal SSH", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		layout.NewSpacer(),
-		ctrlCBtn,
-		clearBtn,
-	)
-	header := fynecontainer.NewVBox(controls, widget.NewSeparator())
+	const terminalToolBtnW = float32(66)
+	ctrlCWrap := fynecontainer.NewGridWrap(fyne.NewSize(terminalToolBtnW, ctrlCBtn.MinSize().Height), ctrlCBtn)
+	clearWrap := fynecontainer.NewGridWrap(fyne.NewSize(terminalToolBtnW+8, clearBtn.MinSize().Height), clearBtn)
+	controls := fynecontainer.NewHBox(btnHtop, btnNcdu, layout.NewSpacer(), ctrlCWrap, clearWrap)
+	header := fynecontainer.NewVBox(controls)
 	footer := fynecontainer.NewVBox(widget.NewSeparator(), status)
 	body := fynecontainer.NewBorder(
 		header,
 		footer,
 		nil,
 		nil,
-		fynecontainer.NewPadded(terminalScroll),
+		fynecontainer.NewPadded(fynecontainer.NewMax(terminal)),
 	)
 	ui.openSettingsFullscreenWithBack("Terminal SSH", body, closeTerminal)
 }
