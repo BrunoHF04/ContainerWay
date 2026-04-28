@@ -34,6 +34,7 @@ Depois de **Conectar** com sucesso, abre-se primeiro a **tela inicial da sessão
 - **Pesquisar módulos** (filtro por palavra-chave);
 - **Gerenciador de arquivos** — abre o explorador em painel duplo (no Windows/macOS a janela tende a **maximizar**);
 - **Contêineres Docker** — lista e ações no host remoto;
+- **Terminal SSH** — console remoto integrado para executar comandos no host;
 - **Configurações** (somente **admin**) — atalhos para **Usuários** e **Alertas por e-mail**.
 
 No explorador, o botão **Início** volta para essa tela **sem desconectar**. O botão **Sair** encerra a sessão SSH e retorna ao login de acesso local (a janela volta ao tamanho adequado).
@@ -191,6 +192,20 @@ Somente o usuário **admin** vê **E-mail** na barra do explorador ou no cartão
   - fallback para `docker compose ... --force-recreate` e `docker-compose ...`;
   - quando o contêiner não é Compose, usa `docker restart` como fallback.
 
+### Terminal SSH (integrado)
+
+- Acesso direto pelo cartão **Terminal SSH** no hub e pelo botão **Terminal** no explorador.
+- Sessão SSH interativa reaproveitando a conexão já autenticada no login.
+- Suporte de entrada para:
+  - digitação contínua no terminal;
+  - `Tab` (autocomplete);
+  - setas, `Home`, `End`, `Delete`, `PageUp` e `PageDown`;
+  - `Ctrl+C` (botão e atalho de teclado).
+- Botão **Limpar** envia `clear` para o shell remoto.
+- Modo de execução com fallback:
+  - tenta renderização ANSI/VT para melhor compatibilidade visual;
+  - se houver falha no ambiente, cai automaticamente para o modo de compatibilidade estável (sem encerrar o app).
+
 ### Ordenação de itens
 
 - Ordenação estilo WinSCP:
@@ -244,6 +259,7 @@ Somente o usuário **admin** vê **E-mail** na barra do explorador ou no cartão
 | Chave PPK (PuTTY) | [`github.com/kayrus/putty`](https://github.com/kayrus/putty) |
 | E-mail (SMTP) | `net/smtp` (pacote interno `internal/mailnotify`) |
 | Docker remoto | `github.com/docker/docker` (cliente Moby) |
+| Emulação de terminal ANSI/VT | `github.com/hinshun/vt10x` |
 | Concorrência | goroutines, `sync`, `sync/atomic` |
 
 

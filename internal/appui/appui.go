@@ -1,6 +1,7 @@
 package appui
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,12 +12,14 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -29,6 +32,8 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	dcontainer "github.com/docker/docker/api/types/container"
+	"github.com/hinshun/vt10x"
+	"golang.org/x/crypto/ssh"
 
 	"containerway/internal/containerfs"
 	"containerway/internal/fsutil"
@@ -727,6 +732,330 @@ type hintIconButton struct {
 	hover   bool
 }
 
+type terminalEntry struct {
+	widget.Entry
+	onTab func()
+}
+
+func newTerminalEntry() *terminalEntry {
+	t := &terminalEntry{}
+	t.MultiLine = true
+	t.Wrapping = fyne.TextWrapOff
+	t.ExtendBaseWidget(t)
+	return t
+}
+
+func (t *terminalEntry) TypedKey(k *fyne.KeyEvent) {
+	if k != nil && k.Name == fyne.KeyTab {
+		if t.onTab != nil {
+			t.onTab()
+		}
+		return
+	}
+	t.Entry.TypedKey(k)
+}
+
+type terminalCellStyle struct {
+	textStyle fyne.TextStyle
+	fg        color.Color
+	bg        color.Color
+}
+
+func (s terminalCellStyle) Style() fyne.TextStyle         { return s.textStyle }
+func (s terminalCellStyle) TextColor() color.Color        { return s.fg }
+func (s terminalCellStyle) BackgroundColor() color.Color  { return s.bg }
+
+func xtermColorToRGBA(c vt10x.Color, isFG bool) color.Color {
+	if isFG && c == vt10x.DefaultFG {
+		return color.NRGBA{R: 220, G: 220, B: 220, A: 255}
+	}
+	if !isFG && c == vt10x.DefaultBG {
+		return color.NRGBA{R: 25, G: 27, B: 34, A: 255}
+	}
+	n := int(c)
+	base16 := []color.NRGBA{
+		{0, 0, 0, 255}, {205, 49, 49, 255}, {13, 188, 121, 255}, {229, 229, 16, 255},
+		{36, 114, 200, 255}, {188, 63, 188, 255}, {17, 168, 205, 255}, {229, 229, 229, 255},
+		{102, 102, 102, 255}, {241, 76, 76, 255}, {35, 209, 139, 255}, {245, 245, 67, 255},
+		{59, 142, 234, 255}, {214, 112, 214, 255}, {41, 184, 219, 255}, {255, 255, 255, 255},
+	}
+	if n >= 0 && n < len(base16) {
+		return base16[n]
+	}
+	if n >= 16 && n <= 231 {
+		idx := n - 16
+		r := idx / 36
+		g := (idx % 36) / 6
+		b := idx % 6
+		scale := []uint8{0, 95, 135, 175, 215, 255}
+		return color.NRGBA{R: scale[r], G: scale[g], B: scale[b], A: 255}
+	}
+	if n >= 232 && n <= 255 {
+		v := uint8(8 + (n-232)*10)
+		return color.NRGBA{R: v, G: v, B: v, A: 255}
+	}
+	if isFG {
+		return color.NRGBA{R: 220, G: 220, B: 220, A: 255}
+	}
+	return color.NRGBA{R: 25, G: 27, B: 34, A: 255}
+}
+
+func renderVTToTextGrid(vt vt10x.Terminal, grid *widget.TextGrid) {
+	grid.SetText(vt.String())
+	grid.Refresh()
+	grid.ScrollToBottom()
+}
+
+func renderVTToTextGridANSI(vt vt10x.Terminal, grid *widget.TextGrid) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("render vt: %v", r)
+		}
+	}()
+	vt.Lock()
+	defer vt.Unlock()
+	cols, rows := vt.Size()
+	if cols <= 0 || rows <= 0 {
+		return fmt.Errorf("tamanho VT inválido: %dx%d", cols, rows)
+	}
+	renderRows := make([]widget.TextGridRow, rows)
+	for y := 0; y < rows; y++ {
+		cells := make([]widget.TextGridCell, cols)
+		for x := 0; x < cols; x++ {
+			g := vt.Cell(x, y)
+			ch := g.Char
+			if ch == 0 {
+				ch = ' '
+			}
+			cells[x] = widget.TextGridCell{
+				Rune: ch,
+				Style: terminalCellStyle{
+					textStyle: fyne.TextStyle{Monospace: true},
+					fg:        xtermColorToRGBA(g.FG, true),
+					bg:        xtermColorToRGBA(g.BG, false),
+				},
+			}
+		}
+		renderRows[y] = widget.TextGridRow{Cells: cells}
+	}
+	grid.Rows = renderRows
+	grid.Refresh()
+	return nil
+}
+
+func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
+	const (
+		termCols = 160
+		termRows = 48
+	)
+
+	vt := vt10x.New(vt10x.WithSize(termCols, termRows))
+	if vt == nil {
+		return errors.New("vt indisponível")
+	}
+	grid := widget.NewTextGrid()
+	grid.ShowLineNumbers = false
+	grid.ShowWhitespace = false
+	gridScroll := fynecontainer.NewScroll(grid)
+	if err := renderVTToTextGridANSI(vt, grid); err != nil {
+		return err
+	}
+
+	status := widget.NewLabel("Conectando TTY interativo (modo ANSI)...")
+	status.Wrapping = fyne.TextWrapWord
+	clearBtn := widget.NewButtonWithIcon("Limpar", theme.ContentClearIcon(), nil)
+	clearBtn.Importance = widget.MediumImportance
+	ctrlCBtn := widget.NewButtonWithIcon("Ctrl+C", theme.CancelIcon(), nil)
+	ctrlCBtn.Importance = widget.MediumImportance
+
+	sess, err := ui.s.SSH.NewSession()
+	if err != nil {
+		return err
+	}
+	stdin, err := sess.StdinPipe()
+	if err != nil {
+		_ = sess.Close()
+		return err
+	}
+	stdout, err := sess.StdoutPipe()
+	if err != nil {
+		_ = sess.Close()
+		return err
+	}
+	stderr, err := sess.StderrPipe()
+	if err != nil {
+		_ = sess.Close()
+		return err
+	}
+	modes := ssh.TerminalModes{
+		ssh.ECHO:          1,
+		ssh.TTY_OP_ISPEED: 14400,
+		ssh.TTY_OP_OSPEED: 14400,
+	}
+	if err := sess.RequestPty("xterm-256color", termRows, termCols, modes); err != nil {
+		_ = sess.Close()
+		return err
+	}
+	startCmd := "cd -- " + shellQuote(currentDir) + " 2>/dev/null || cd /; export TERM=xterm-256color; exec bash -li"
+	if err := sess.Start(startCmd); err != nil {
+		_ = sess.Close()
+		return err
+	}
+
+	var (
+		closed      atomic.Bool
+		vtMu        sync.Mutex
+		renderDirty atomic.Bool
+		stopRender  = make(chan struct{})
+		stopOnce    sync.Once
+	)
+	closeTerminal := func() {
+		if closed.Swap(true) {
+			return
+		}
+		stopOnce.Do(func() { close(stopRender) })
+		ui.win.Canvas().SetOnTypedRune(nil)
+		ui.win.Canvas().SetOnTypedKey(nil)
+		_, _ = io.WriteString(stdin, "exit\n")
+		_ = stdin.Close()
+		_ = sess.Close()
+	}
+
+	appendFromRemote := func(chunk []byte) {
+		vtMu.Lock()
+		_, _ = vt.Write(chunk)
+		vtMu.Unlock()
+		renderDirty.Store(true)
+	}
+
+	go func() {
+		ticker := time.NewTicker(33 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stopRender:
+				return
+			case <-ticker.C:
+				if closed.Load() || !renderDirty.Swap(false) {
+					continue
+				}
+				fyne.Do(func() {
+					vtMu.Lock()
+					rerr := renderVTToTextGridANSI(vt, grid)
+					vtMu.Unlock()
+					if rerr != nil {
+						status.SetText("Render ANSI instável; use modo compatibilidade.")
+					}
+				})
+			}
+		}
+	}()
+
+	streamLoop := func(r io.Reader) {
+		buf := make([]byte, 4096)
+		for {
+			n, rerr := r.Read(buf)
+			if n > 0 {
+				appendFromRemote(buf[:n])
+			}
+			if rerr != nil {
+				return
+			}
+		}
+	}
+	go streamLoop(stdout)
+	go streamLoop(stderr)
+	go func() {
+		waitErr := sess.Wait()
+		fyne.Do(func() {
+			ui.win.Canvas().SetOnTypedRune(nil)
+			ui.win.Canvas().SetOnTypedKey(nil)
+			if waitErr != nil && !closed.Load() {
+				status.SetText("Sessão encerrada: " + strings.TrimSpace(waitErr.Error()))
+			} else if !closed.Load() {
+				status.SetText("Sessão encerrada.")
+			}
+			ctrlCBtn.Disable()
+			clearBtn.Disable()
+		})
+	}()
+
+	sendKey := func(seq string) {
+		if closed.Load() || seq == "" {
+			return
+		}
+		if _, werr := io.WriteString(stdin, seq); werr != nil {
+			status.SetText("Falha ao enviar tecla.")
+		}
+	}
+
+	ctrlCBtn.OnTapped = func() { sendKey("\u0003") }
+	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{
+		KeyName:  fyne.KeyC,
+		Modifier: fyne.KeyModifierControl,
+	}, func(fyne.Shortcut) {
+		if closed.Load() {
+			return
+		}
+		sendKey("\u0003")
+		status.SetText("Sinal Ctrl+C enviado (teclado).")
+	})
+	clearBtn.OnTapped = func() { sendKey("clear\r") }
+	ui.win.Canvas().SetOnTypedRune(func(r rune) { sendKey(string(r)) })
+	ui.win.Canvas().SetOnTypedKey(func(k *fyne.KeyEvent) {
+		if k == nil {
+			return
+		}
+		switch k.Name {
+		case fyne.KeyReturn, fyne.KeyEnter:
+			sendKey("\r")
+		case fyne.KeyBackspace:
+			sendKey("\x7f")
+		case fyne.KeyTab:
+			sendKey("\t")
+		case fyne.KeyEscape:
+			sendKey("\x1b")
+		case fyne.KeyUp:
+			sendKey("\x1b[A")
+		case fyne.KeyDown:
+			sendKey("\x1b[B")
+		case fyne.KeyRight:
+			sendKey("\x1b[C")
+		case fyne.KeyLeft:
+			sendKey("\x1b[D")
+		case fyne.KeyHome:
+			sendKey("\x1b[H")
+		case fyne.KeyEnd:
+			sendKey("\x1b[F")
+		case fyne.KeyDelete:
+			sendKey("\x1b[3~")
+		case fyne.KeyPageUp:
+			sendKey("\x1b[5~")
+		case fyne.KeyPageDown:
+			sendKey("\x1b[6~")
+		}
+	})
+
+	controls := fynecontainer.NewHBox(
+		widget.NewLabelWithStyle("Terminal SSH", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		layout.NewSpacer(),
+		ctrlCBtn,
+		clearBtn,
+	)
+	header := fynecontainer.NewVBox(controls, widget.NewSeparator())
+	footer := fynecontainer.NewVBox(widget.NewSeparator(), status)
+	body := fynecontainer.NewBorder(
+		header,
+		footer,
+		nil,
+		nil,
+		fynecontainer.NewPadded(gridScroll),
+	)
+	ui.openSettingsFullscreenWithBack("Terminal SSH", body, closeTerminal)
+	fyne.Do(func() { status.SetText("TTY ANSI ativo. Host: " + host) })
+	return nil
+}
+
 // newHintIconButton executa parte da logica deste modulo.
 func newHintIconButton(icon fyne.Resource, hint string, status *widget.Label, tapped func()) *hintIconButton {
 	b := &hintIconButton{
@@ -1093,6 +1422,8 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	btnHistory := widget.NewButtonWithIcon("Histórico", theme.HistoryIcon(), func() { ui.showOperationHistory() })
 	btnDocker := widget.NewButtonWithIcon("Contêineres Docker", theme.StorageIcon(), func() { ui.showDockerContainerManager() })
 	btnDocker.Importance = widget.MediumImportance
+	btnTerminal := widget.NewButtonWithIcon("Terminal", theme.ComputerIcon(), func() { ui.showTerminalConsole() })
+	btnTerminal.Importance = widget.MediumImportance
 	btnManual := widget.NewButton("?", func() { ui.showUserManual() })
 	btnManual.Importance = widget.MediumImportance
 	btnManageUsers := widget.NewButtonWithIcon("Usuários", theme.AccountIcon(), func() { ui.showAccessUserManager() })
@@ -1114,6 +1445,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 		ui.btnDown,
 		btnHistory,
 		btnDocker,
+		btnTerminal,
 		btnManual,
 	}
 	if isCurrentAccessAdmin() {
@@ -1335,6 +1667,20 @@ func buildSessionHub(ui *explorer) fyne.CanvasObject {
 	mods = append(mods, hubModule{
 		wrap: fynecontainer.NewPadded(cardDocker),
 		blob: "docker contêiner container rodando reiniciar host imagem compose",
+	})
+
+	openTerminal := widget.NewButtonWithIcon("Abrir", theme.ComputerIcon(), func() {
+		ui.showTerminalConsole()
+	})
+	openTerminal.Importance = widget.MediumImportance
+	cardTerminal := hubSessionCard(
+		"Terminal SSH",
+		"Console remoto básico para executar comandos no host conectado.",
+		fynecontainer.NewPadded(openTerminal),
+	)
+	mods = append(mods, hubModule{
+		wrap: fynecontainer.NewPadded(cardTerminal),
+		blob: "terminal ssh shell console comando host remoto bash sh",
 	})
 
 	if isCurrentAccessAdmin() {
@@ -1945,6 +2291,82 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'"
 }
 
+var ansiEscapeRE = regexp.MustCompile(`\x1b\[[0-9;?]*[ -/]*[@-~]`)
+
+// normalizeTerminalChunk remove sequências ANSI/CSI que quebram o layout no widget textual.
+func normalizeTerminalChunk(chunk string) string {
+	if chunk == "" {
+		return ""
+	}
+	chunk = strings.ReplaceAll(chunk, "\r\n", "\n")
+	chunk = strings.ReplaceAll(chunk, "\r", "\n")
+	chunk = ansiEscapeRE.ReplaceAllString(chunk, "")
+	// Remove OSC (window title / hyperlinks), comuns em shells modernos.
+	for {
+		start := strings.Index(chunk, "\x1b]")
+		if start < 0 {
+			break
+		}
+		rest := chunk[start+2:]
+		endBEL := strings.Index(rest, "\x07")
+		endST := strings.Index(rest, "\x1b\\")
+		end := -1
+		if endBEL >= 0 {
+			end = start + 2 + endBEL + 1
+		}
+		if endST >= 0 {
+			cand := start + 2 + endST + 2
+			if end < 0 || cand < end {
+				end = cand
+			}
+		}
+		if end < 0 {
+			chunk = chunk[:start]
+			break
+		}
+		chunk = chunk[:start] + chunk[end:]
+	}
+	return chunk
+}
+
+// decodeTerminalUTF8 junta fragmentos de bytes e evita caracteres quebrados por cortes no meio do rune.
+func decodeTerminalUTF8(in []byte, pending []byte) (string, []byte) {
+	if len(in) == 0 && len(pending) == 0 {
+		return "", pending
+	}
+	data := append(append([]byte{}, pending...), in...)
+	if utf8.Valid(data) {
+		return string(data), nil
+	}
+	// Tenta preservar um sufixo curto para completar no próximo chunk.
+	for keep := 1; keep <= 3 && keep < len(data); keep++ {
+		prefix := data[:len(data)-keep]
+		suffix := data[len(data)-keep:]
+		if utf8.Valid(prefix) && !utf8.FullRune(suffix) {
+			return string(prefix), append([]byte{}, suffix...)
+		}
+	}
+	// Se ainda houver inválidos, sanitiza para não poluir a tela.
+	return string(bytes.ToValidUTF8(data, []byte{})), nil
+}
+
+func applyTerminalBackspaces(s string) string {
+	if s == "" {
+		return s
+	}
+	out := make([]rune, 0, len(s))
+	for _, r := range s {
+		if r == '\b' || r == 127 {
+			if len(out) > 0 {
+				out = out[:len(out)-1]
+			}
+			continue
+		}
+		out = append(out, r)
+	}
+	return string(out)
+}
+
 // appendSudoDebugLog executa parte da logica deste modulo.
 func appendSudoDebugLog(line string) {
 	logPath := filepath.Join(os.TempDir(), "containerway-sudo-debug.log")
@@ -2108,7 +2530,7 @@ func (ui *explorer) copyHostFileWithSudoToLocal(ctx context.Context, remotePath,
 			if msg == "" {
 				msg = err.Error()
 			}
-			return fmt.Errorf(msg)
+			return errors.New(msg)
 		}
 	}
 	return nil
@@ -2171,7 +2593,7 @@ func (ui *explorer) copyLocalFileToHostWithSudo(ctx context.Context, localPath, 
 			if msg == "" {
 				msg = err.Error()
 			}
-			return fmt.Errorf(msg)
+			return errors.New(msg)
 		}
 	}
 	return nil
@@ -2236,7 +2658,7 @@ func (ui *explorer) copyLocalDirToHostWithSudo(ctx context.Context, localDir, re
 		if msg == "" {
 			msg = err.Error()
 		}
-		return 0, fmt.Errorf(msg)
+		return 0, errors.New(msg)
 	}
 	return localDirTotalBytes(localDir), nil
 }
@@ -2320,7 +2742,7 @@ func (ui *explorer) copyHostDirWithSudoToLocal(ctx context.Context, remoteDir, d
 			if msg == "" {
 				msg = err.Error()
 			}
-			return 0, fmt.Errorf(msg)
+			return 0, errors.New(msg)
 		}
 	}
 
@@ -2391,7 +2813,7 @@ func (ui *explorer) listHostWithSudo(ctx context.Context, p string) ([]fsutil.Di
 		if msg == "" {
 			msg = err.Error()
 		}
-		return nil, fmt.Errorf(msg)
+		return nil, errors.New(msg)
 	}
 	lines := strings.Split(strings.ReplaceAll(stdout, "\r\n", "\n"), "\n")
 	if len(lines) < 3 {
@@ -4981,6 +5403,307 @@ func (ui *explorer) showOperationHistory() {
 	)
 	historyDialog.Resize(fyne.NewSize(860, 420))
 	historyDialog.Show()
+}
+
+// showTerminalConsole abre um console SSH básico reaproveitando a sessão já autenticada.
+func (ui *explorer) showTerminalConsole() {
+	defer func() {
+		if r := recover(); r != nil {
+			dialog.ShowError(fmt.Errorf("falha ao abrir terminal: %v", r), ui.win)
+		}
+	}()
+	if ui.s == nil || ui.s.SSH == nil {
+		dialog.ShowError(fmt.Errorf("sessão SSH indisponível"), ui.win)
+		return
+	}
+
+	currentDir := strings.TrimSpace(ui.rightPath)
+	if currentDir == "" {
+		currentDir = "/"
+	}
+
+	host := strings.TrimSpace(ui.connCreds.Host)
+	if host == "" {
+		host = ui.s.HostAddr()
+	}
+	if err := ui.showTerminalConsoleVT(currentDir, host); err == nil {
+		return
+	}
+	ui.showTerminalConsoleCompat(currentDir, host)
+}
+
+func (ui *explorer) showTerminalConsoleCompat(currentDir, host string) {
+	terminal := newTerminalEntry()
+	terminal.Wrapping = fyne.TextWrapOff
+	terminal.SetMinRowsVisible(22)
+	terminalScroll := fynecontainer.NewScroll(terminal)
+
+	status := widget.NewLabel("")
+	status.Wrapping = fyne.TextWrapWord
+	status.SetText("Conectando TTY interativo (modo compatibilidade)... Host: " + host + " | CWD inicial: " + currentDir)
+
+	var (
+		textMu      sync.Mutex
+		internalSet bool
+		baseText    = "# Abrindo shell interativo...\n"
+		pendingUTF8 []byte
+	)
+
+	setTerminalText := func(v string) {
+		internalSet = true
+		terminal.SetText(v)
+		lines := strings.Split(v, "\n")
+		terminal.CursorRow = len(lines) - 1
+		terminal.CursorColumn = len([]rune(lines[len(lines)-1]))
+		terminal.Refresh()
+		internalSet = false
+		terminalScroll.ScrollToBottom()
+	}
+	setTerminalText(baseText)
+
+	clearBtn := widget.NewButtonWithIcon("Limpar", theme.ContentClearIcon(), nil)
+	clearBtn.Importance = widget.MediumImportance
+	ctrlCBtn := widget.NewButtonWithIcon("Ctrl+C", theme.CancelIcon(), nil)
+	ctrlCBtn.Importance = widget.MediumImportance
+
+	sess, err := ui.s.SSH.NewSession()
+	if err != nil {
+		dialog.ShowError(fmt.Errorf("erro ao abrir sessão SSH: %w", err), ui.win)
+		return
+	}
+
+	stdin, err := sess.StdinPipe()
+	if err != nil {
+		_ = sess.Close()
+		dialog.ShowError(fmt.Errorf("erro ao abrir stdin SSH: %w", err), ui.win)
+		return
+	}
+	stdout, err := sess.StdoutPipe()
+	if err != nil {
+		_ = sess.Close()
+		dialog.ShowError(fmt.Errorf("erro ao abrir stdout SSH: %w", err), ui.win)
+		return
+	}
+	stderr, err := sess.StderrPipe()
+	if err != nil {
+		_ = sess.Close()
+		dialog.ShowError(fmt.Errorf("erro ao abrir stderr SSH: %w", err), ui.win)
+		return
+	}
+
+	modes := ssh.TerminalModes{
+		ssh.ECHO:          1,
+		ssh.TTY_OP_ISPEED: 14400,
+		ssh.TTY_OP_OSPEED: 14400,
+	}
+	if err := sess.RequestPty("xterm-256color", 40, 140, modes); err != nil {
+		_ = sess.Close()
+		dialog.ShowError(fmt.Errorf("erro ao requisitar TTY SSH: %w", err), ui.win)
+		return
+	}
+
+	startCmd := "cd -- " + shellQuote(currentDir) + " 2>/dev/null || cd /; export TERM=xterm; export PS1='$ '; export PROMPT_COMMAND=''; exec bash --noprofile --norc -i"
+	if err := sess.Start(startCmd); err != nil {
+		_ = sess.Close()
+		dialog.ShowError(fmt.Errorf("erro ao iniciar shell remoto: %w", err), ui.win)
+		return
+	}
+
+	closed := atomic.Bool{}
+	closeTerminal := func() {
+		if closed.Swap(true) {
+			return
+		}
+		ui.win.Canvas().SetOnTypedRune(nil)
+		ui.win.Canvas().SetOnTypedKey(nil)
+		_, _ = io.WriteString(stdin, "exit\n")
+		_ = stdin.Close()
+		_ = sess.Close()
+	}
+
+	appendFromRemote := func(chunk []byte) {
+		textMu.Lock()
+		decoded, rest := decodeTerminalUTF8(chunk, pendingUTF8)
+		pendingUTF8 = rest
+		textMu.Unlock()
+		decoded = normalizeTerminalChunk(decoded)
+		decoded = strings.Map(func(r rune) rune {
+			if r == '\n' || r == '\t' {
+				return r
+			}
+			if r < 32 {
+				return -1
+			}
+			return r
+		}, decoded)
+		chunkText := applyTerminalBackspaces(decoded)
+		chunkText = strings.ReplaceAll(chunkText, "\t", "    ")
+		chunkText = strings.ReplaceAll(chunkText, "\uFFFD", "")
+		if chunkText == "" {
+			return
+		}
+		textMu.Lock()
+		baseText += chunkText
+		textMu.Unlock()
+		fyne.Do(func() { setTerminalText(baseText) })
+	}
+	streamLoop := func(r io.Reader) {
+		buf := make([]byte, 4096)
+		for {
+			n, rerr := r.Read(buf)
+			if n > 0 {
+				appendFromRemote(buf[:n])
+			}
+			if rerr != nil {
+				return
+			}
+		}
+	}
+	go streamLoop(stdout)
+	go streamLoop(stderr)
+	go func() {
+		waitErr := sess.Wait()
+		fyne.Do(func() {
+			ui.win.Canvas().SetOnTypedRune(nil)
+			ui.win.Canvas().SetOnTypedKey(nil)
+			if waitErr != nil && !closed.Load() {
+				status.SetText("Sessão de terminal encerrada: " + strings.TrimSpace(waitErr.Error()))
+			} else if !closed.Load() {
+				status.SetText("Sessão de terminal encerrada.")
+			}
+			ctrlCBtn.Disable()
+			clearBtn.Disable()
+			terminal.Disable()
+		})
+	}()
+
+	sendKey := func(seq string) {
+		if closed.Load() || seq == "" {
+			return
+		}
+		if _, err := io.WriteString(stdin, seq); err != nil {
+			status.SetText("Falha ao enviar tecla: " + strings.TrimSpace(err.Error()))
+		}
+	}
+	ctrlCBtn.OnTapped = func() {
+		sendKey("\u0003")
+		status.SetText("Sinal Ctrl+C enviado.")
+	}
+	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{
+		KeyName:  fyne.KeyC,
+		Modifier: fyne.KeyModifierControl,
+	}, func(fyne.Shortcut) {
+		if closed.Load() {
+			return
+		}
+		sendKey("\u0003")
+		status.SetText("Sinal Ctrl+C enviado (teclado).")
+	})
+	clearBtn.OnTapped = func() {
+		sendKey("clear\r")
+		status.SetText("Comando clear enviado.")
+	}
+
+	terminal.onTab = func() {
+		if closed.Load() {
+			return
+		}
+		textMu.Lock()
+		snapshot := baseText
+		textMu.Unlock()
+		current := terminal.Text
+		pending := ""
+		if strings.HasPrefix(current, snapshot) {
+			pending = strings.TrimPrefix(current, snapshot)
+			if idx := strings.Index(pending, "\n"); idx >= 0 {
+				pending = pending[:idx]
+			}
+		}
+		if pending != "" {
+			sendKey(pending)
+			setTerminalText(snapshot)
+		}
+		sendKey("\t")
+		status.SetText("TAB enviado.")
+	}
+	terminal.OnChanged = func(v string) {
+		if internalSet || closed.Load() {
+			return
+		}
+		textMu.Lock()
+		snapshot := baseText
+		textMu.Unlock()
+		if !strings.HasPrefix(v, snapshot) {
+			setTerminalText(snapshot)
+			return
+		}
+		tail := strings.TrimPrefix(v, snapshot)
+		if !strings.Contains(tail, "\n") {
+			return
+		}
+		line := tail
+		if idx := strings.Index(line, "\n"); idx >= 0 {
+			line = line[:idx]
+		}
+		setTerminalText(snapshot)
+		sendKey(line + "\r")
+		status.SetText("Comando enviado.")
+	}
+
+	ui.win.Canvas().SetOnTypedKey(func(k *fyne.KeyEvent) {
+		if k == nil || closed.Load() {
+			return
+		}
+		switch k.Name {
+		case fyne.KeyReturn, fyne.KeyEnter:
+			sendKey("\r")
+		case fyne.KeyBackspace:
+			sendKey("\x7f")
+		case fyne.KeyTab:
+			sendKey("\t")
+		case fyne.KeyEscape:
+			sendKey("\x1b")
+		case fyne.KeyUp:
+			sendKey("\x1b[A")
+		case fyne.KeyDown:
+			sendKey("\x1b[B")
+		case fyne.KeyRight:
+			sendKey("\x1b[C")
+		case fyne.KeyLeft:
+			sendKey("\x1b[D")
+		case fyne.KeyHome:
+			sendKey("\x1b[H")
+		case fyne.KeyEnd:
+			sendKey("\x1b[F")
+		case fyne.KeyDelete:
+			sendKey("\x1b[3~")
+		case fyne.KeyPageUp:
+			sendKey("\x1b[5~")
+		case fyne.KeyPageDown:
+			sendKey("\x1b[6~")
+		}
+	})
+
+	fyne.Do(func() {
+		status.SetText("TTY interativo ativo (modo compatibilidade). Host: " + host)
+	})
+
+	controls := fynecontainer.NewHBox(
+		widget.NewLabelWithStyle("Terminal SSH", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		layout.NewSpacer(),
+		ctrlCBtn,
+		clearBtn,
+	)
+	header := fynecontainer.NewVBox(controls, widget.NewSeparator())
+	footer := fynecontainer.NewVBox(widget.NewSeparator(), status)
+	body := fynecontainer.NewBorder(
+		header,
+		footer,
+		nil,
+		nil,
+		fynecontainer.NewPadded(terminalScroll),
+	)
+	ui.openSettingsFullscreenWithBack("Terminal SSH", body, closeTerminal)
 }
 
 // userManualText executa parte da logica deste modulo.
