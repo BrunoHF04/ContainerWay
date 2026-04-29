@@ -864,6 +864,178 @@ func renderVTToTextGridANSI(vt vt10x.Terminal, grid *widget.TextGrid) (err error
 	return nil
 }
 
+type remoteTerminalHostStats struct {
+	osName      string
+	kernel      string
+	user        string
+	bootTime    string
+	uptimeShort string
+	memUsedB    uint64
+	memTotalB   uint64
+	diskUsedB   uint64
+	diskTotalB  uint64
+}
+
+// formatBytesIEC executa parte da logica deste modulo.
+func formatBytesIEC(v uint64) string {
+	if v == 0 {
+		return "0 B"
+	}
+	const unit = 1024.0
+	f := float64(v)
+	switch {
+	case f >= unit*unit*unit*unit:
+		return fmt.Sprintf("%.2f TiB", f/(unit*unit*unit*unit))
+	case f >= unit*unit*unit:
+		return fmt.Sprintf("%.2f GiB", f/(unit*unit*unit))
+	case f >= unit*unit:
+		return fmt.Sprintf("%.2f MiB", f/(unit*unit))
+	case f >= unit:
+		return fmt.Sprintf("%.2f KiB", f/unit)
+	default:
+		return fmt.Sprintf("%d B", v)
+	}
+}
+
+// parseUint executa parte da logica deste modulo.
+func parseUint(s string) uint64 {
+	n, err := strconv.ParseUint(strings.TrimSpace(s), 10, 64)
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
+// parseMapLine executa parte da logica deste modulo.
+func parseMapLine(s string) (string, string, bool) {
+	idx := strings.IndexByte(s, '=')
+	if idx <= 0 || idx >= len(s)-1 {
+		return "", "", false
+	}
+	return strings.TrimSpace(s[:idx]), strings.TrimSpace(s[idx+1:]), true
+}
+
+// formatUptime executa parte da logica deste modulo.
+func formatUptime(seconds uint64) string {
+	if seconds == 0 {
+		return "n/d"
+	}
+	d := seconds / 86400
+	h := (seconds % 86400) / 3600
+	m := (seconds % 3600) / 60
+	switch {
+	case d > 0:
+		return fmt.Sprintf("%dd %dh", d, h)
+	case h > 0:
+		return fmt.Sprintf("%dh %dm", h, m)
+	default:
+		return fmt.Sprintf("%dm", m)
+	}
+}
+
+// buildTerminalHostInfoText executa parte da logica deste modulo.
+func buildTerminalHostInfoText(stats remoteTerminalHostStats) string {
+	ram := "n/d"
+	if stats.memTotalB > 0 {
+		ram = fmt.Sprintf("%s / %s", formatBytesIEC(stats.memUsedB), formatBytesIEC(stats.memTotalB))
+	}
+	disk := "n/d"
+	if stats.diskTotalB > 0 {
+		disk = fmt.Sprintf("%s / %s", formatBytesIEC(stats.diskUsedB), formatBytesIEC(stats.diskTotalB))
+	}
+	osName := strings.TrimSpace(stats.osName)
+	if osName == "" {
+		osName = "Linux"
+	}
+	kernel := strings.TrimSpace(stats.kernel)
+	if kernel == "" {
+		kernel = "kernel n/d"
+	}
+	user := strings.TrimSpace(stats.user)
+	if user == "" {
+		user = "n/d"
+	}
+	boot := strings.TrimSpace(stats.bootTime)
+	if boot == "" {
+		boot = "n/d"
+	}
+	uptime := strings.TrimSpace(stats.uptimeShort)
+	if uptime == "" {
+		uptime = "n/d"
+	}
+	return fmt.Sprintf("%s | %s | RAM: %s | Disco /: %s | Uptime: %s | Boot: %s | Usuário: %s",
+		osName, kernel, ram, disk, uptime, boot, user)
+}
+
+// fetchRemoteTerminalHostStats executa parte da logica deste modulo.
+func (ui *explorer) fetchRemoteTerminalHostStats(ctx context.Context) (remoteTerminalHostStats, error) {
+	script := `
+OS_NAME=""
+if [ -r /etc/os-release ]; then
+  . /etc/os-release
+  OS_NAME="${PRETTY_NAME:-$NAME}"
+fi
+if [ -z "$OS_NAME" ]; then
+  OS_NAME="$(uname -o 2>/dev/null || echo Linux)"
+fi
+KERNEL="$(uname -sr 2>/dev/null || uname -a 2>/dev/null || echo '')"
+USER_NAME="$(id -un 2>/dev/null || whoami 2>/dev/null || echo '')"
+MEM_TOTAL_KB="$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null | head -n1)"
+MEM_AVAIL_KB="$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo 2>/dev/null | head -n1)"
+if [ -z "$MEM_AVAIL_KB" ]; then
+  MEM_AVAIL_KB="$(awk '/^MemFree:/ {print $2}' /proc/meminfo 2>/dev/null | head -n1)"
+fi
+set -- $(df -B1 / 2>/dev/null | awk 'NR==2 {print $2, $3}')
+DISK_TOTAL_B="${1:-0}"
+DISK_USED_B="${2:-0}"
+UPTIME_SEC="$(cut -d. -f1 /proc/uptime 2>/dev/null || echo 0)"
+BOOT_TIME="$(uptime -s 2>/dev/null || who -b 2>/dev/null | awk '{print $3" "$4}')"
+echo "OS_NAME=$OS_NAME"
+echo "KERNEL=$KERNEL"
+echo "USER_NAME=$USER_NAME"
+echo "MEM_TOTAL_KB=$MEM_TOTAL_KB"
+echo "MEM_AVAIL_KB=$MEM_AVAIL_KB"
+echo "DISK_TOTAL_B=$DISK_TOTAL_B"
+echo "DISK_USED_B=$DISK_USED_B"
+echo "UPTIME_SEC=$UPTIME_SEC"
+echo "BOOT_TIME=$BOOT_TIME"
+`
+	stdout, _, err := ui.runSSHCommandWithInput(ctx, "sh -lc "+shellQuote(script), "")
+	if err != nil {
+		return remoteTerminalHostStats{}, err
+	}
+	values := map[string]string{}
+	for _, line := range strings.Split(strings.ReplaceAll(stdout, "\r\n", "\n"), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		k, v, ok := parseMapLine(line)
+		if !ok {
+			continue
+		}
+		values[k] = v
+	}
+	memTotalB := parseUint(values["MEM_TOTAL_KB"]) * 1024
+	memAvailB := parseUint(values["MEM_AVAIL_KB"]) * 1024
+	memUsedB := uint64(0)
+	if memTotalB > memAvailB {
+		memUsedB = memTotalB - memAvailB
+	}
+	stats := remoteTerminalHostStats{
+		osName:      values["OS_NAME"],
+		kernel:      values["KERNEL"],
+		user:        values["USER_NAME"],
+		bootTime:    values["BOOT_TIME"],
+		uptimeShort: formatUptime(parseUint(values["UPTIME_SEC"])),
+		memUsedB:    memUsedB,
+		memTotalB:   memTotalB,
+		diskUsedB:   parseUint(values["DISK_USED_B"]),
+		diskTotalB:  parseUint(values["DISK_TOTAL_B"]),
+	}
+	return stats, nil
+}
+
 func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 	const (
 		termCols = 160
@@ -883,6 +1055,8 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 
 	status := widget.NewLabel("Conectando TTY interativo (modo ANSI)...")
 	status.Wrapping = fyne.TextWrapWord
+	hostInfo := widget.NewLabel("Coletando informações do host…")
+	hostInfo.Wrapping = fyne.TextWrapOff
 	clearBtn := widget.NewButton("Limpar", nil)
 	clearBtn.Importance = widget.MediumImportance
 	ctrlCBtn := widget.NewButton("Voltar", nil)
@@ -974,7 +1148,9 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 	calcTermSize := func(sz fyne.Size) (cols, rows int) {
 		// aproximação de célula mono para ajustar PTY ao viewport atual
 		cols = int(sz.Width / 8.6)
-		rows = int((sz.Height - 120) / 17.0)
+		// Reserva mais área para header/rodapé (incluindo barra de infos do host),
+		// evitando cortar o topo da área útil quando apps TUI (htop/top) entram.
+		rows = int((sz.Height - 170) / 17.0)
 		if cols < 60 {
 			cols = 60
 		}
@@ -1026,6 +1202,37 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 	}
 	go streamLoop(stdout)
 	go streamLoop(stderr)
+	updateHostInfo := func(unavailableMsg string) {
+		if closed.Load() {
+			return
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+		defer cancel()
+		stats, ferr := ui.fetchRemoteTerminalHostStats(ctx)
+		if ferr != nil {
+			if unavailableMsg == "" {
+				unavailableMsg = "Informações do host indisponíveis."
+			}
+			fyne.Do(func() { hostInfo.SetText(unavailableMsg) })
+			return
+		}
+		fyne.Do(func() {
+			hostInfo.SetText(buildTerminalHostInfoText(stats))
+		})
+	}
+	go func() {
+		updateHostInfo("Não foi possível carregar as informações do host.")
+		ticker := time.NewTicker(12 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stopRender:
+				return
+			case <-ticker.C:
+				updateHostInfo("")
+			}
+		}
+	}()
 	go func() {
 		waitErr := sess.Wait()
 		fyne.Do(func() {
@@ -1128,7 +1335,7 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 	clearWrap := fynecontainer.NewGridWrap(fyne.NewSize(terminalToolBtnW+8, clearBtn.MinSize().Height), clearBtn)
 	controls := fynecontainer.NewHBox(btnHtop, btnNcdu, layout.NewSpacer(), ctrlCWrap, clearWrap)
 	header := fynecontainer.NewVBox(controls)
-	footer := fynecontainer.NewVBox(widget.NewSeparator(), status)
+	footer := fynecontainer.NewVBox(widget.NewSeparator(), status, hostInfo)
 	body := fynecontainer.NewBorder(
 		header,
 		footer,
