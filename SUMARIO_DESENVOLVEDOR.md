@@ -22,6 +22,15 @@ Este arquivo serve como guia rapido para manutencao do projeto `ContainerWay`.
 - `internal/transfer/`: orquestracao de transferencias entre origem e destino.
 - `internal/mailnotify/`: envio de notificacoes por e-mail (SMTP).
 - `assets/`: recursos estaticos (icones, imagens e afins).
+- `packaging/linux/`: arquivos de empacotamento Linux (manifesto Flatpak, entrada `.desktop`, metainfo AppStream usados no `.deb` e no bundle).
+
+## Build e releases
+
+- **`build.ps1`** (na raiz):
+  - **Windows:** `go build` local com `CGO_ENABLED=1` e `-H=windowsgui` → `ContainerWay.exe`.
+  - **Linux:** `docker run` com imagem `golang:1.26-bookworm`, volume do repo em `/src`, script gerado em `dist/build-linux.sh`. Dentro do container: dependências (`build-essential`, libs X11/GL, `flatpak`, `flatpak-builder`, `appstream-compose`, etc.), compilação `GOOS=linux GOARCH=amd64`, montagem do `.deb` e `flatpak-builder` + `flatpak build-bundle`. O container usa **`--privileged`** para o `bwrap` do Flatpak; usa **`--disable-rofiles-fuse`** porque FUSE costuma nao estar disponivel no Docker.
+- **Saidas:** `dist/linux/containerway` (binario Linux), `dist/deb/containerway_<versao>_amd64.deb`, `dist/flatpak/containerway-<versao>.flatpak`. Pastas `dist/` e `.flatpak-builder/` estao no `.gitignore`.
+- **Versao dos pacotes:** parametro `-Version` ou saida de `git describe`; versao Debian e sanitizada e, se nao comecar com digito, recebe prefixo `0~` (requisito do campo `Version` do `.deb`).
 
 ## Mapa de Arquivos Go (o que cada um faz)
 
@@ -50,11 +59,12 @@ Este arquivo serve como guia rapido para manutencao do projeto `ContainerWay`.
 ## Prioridade de Estudo (sugestao)
 
 1. `README.md`
-2. `cmd/containerway/main.go`
-3. `internal/appui/appui.go`
-4. `internal/session/session.go`
-5. `internal/transfer/transfer.go`
-6. `internal/containerfs/containerfs.go` e `internal/hostfs/hostfs.go`
+2. `build.ps1` e `packaging/linux/` (releases Linux)
+3. `cmd/containerway/main.go`
+4. `internal/appui/appui.go`
+5. `internal/session/session.go`
+6. `internal/transfer/transfer.go`
+7. `internal/containerfs/containerfs.go` e `internal/hostfs/hostfs.go`
 
 ## Convencao de Comentarios de Funcao
 

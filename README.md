@@ -2,7 +2,7 @@
 
 ![ContainerWay - Gestão de Arquivos e Contêineres Remotos](assets/containerway-banner-simple.png)
 
-Gestor de arquivos de painel duplo (estilo WinSCP) para **Windows**, com foco em uso prático no dia a dia:
+Gestor de arquivos de painel duplo (estilo WinSCP), com foco em uso prático no dia a dia. O fluxo principal é no **Windows**; também é possível gerar **pacotes Linux** (`.deb` e `.flatpak`) pelo `build.ps1` para rodar o app em desktop Linux com X11/Wayland:
 
 - painel esquerdo no **computador local**;
 - painel direito no **host Linux** via **SSH/SFTP** ou dentro de **contêineres Docker** remotos;
@@ -268,9 +268,10 @@ Somente o usuário **admin** vê **E-mail** na barra do explorador ou no cartão
 <details>
 <summary><strong>Requisitos</strong></summary>
 
-- [Go](https://go.dev/dl/) 1.21+ (ou versão definida no `go.mod`).
+- [Go](https://go.dev/dl/) na versão indicada no `go.mod` (hoje **1.26.1+**).
 - No Windows, Fyne requer **CGO**:
   - GCC ou Clang no `PATH`.
+- Para gerar **`.deb` e `.flatpak`** com `build.ps1`: **Docker Desktop** em execução (o script sobe um container Linux com Go, `dpkg-deb` e `flatpak-builder`; o container roda com `--privileged` para o empacotamento Flatpak funcionar no Docker).
 - Opções comuns no Windows:
   - [MSYS2](https://www.msys2.org/) + `mingw-w64-x86_64-gcc`;
   - LLVM-MinGW via Winget:
@@ -297,22 +298,31 @@ Somente o usuário **admin** vê **E-mail** na barra do explorador ou no cartão
 .\build.ps1
 ```
 
-Saídas padrão:
+Saídas típicas (após o build concluir):
 
-- `ContainerWay.exe` na raiz (Windows);
-- `dist/deb/containerway-<versao>_amd64.deb` (Linux);
-- `dist/flatpak/containerway-<versao>.flatpak` (Linux).
+| Plataforma | Caminho |
+|------------|---------|
+| Windows | `ContainerWay.exe` na raiz do repositório |
+| Linux (Debian/Ubuntu) | `dist/deb/containerway_<versão>_amd64.deb` |
+| Linux (Flatpak bundle) | `dist/flatpak/containerway-<versão>.flatpak` |
+
+A **versão** dos pacotes Linux vem de `-Version`, se informado; senão, de `git describe --tags --always`. Para nomes só com hash de commit, o `.deb` usa prefixo Debian `0~` (ex.: `containerway_0~abc1234_amd64.deb`). Os diretórios `dist/` e `.flatpak-builder/` ficam no `.gitignore` (não entram no Git).
+
+**Instalação rápida no Linux (máquina de destino):**
+
+- Pacote Debian: `sudo dpkg -i dist/deb/containerway_<versão>_amd64.deb` (instale dependências faltantes com `sudo apt-get install -f` se o `dpkg` avisar).
+- Flatpak: `flatpak install --bundle dist/flatpak/containerway-<versão>.flatpak`
 
 Opções úteis:
 
 ```powershell
-# Definir versão do pacote
+# Definir versão do pacote (aparece no nome do .deb e do .flatpak)
 .\build.ps1 -Version 1.2.3
 
 # Build somente Windows
 .\build.ps1 -SkipLinux
 
-# Build somente Linux (deb + flatpak)
+# Build somente Linux (deb + flatpak), sem recompilar o .exe
 .\build.ps1 -SkipWindows
 ```
 
@@ -381,6 +391,8 @@ Diagnóstico:
 | `internal/fsutil` | Utilitários de entrada/listagem e ordenação |
 | `internal/tarxfer` | Transferências recursivas com tar |
 | `internal/transfer` | Fila, progresso e workers de transferência |
+| `packaging/linux` | Manifesto Flatpak (`.json`), `.desktop` e metainfo para o `.deb` |
+| `build.ps1` | Build Windows local e Linux (via Docker): `exe`, `.deb` e `.flatpak` |
 
 
 </details>
