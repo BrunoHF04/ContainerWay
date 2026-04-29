@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.containerway.ContainerWay</id>
+  <name>ContainerWay</name>
+  <summary>Gestao remota de arquivos e conteineres Docker</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Proprietary</project_license>
+  <launchable type="desktop-id">io.containerway.ContainerWay.desktop</launchable>
+  <description>
+    <p>ContainerWay conecta via SSH/SFTP para gerenciar arquivos remotos e operar conteineres Docker.</p>
+  </description>
+  <categories>
+    <category>Utility</category>
+    <category>System</category>
+    <category>Network</category>
+  </categories>
+</component>

@@ -828,7 +828,7 @@ func renderVTToTextGrid(vt vt10x.Terminal, grid *widget.TextGrid) {
 	grid.ScrollToBottom()
 }
 
-func renderVTToTextGridANSI(vt vt10x.Terminal, grid *widget.TextGrid) (err error) {
+func renderVTToTextGridANSI(vt vt10x.Terminal, grid *widget.TextGrid, drawCursor bool) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("render vt: %v", r)
@@ -841,6 +841,8 @@ func renderVTToTextGridANSI(vt vt10x.Terminal, grid *widget.TextGrid) (err error
 		return fmt.Errorf("tamanho VT inválido: %dx%d", cols, rows)
 	}
 	renderRows := make([]widget.TextGridRow, rows)
+	cursor := vt.Cursor()
+	cursorVisible := drawCursor && vt.CursorVisible()
 	for y := 0; y < rows; y++ {
 		cells := make([]widget.TextGridCell, cols)
 		for x := 0; x < cols; x++ {
@@ -849,12 +851,18 @@ func renderVTToTextGridANSI(vt vt10x.Terminal, grid *widget.TextGrid) (err error
 			if ch == 0 {
 				ch = ' '
 			}
+			fg := xtermColorToRGBA(g.FG, true)
+			bg := xtermColorToRGBA(g.BG, false)
+			if cursorVisible && x == cursor.X && y == cursor.Y {
+				// Cursor piscante por inversão de cores para destacar posição de digitação.
+				fg, bg = bg, fg
+			}
 			cells[x] = widget.TextGridCell{
 				Rune: ch,
 				Style: terminalCellStyle{
 					textStyle: fyne.TextStyle{Monospace: true},
-					fg:        xtermColorToRGBA(g.FG, true),
-					bg:        xtermColorToRGBA(g.BG, false),
+					fg:        fg,
+					bg:        bg,
 				},
 			}
 		}
@@ -1055,13 +1063,15 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 	grid := widget.NewTextGrid()
 	grid.ShowLineNumbers = false
 	grid.ShowWhitespace = false
-	if err := renderVTToTextGridANSI(vt, grid); err != nil {
+	if err := renderVTToTextGridANSI(vt, grid, true); err != nil {
 		return err
 	}
 	terminalViewport := fynecontainer.NewPadded(fynecontainer.NewMax(grid))
 
-	status := widget.NewLabel("Conectando TTY interativo (modo ANSI)...")
+	status := widget.NewLabel("")
 	status.Wrapping = fyne.TextWrapWord
+	statusRow := fynecontainer.NewVBox(status)
+	statusRow.Hide()
 	hostOSValue := widget.NewLabel("Coletando...")
 	hostResValue := widget.NewLabel("Coletando...")
 	hostTimeValue := widget.NewLabel("Coletando...")
@@ -1074,6 +1084,42 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 	ctrlCBtn.Importance = widget.MediumImportance
 	btnCopyOutput := widget.NewButton("Copiar saída", nil)
 	btnCopyOutput.Importance = widget.MediumImportance
+	var footer *fyne.Container
+	var body *fyne.Container
+	showStatus := func(msg string) {
+		fyne.Do(func() {
+			msg = strings.TrimSpace(msg)
+			status.SetText(msg)
+			if msg == "" {
+				statusRow.Hide()
+			} else {
+				statusRow.Show()
+			}
+			if footer != nil {
+				footer.Refresh()
+			}
+			if body != nil {
+				body.Refresh()
+			}
+		})
+	}
+	clearStatusAfter := func(expected string, delay time.Duration) {
+		go func() {
+			time.Sleep(delay)
+			fyne.Do(func() {
+				if strings.TrimSpace(status.Text) == strings.TrimSpace(expected) {
+					status.SetText("")
+					statusRow.Hide()
+					if footer != nil {
+						footer.Refresh()
+					}
+					if body != nil {
+						body.Refresh()
+					}
+				}
+			})
+		}()
+	}
 
 	sess, err := ui.s.SSH.NewSession()
 	if err != nil {
@@ -1113,12 +1159,14 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 		closed      atomic.Bool
 		vtMu        sync.Mutex
 		renderDirty atomic.Bool
+		cursorBlink atomic.Bool
 		stopRender  = make(chan struct{})
 		stopOnce    sync.Once
 		lastCanvas  fyne.Size
 		logMu       sync.Mutex
 		terminalLog []byte
 	)
+	cursorBlink.Store(true)
 	closeTerminal := func() {
 		if closed.Swap(true) {
 			return
@@ -1160,21 +1208,29 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 
 	go func() {
 		ticker := time.NewTicker(33 * time.Millisecond)
+		cursorTicker := time.NewTicker(500 * time.Millisecond)
 		defer ticker.Stop()
+		defer cursorTicker.Stop()
 		for {
 			select {
 			case <-stopRender:
 				return
+			case <-cursorTicker.C:
+				if closed.Load() {
+					continue
+				}
+				cursorBlink.Store(!cursorBlink.Load())
+				renderDirty.Store(true)
 			case <-ticker.C:
 				if closed.Load() || !renderDirty.Swap(false) {
 					continue
 				}
 				fyne.Do(func() {
 					vtMu.Lock()
-					rerr := renderVTToTextGridANSI(vt, grid)
+					rerr := renderVTToTextGridANSI(vt, grid, cursorBlink.Load())
 					vtMu.Unlock()
 					if rerr != nil {
-						status.SetText("Render ANSI instável; use modo compatibilidade.")
+						showStatus("Render ANSI instável; use modo compatibilidade.")
 					}
 				})
 			}
@@ -1249,7 +1305,7 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 			if unavailableMsg == "" {
 				unavailableMsg = "Informações do host indisponíveis."
 			}
-			fyne.Do(func() { status.SetText(unavailableMsg) })
+			showStatus(unavailableMsg)
 			return
 		}
 		fyne.Do(func() {
@@ -1283,13 +1339,19 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 	go func() {
 		waitErr := sess.Wait()
 		fyne.Do(func() {
+			if waitErr != nil && !closed.Load() {
+				showStatus("Sessão encerrada: " + strings.TrimSpace(waitErr.Error()))
+			} else if !closed.Load() {
+				showStatus("Sessão encerrada.")
+			}
+			shouldAutoBack := !closed.Load()
+			if shouldAutoBack {
+				closeTerminal()
+				ui.closeSettingsFullscreen()
+				return
+			}
 			ui.win.Canvas().SetOnTypedRune(nil)
 			ui.win.Canvas().SetOnTypedKey(nil)
-			if waitErr != nil && !closed.Load() {
-				status.SetText("Sessão encerrada: " + strings.TrimSpace(waitErr.Error()))
-			} else if !closed.Load() {
-				status.SetText("Sessão encerrada.")
-			}
 			ctrlCBtn.Disable()
 			clearBtn.Disable()
 		})
@@ -1300,7 +1362,7 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 			return
 		}
 		if _, werr := io.WriteString(stdin, seq); werr != nil {
-			status.SetText("Falha ao enviar tecla.")
+			showStatus("Falha ao enviar tecla.")
 		}
 	}
 	runTerminalCommand := func(cmd string) {
@@ -1319,7 +1381,8 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 			return
 		}
 		sendKey("\u0003")
-		status.SetText("Sinal Ctrl+C enviado (teclado).")
+		showStatus("Sinal Ctrl+C enviado (teclado).")
+		clearStatusAfter("Sinal Ctrl+C enviado (teclado).", 2500*time.Millisecond)
 	})
 	clearBtn.OnTapped = func() { sendKey("clear\r") }
 	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyUp}, func(fyne.Shortcut) { sendKey("\x1bOA") })
@@ -1331,23 +1394,27 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 	btnHtop := widget.NewButtonWithIcon("Gen. de Tarefas", theme.ComputerIcon(), func() {
 		cmd := `command -v htop >/dev/null 2>&1 || { echo '[ContainerWay] htop não encontrado. Instalando...'; if command -v apt-get >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y htop; elif command -v dnf >/dev/null 2>&1; then sudo dnf install -y htop; elif command -v yum >/dev/null 2>&1; then sudo yum install -y htop; elif command -v pacman >/dev/null 2>&1; then sudo pacman -Sy --noconfirm htop; else echo '[ContainerWay] Gerenciador de pacotes não suportado para instalação automática.'; fi; }; command -v htop >/dev/null 2>&1 && htop`
 		runTerminalCommand(cmd)
-		status.SetText("Abrindo gerenciador de tarefas (htop)...")
+		showStatus("Abrindo gerenciador de tarefas (htop)...")
+		clearStatusAfter("Abrindo gerenciador de tarefas (htop)...", 2200*time.Millisecond)
 	})
 	btnHtop.Importance = widget.MediumImportance
 	btnNcdu := widget.NewButtonWithIcon("Ver. Armazenamento", theme.StorageIcon(), func() {
 		cmd := `command -v ncdu >/dev/null 2>&1 || { echo '[ContainerWay] ncdu não encontrado. Instalando...'; if command -v apt-get >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y ncdu; elif command -v dnf >/dev/null 2>&1; then sudo dnf install -y ncdu; elif command -v yum >/dev/null 2>&1; then sudo yum install -y ncdu; elif command -v pacman >/dev/null 2>&1; then sudo pacman -Sy --noconfirm ncdu; else echo '[ContainerWay] Gerenciador de pacotes não suportado para instalação automática.'; fi; }; command -v ncdu >/dev/null 2>&1 && cd / && ncdu`
 		runTerminalCommand(cmd)
-		status.SetText("Abrindo análise de armazenamento (ncdu)...")
+		showStatus("Abrindo análise de armazenamento (ncdu)...")
+		clearStatusAfter("Abrindo análise de armazenamento (ncdu)...", 2200*time.Millisecond)
 	})
 	btnNcdu.Importance = widget.MediumImportance
 	btnCopyOutput.OnTapped = func() {
 		content := getTerminalLog()
 		if content == "" {
-			status.SetText("Sem saída disponível para copiar.")
+			showStatus("Sem saída disponível para copiar.")
+			clearStatusAfter("Sem saída disponível para copiar.", 2200*time.Millisecond)
 			return
 		}
 		ui.win.Clipboard().SetContent(content)
-		status.SetText("Saída do terminal copiada para a área de transferência.")
+		showStatus("Saída do terminal copiada para a área de transferência.")
+		clearStatusAfter("Saída do terminal copiada para a área de transferência.", 2500*time.Millisecond)
 	}
 	btnCmdList := widget.NewButtonWithIcon("Lista de comandos", theme.InfoIcon(), func() {
 		type commandItem struct {
@@ -1523,9 +1590,9 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 				return func() {
 					favoritesMap[cmd] = !favoritesMap[cmd]
 					if favoritesMap[cmd] {
-						status.SetText("Comando favoritado: " + cmd)
+						showStatus("Comando favoritado: " + cmd)
 					} else {
-						status.SetText("Comando removido dos favoritos: " + cmd)
+						showStatus("Comando removido dos favoritos: " + cmd)
 					}
 					saveFavorites()
 					if rebuildResults != nil {
@@ -1635,7 +1702,8 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 		contentScroller := fynecontainer.NewVScroll(content)
 		contentScroller.SetMinSize(fyne.NewSize(820, 480))
 		dialog.ShowCustom("Lista de comandos Linux", "Fechar", contentScroller, ui.win)
-		status.SetText("Exibindo lista de comandos Linux.")
+		showStatus("Exibindo lista de comandos Linux.")
+		clearStatusAfter("Exibindo lista de comandos Linux.", 1800*time.Millisecond)
 	})
 	btnCmdList.Importance = widget.MediumImportance
 	ui.win.Canvas().SetOnTypedRune(func(r rune) { sendKey(string(r)) })
@@ -1693,8 +1761,8 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 	toggleHostBtn.Importance = widget.LowImportance
 	hostCompactBar := fynecontainer.NewBorder(nil, nil, nil, toggleHostBtn, hostCompact)
 	header := fynecontainer.NewVBox(controls)
-	footer := fynecontainer.NewVBox(widget.NewSeparator(), status, hostCompactBar)
-	body := fynecontainer.NewBorder(
+	footer = fynecontainer.NewVBox(widget.NewSeparator(), statusRow, hostCompactBar)
+	body = fynecontainer.NewBorder(
 		header,
 		footer,
 		nil,
@@ -1702,7 +1770,8 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 		terminalViewport,
 	)
 	ui.openSettingsFullscreenWithBack("Terminal SSH", body, closeTerminal)
-	fyne.Do(func() { status.SetText("TTY ANSI ativo. Host: " + host) })
+	showStatus("TTY ANSI ativo. Host: " + host)
+	clearStatusAfter("TTY ANSI ativo. Host: "+host, 2200*time.Millisecond)
 	lastCanvas = terminalViewport.Size()
 	if lastCanvas.Width > 0 && lastCanvas.Height > 0 {
 		applyResize(lastCanvas)
@@ -6226,13 +6295,19 @@ func (ui *explorer) showTerminalConsoleCompat(currentDir, host string) {
 	go func() {
 		waitErr := sess.Wait()
 		fyne.Do(func() {
-			ui.win.Canvas().SetOnTypedRune(nil)
-			ui.win.Canvas().SetOnTypedKey(nil)
 			if waitErr != nil && !closed.Load() {
 				status.SetText("Sessão de terminal encerrada: " + strings.TrimSpace(waitErr.Error()))
 			} else if !closed.Load() {
 				status.SetText("Sessão de terminal encerrada.")
 			}
+			shouldAutoBack := !closed.Load()
+			if shouldAutoBack {
+				closeTerminal()
+				ui.closeSettingsFullscreen()
+				return
+			}
+			ui.win.Canvas().SetOnTypedRune(nil)
+			ui.win.Canvas().SetOnTypedKey(nil)
 			ctrlCBtn.Disable()
 			clearBtn.Disable()
 			terminal.Disable()

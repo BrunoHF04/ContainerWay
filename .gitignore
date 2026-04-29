@@ -3,6 +3,7 @@ containerway_ci.exe
 *.exe
 *.exe~
 /dist/
+.flatpak-builder/
 
 # Regras e configuração local do Cursor (não versionar)
 .cursor/

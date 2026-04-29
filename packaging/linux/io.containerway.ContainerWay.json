@@ -1,0 +1,41 @@
+{
+  "app-id": "io.containerway.ContainerWay",
+  "runtime": "org.freedesktop.Platform",
+  "runtime-version": "24.08",
+  "sdk": "org.freedesktop.Sdk",
+  "command": "containerway",
+  "finish-args": [
+    "--share=ipc",
+    "--socket=fallback-x11",
+    "--socket=wayland",
+    "--device=dri",
+    "--share=network",
+    "--filesystem=home"
+  ],
+  "modules": [
+    {
+      "name": "containerway",
+      "buildsystem": "simple",
+      "build-commands": [
+        "install -Dm755 containerway /app/bin/containerway",
+        "install -Dm644 io.containerway.ContainerWay.desktop /app/share/applications/io.containerway.ContainerWay.desktop",
+        "install -Dm644 io.containerway.ContainerWay.png /app/share/icons/hicolor/256x256/apps/io.containerway.ContainerWay.png"
+      ],
+      "sources": [
+        {
+          "type": "file",
+          "path": "../../dist/linux/containerway"
+        },
+        {
+          "type": "file",
+          "path": "io.containerway.ContainerWay.desktop"
+        },
+        {
+          "type": "file",
+          "path": "../../assets/containerway-icon.png",
+          "dest-filename": "io.containerway.ContainerWay.png"
+        }
+      ]
+    }
+  ]
+}

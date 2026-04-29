@@ -297,7 +297,24 @@ Somente o usuário **admin** vê **E-mail** na barra do explorador ou no cartão
 .\build.ps1
 ```
 
-Saída: `ContainerWay.exe` na raiz.
+Saídas padrão:
+
+- `ContainerWay.exe` na raiz (Windows);
+- `dist/deb/containerway-<versao>_amd64.deb` (Linux);
+- `dist/flatpak/containerway-<versao>.flatpak` (Linux).
+
+Opções úteis:
+
+```powershell
+# Definir versão do pacote
+.\build.ps1 -Version 1.2.3
+
+# Build somente Windows
+.\build.ps1 -SkipLinux
+
+# Build somente Linux (deb + flatpak)
+.\build.ps1 -SkipWindows
+```
 
 Build de validação sem GUI (CI/ambiente sem GCC para Fyne):
 

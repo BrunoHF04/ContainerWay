@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=ContainerWay
+Comment=Gestao remota de arquivos e conteineres Docker
+Exec=containerway
+Icon=io.containerway.ContainerWay
+Terminal=false
+Categories=Utility;System;Network;
+StartupNotify=true
