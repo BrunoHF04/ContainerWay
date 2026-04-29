@@ -1293,6 +1293,187 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 		status.SetText("Abrindo análise de armazenamento (ncdu)...")
 	})
 	btnNcdu.Importance = widget.MediumImportance
+	btnCmdList := widget.NewButtonWithIcon("Lista de comandos", theme.InfoIcon(), func() {
+		type commandItem struct {
+			label string
+			cmd   string
+			quick bool
+		}
+		sections := []struct {
+			title string
+			items []commandItem
+		}{
+			{
+				title: "Criar pasta",
+				items: []commandItem{
+					{label: "Criar nova pasta", cmd: "mkdir nome_pasta", quick: true},
+					{label: "Criar com subpastas", cmd: "mkdir -p caminho/pasta/subpasta"},
+				},
+			},
+			{
+				title: "Permissões",
+				items: []commandItem{
+					{label: "Liberar tudo (recursivo)", cmd: "chmod -R 777 caminho_diretorio", quick: true},
+					{label: "Permissão recomendada (recursivo)", cmd: "chmod -R 755 caminho_diretorio"},
+				},
+			},
+			{
+				title: "Navegação",
+				items: []commandItem{
+					{label: "Mostrar caminho atual", cmd: "pwd"},
+					{label: "Listar arquivos detalhado", cmd: "ls -lah", quick: true},
+					{label: "Entrar em diretório", cmd: "cd /caminho", quick: true},
+					{label: "Voltar um nível", cmd: "cd ..", quick: true},
+				},
+			},
+			{
+				title: "Arquivos e diretórios",
+				items: []commandItem{
+					{label: "Criar arquivo vazio", cmd: "touch arquivo.txt"},
+					{label: "Copiar arquivo", cmd: "cp arquivo.txt /destino/"},
+					{label: "Renomear/mover", cmd: "mv arquivo.txt novo_nome.txt"},
+					{label: "Remover arquivo", cmd: "rm arquivo.txt"},
+					{label: "Remover pasta", cmd: "rm -rf pasta_antiga", quick: true},
+				},
+			},
+			{
+				title: "Disco e memória",
+				items: []commandItem{
+					{label: "Uso de disco", cmd: "df -h", quick: true},
+					{label: "Tamanho de pasta", cmd: "du -sh /var/log"},
+					{label: "Uso de memória", cmd: "free -h", quick: true},
+				},
+			},
+			{
+				title: "Processos e serviços",
+				items: []commandItem{
+					{label: "Filtrar processo", cmd: "ps aux | grep nome"},
+					{label: "Monitor de processos", cmd: "top", quick: true},
+					{label: "Monitor avançado", cmd: "htop", quick: true},
+					{label: "Status de serviço", cmd: "systemctl status nginx"},
+				},
+			},
+			{
+				title: "Rede",
+				items: []commandItem{
+					{label: "Interfaces de rede", cmd: "ip a"},
+					{label: "Teste de conectividade", cmd: "ping 8.8.8.8", quick: true},
+					{label: "Portas abertas", cmd: "ss -tulpen"},
+				},
+			},
+			{
+				title: "Dono e grupo",
+				items: []commandItem{
+					{label: "Alterar dono/grupo", cmd: "chown usuario:grupo arquivo_ou_pasta"},
+					{label: "Alterar dono/grupo recursivo", cmd: "chown -R usuario:grupo caminho_diretorio"},
+				},
+			},
+		}
+		insertCommand := func(cmd string) {
+			if strings.TrimSpace(cmd) == "" || closed.Load() {
+				return
+			}
+			sendKey(cmd)
+			status.SetText("Comando inserido no terminal: " + cmd)
+		}
+		insertAndRunCommand := func(cmd string) {
+			if strings.TrimSpace(cmd) == "" || closed.Load() {
+				return
+			}
+			sendKey(cmd + "\r")
+			status.SetText("Comando executado no terminal: " + cmd)
+		}
+		buildCommandRow := func(item commandItem) fyne.CanvasObject {
+			descLabel := widget.NewLabel(item.label)
+			cmdLabel := widget.NewLabelWithStyle(item.cmd, fyne.TextAlignLeading, fyne.TextStyle{Monospace: true})
+			insertBtn := widget.NewButtonWithIcon("Inserir", theme.ContentAddIcon(), func(cmd string) func() {
+				return func() { insertCommand(cmd) }
+			}(item.cmd))
+			insertBtn.Importance = widget.MediumImportance
+			runBtn := widget.NewButtonWithIcon("Inserir e executar", theme.MediaPlayIcon(), func(cmd string) func() {
+				return func() { insertAndRunCommand(cmd) }
+			}(item.cmd))
+			runBtn.Importance = widget.LowImportance
+			btns := fynecontainer.NewHBox(insertBtn, runBtn)
+			return fynecontainer.NewBorder(nil, nil, nil, btns, fynecontainer.NewVBox(descLabel, cmdLabel))
+		}
+		results := fynecontainer.NewVBox()
+		onlyQuick := false
+		rebuildResults := func(filter string) {
+			filter = strings.ToLower(strings.TrimSpace(filter))
+			rows := []fyne.CanvasObject{
+				widget.NewLabel("Descrição primeiro, comando abaixo. Use Inserir (sem executar) ou Inserir e executar."),
+				widget.NewSeparator(),
+			}
+			matchCount := 0
+			quickRows := []fyne.CanvasObject{}
+			quickCount := 0
+			seenQuick := map[string]bool{}
+			sectionBlocks := []fyne.CanvasObject{}
+			for _, section := range sections {
+				sectionRows := []fyne.CanvasObject{}
+				for _, item := range section.items {
+					if onlyQuick && !item.quick {
+						continue
+					}
+					searchText := strings.ToLower(section.title + " " + item.label + " " + item.cmd)
+					if filter != "" && !strings.Contains(searchText, filter) {
+						continue
+					}
+					matchCount++
+					sectionRows = append(sectionRows, buildCommandRow(item))
+					if item.quick && !seenQuick[item.cmd] {
+						seenQuick[item.cmd] = true
+						quickRows = append(quickRows, buildCommandRow(item))
+						quickCount++
+					}
+				}
+				if len(sectionRows) == 0 {
+					continue
+				}
+				if !onlyQuick {
+					sectionBlocks = append(sectionBlocks, widget.NewLabelWithStyle(section.title, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
+					sectionBlocks = append(sectionBlocks, sectionRows...)
+					sectionBlocks = append(sectionBlocks, widget.NewSeparator())
+				}
+			}
+			if quickCount > 0 {
+				rows = append(rows, widget.NewLabelWithStyle("Mais usados", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
+				rows = append(rows, quickRows...)
+				rows = append(rows, widget.NewSeparator())
+			}
+			if !onlyQuick {
+				rows = append(rows, sectionBlocks...)
+			}
+			if matchCount == 0 {
+				rows = append(rows, widget.NewLabel("Nenhum comando encontrado para a pesquisa."))
+			}
+			results.Objects = rows
+			results.Refresh()
+		}
+		searchEntry := widget.NewEntry()
+		searchEntry.SetPlaceHolder("Pesquisar comando (ex.: pasta, chmod, rede, memória...)")
+		searchEntry.OnChanged = func(s string) {
+			rebuildResults(s)
+		}
+		quickToggle := widget.NewCheck("Mostrar só mais usados", func(v bool) {
+			onlyQuick = v
+			rebuildResults(searchEntry.Text)
+		})
+		rebuildResults("")
+		content := fynecontainer.NewVBox(
+			widget.NewLabelWithStyle("Lista de comandos Linux", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+			searchEntry,
+			quickToggle,
+			widget.NewSeparator(),
+			results,
+		)
+		contentScroller := fynecontainer.NewVScroll(content)
+		contentScroller.SetMinSize(fyne.NewSize(820, 480))
+		dialog.ShowCustom("Lista de comandos Linux", "Fechar", contentScroller, ui.win)
+		status.SetText("Exibindo lista de comandos Linux.")
+	})
+	btnCmdList.Importance = widget.MediumImportance
 	ui.win.Canvas().SetOnTypedRune(func(r rune) { sendKey(string(r)) })
 	ui.win.Canvas().SetOnTypedKey(func(k *fyne.KeyEvent) {
 		if k == nil {
@@ -1333,7 +1514,7 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 	const terminalToolBtnW = float32(66)
 	ctrlCWrap := fynecontainer.NewGridWrap(fyne.NewSize(terminalToolBtnW, ctrlCBtn.MinSize().Height), ctrlCBtn)
 	clearWrap := fynecontainer.NewGridWrap(fyne.NewSize(terminalToolBtnW+8, clearBtn.MinSize().Height), clearBtn)
-	controls := fynecontainer.NewHBox(btnHtop, btnNcdu, layout.NewSpacer(), ctrlCWrap, clearWrap)
+	controls := fynecontainer.NewHBox(btnHtop, btnNcdu, btnCmdList, layout.NewSpacer(), ctrlCWrap, clearWrap)
 	header := fynecontainer.NewVBox(controls)
 	footer := fynecontainer.NewVBox(widget.NewSeparator(), status, hostInfo)
 	body := fynecontainer.NewBorder(
