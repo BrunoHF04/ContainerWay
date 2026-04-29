@@ -1058,15 +1058,22 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 	if err := renderVTToTextGridANSI(vt, grid); err != nil {
 		return err
 	}
+	terminalViewport := fynecontainer.NewPadded(fynecontainer.NewMax(grid))
 
 	status := widget.NewLabel("Conectando TTY interativo (modo ANSI)...")
 	status.Wrapping = fyne.TextWrapWord
-	hostInfo := widget.NewLabel("Coletando informações do host…")
-	hostInfo.Wrapping = fyne.TextWrapOff
+	hostOSValue := widget.NewLabel("Coletando...")
+	hostResValue := widget.NewLabel("Coletando...")
+	hostTimeValue := widget.NewLabel("Coletando...")
+	hostUserValue := widget.NewLabel("Coletando...")
+	hostCompact := widget.NewLabel("Coletando informações do host...")
+	hostCompact.Wrapping = fyne.TextWrapOff
 	clearBtn := widget.NewButton("Limpar", nil)
 	clearBtn.Importance = widget.MediumImportance
 	ctrlCBtn := widget.NewButton("Voltar", nil)
 	ctrlCBtn.Importance = widget.MediumImportance
+	btnCopyOutput := widget.NewButton("Copiar saída", nil)
+	btnCopyOutput.Importance = widget.MediumImportance
 
 	sess, err := ui.s.SSH.NewSession()
 	if err != nil {
@@ -1109,6 +1116,8 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 		stopRender  = make(chan struct{})
 		stopOnce    sync.Once
 		lastCanvas  fyne.Size
+		logMu       sync.Mutex
+		terminalLog []byte
 	)
 	closeTerminal := func() {
 		if closed.Swap(true) {
@@ -1123,10 +1132,30 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 	}
 
 	appendFromRemote := func(chunk []byte) {
+		clean := normalizeTerminalChunk(string(bytes.ToValidUTF8(chunk, []byte{})))
+		if clean != "" {
+			logMu.Lock()
+			const maxTerminalLogBytes = 2 * 1024 * 1024
+			if overflow := len(terminalLog) + len(clean) - maxTerminalLogBytes; overflow > 0 {
+				if overflow >= len(terminalLog) {
+					terminalLog = terminalLog[:0]
+				} else {
+					terminalLog = append([]byte{}, terminalLog[overflow:]...)
+				}
+			}
+			terminalLog = append(terminalLog, clean...)
+			logMu.Unlock()
+		}
 		vtMu.Lock()
 		_, _ = vt.Write(chunk)
 		vtMu.Unlock()
 		renderDirty.Store(true)
+	}
+
+	getTerminalLog := func() string {
+		logMu.Lock()
+		defer logMu.Unlock()
+		return strings.TrimSpace(string(terminalLog))
 	}
 
 	go func() {
@@ -1152,11 +1181,9 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 		}
 	}()
 	calcTermSize := func(sz fyne.Size) (cols, rows int) {
-		// aproximação de célula mono para ajustar PTY ao viewport atual
+		// Usa o tamanho real do viewport do terminal para evitar cortes do topo.
 		cols = int(sz.Width / 8.6)
-		// Reserva mais área para header/rodapé (incluindo barra de infos do host),
-		// evitando cortar o topo da área útil quando apps TUI (htop/top) entram.
-		rows = int((sz.Height - 170) / 17.0)
+		rows = int(sz.Height / 17.0)
 		if cols < 60 {
 			cols = 60
 		}
@@ -1184,7 +1211,10 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 				if closed.Load() {
 					return
 				}
-				cur := ui.win.Canvas().Size()
+				cur := terminalViewport.Size()
+				if cur.Width <= 0 || cur.Height <= 0 {
+					continue
+				}
 				if cur == lastCanvas {
 					continue
 				}
@@ -1219,11 +1249,22 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 			if unavailableMsg == "" {
 				unavailableMsg = "Informações do host indisponíveis."
 			}
-			fyne.Do(func() { hostInfo.SetText(unavailableMsg) })
+			fyne.Do(func() { status.SetText(unavailableMsg) })
 			return
 		}
 		fyne.Do(func() {
-			hostInfo.SetText(buildTerminalHostInfoText(stats))
+			hostOSValue.SetText(strings.TrimSpace(stats.osName) + " | " + strings.TrimSpace(stats.kernel))
+			hostResValue.SetText("RAM: " + fmt.Sprintf("%s / %s", formatBytesIEC(stats.memUsedB), formatBytesIEC(stats.memTotalB)) +
+				" | Disco /: " + fmt.Sprintf("%s / %s", formatBytesIEC(stats.diskUsedB), formatBytesIEC(stats.diskTotalB)))
+			hostTimeValue.SetText("Uptime: " + strings.TrimSpace(stats.uptimeShort) + " | Boot: " + strings.TrimSpace(stats.bootTime))
+			hostUserValue.SetText("Usuário: " + strings.TrimSpace(stats.user))
+			hostCompact.SetText(
+				strings.TrimSpace(stats.osName) + " | " +
+					"RAM: " + fmt.Sprintf("%s/%s", formatBytesIEC(stats.memUsedB), formatBytesIEC(stats.memTotalB)) + " | " +
+					"Disco: " + fmt.Sprintf("%s/%s", formatBytesIEC(stats.diskUsedB), formatBytesIEC(stats.diskTotalB)) + " | " +
+					"Uptime: " + strings.TrimSpace(stats.uptimeShort) + " | " +
+					"Usuário: " + strings.TrimSpace(stats.user),
+			)
 		})
 	}
 	go func() {
@@ -1299,6 +1340,15 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 		status.SetText("Abrindo análise de armazenamento (ncdu)...")
 	})
 	btnNcdu.Importance = widget.MediumImportance
+	btnCopyOutput.OnTapped = func() {
+		content := getTerminalLog()
+		if content == "" {
+			status.SetText("Sem saída disponível para copiar.")
+			return
+		}
+		ui.win.Clipboard().SetContent(content)
+		status.SetText("Saída do terminal copiada para a área de transferência.")
+	}
 	btnCmdList := widget.NewButtonWithIcon("Lista de comandos", theme.InfoIcon(), func() {
 		type commandItem struct {
 			label string
@@ -1626,22 +1676,37 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 	})
 
 	const terminalToolBtnW = float32(66)
+	const terminalCopyBtnW = float32(98)
 	ctrlCWrap := fynecontainer.NewGridWrap(fyne.NewSize(terminalToolBtnW, ctrlCBtn.MinSize().Height), ctrlCBtn)
+	copyWrap := fynecontainer.NewGridWrap(fyne.NewSize(terminalCopyBtnW, btnCopyOutput.MinSize().Height), btnCopyOutput)
 	clearWrap := fynecontainer.NewGridWrap(fyne.NewSize(terminalToolBtnW+8, clearBtn.MinSize().Height), clearBtn)
-	controls := fynecontainer.NewHBox(btnHtop, btnNcdu, btnCmdList, layout.NewSpacer(), ctrlCWrap, clearWrap)
+	controls := fynecontainer.NewHBox(btnHtop, btnNcdu, btnCmdList, layout.NewSpacer(), ctrlCWrap, copyWrap, clearWrap)
+	toggleHostBtn := widget.NewButtonWithIcon("Detalhes", theme.InfoIcon(), func() {
+		detailsText := strings.Join([]string{
+			hostOSValue.Text,
+			hostResValue.Text,
+			hostTimeValue.Text,
+			hostUserValue.Text,
+		}, "\n")
+		dialog.ShowInformation("Detalhes do host", detailsText, ui.win)
+	})
+	toggleHostBtn.Importance = widget.LowImportance
+	hostCompactBar := fynecontainer.NewBorder(nil, nil, nil, toggleHostBtn, hostCompact)
 	header := fynecontainer.NewVBox(controls)
-	footer := fynecontainer.NewVBox(widget.NewSeparator(), status, hostInfo)
+	footer := fynecontainer.NewVBox(widget.NewSeparator(), status, hostCompactBar)
 	body := fynecontainer.NewBorder(
 		header,
 		footer,
 		nil,
 		nil,
-		fynecontainer.NewPadded(fynecontainer.NewMax(grid)),
+		terminalViewport,
 	)
 	ui.openSettingsFullscreenWithBack("Terminal SSH", body, closeTerminal)
 	fyne.Do(func() { status.SetText("TTY ANSI ativo. Host: " + host) })
-	lastCanvas = ui.win.Canvas().Size()
-	applyResize(lastCanvas)
+	lastCanvas = terminalViewport.Size()
+	if lastCanvas.Width > 0 && lastCanvas.Height > 0 {
+		applyResize(lastCanvas)
+	}
 	return nil
 }
 
