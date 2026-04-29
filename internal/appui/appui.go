@@ -82,6 +82,7 @@ const (
 	notifySMTPUserPreferenceKey       = "notify.smtp.user"
 	notifySMTPPasswordPreferenceKey   = "notify.smtp.password"
 	notifySMTPFromPreferenceKey       = "notify.smtp.from"
+	terminalCommandFavoritesKey       = "terminal.commands.favorites"
 	auditLogFileName                  = "containerway-activity.log"
 	defaultAccessUser                 = "admin"
 	defaultAccessPass                 = "!q1w2e3r4$"
@@ -864,6 +865,11 @@ func renderVTToTextGridANSI(vt vt10x.Terminal, grid *widget.TextGrid) (err error
 	return nil
 }
 
+var (
+	terminalStarOutlineIcon = fyne.NewStaticResource("terminal-star-outline.svg", []byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#c9cdd4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9L12 3z"/></svg>`))
+	terminalStarFilledIcon  = fyne.NewStaticResource("terminal-star-filled.svg", []byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#f2c94c"><path d="m12 2.6 2.9 5.8 6.4.9-4.6 4.5 1.1 6.4L12 17.2 6.2 20.2l1.1-6.4L2.7 9.3l6.4-.9L12 2.6z"/></svg>`))
+)
+
 type remoteTerminalHostStats struct {
 	osName      string
 	kernel      string
@@ -1298,6 +1304,7 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 			label string
 			cmd   string
 			quick bool
+			profile string
 		}
 		sections := []struct {
 			title string
@@ -1306,66 +1313,75 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 			{
 				title: "Criar pasta",
 				items: []commandItem{
-					{label: "Criar nova pasta", cmd: "mkdir nome_pasta", quick: true},
-					{label: "Criar com subpastas", cmd: "mkdir -p caminho/pasta/subpasta"},
+					{label: "Criar nova pasta", cmd: "mkdir nome_pasta", quick: true, profile: "Dev"},
+					{label: "Criar com subpastas", cmd: "mkdir -p caminho/pasta/subpasta", profile: "Dev"},
 				},
 			},
 			{
 				title: "Permissões",
 				items: []commandItem{
-					{label: "Liberar tudo (recursivo)", cmd: "chmod -R 777 caminho_diretorio", quick: true},
-					{label: "Permissão recomendada (recursivo)", cmd: "chmod -R 755 caminho_diretorio"},
+					{label: "Liberar tudo (recursivo)", cmd: "chmod -R 777 caminho_diretorio", quick: true, profile: "Infra"},
+					{label: "Permissão recomendada (recursivo)", cmd: "chmod -R 755 caminho_diretorio", profile: "Infra"},
 				},
 			},
 			{
 				title: "Navegação",
 				items: []commandItem{
-					{label: "Mostrar caminho atual", cmd: "pwd"},
-					{label: "Listar arquivos detalhado", cmd: "ls -lah", quick: true},
-					{label: "Entrar em diretório", cmd: "cd /caminho", quick: true},
-					{label: "Voltar um nível", cmd: "cd ..", quick: true},
+					{label: "Mostrar caminho atual", cmd: "pwd", profile: "Dev"},
+					{label: "Listar arquivos detalhado", cmd: "ls -lah", quick: true, profile: "Dev"},
+					{label: "Entrar em diretório", cmd: "cd /caminho", quick: true, profile: "Dev"},
+					{label: "Voltar um nível", cmd: "cd ..", quick: true, profile: "Dev"},
 				},
 			},
 			{
 				title: "Arquivos e diretórios",
 				items: []commandItem{
-					{label: "Criar arquivo vazio", cmd: "touch arquivo.txt"},
-					{label: "Copiar arquivo", cmd: "cp arquivo.txt /destino/"},
-					{label: "Renomear/mover", cmd: "mv arquivo.txt novo_nome.txt"},
-					{label: "Remover arquivo", cmd: "rm arquivo.txt"},
-					{label: "Remover pasta", cmd: "rm -rf pasta_antiga", quick: true},
+					{label: "Criar arquivo vazio", cmd: "touch arquivo.txt", profile: "Dev"},
+					{label: "Copiar arquivo", cmd: "cp arquivo.txt /destino/", profile: "Dev"},
+					{label: "Renomear/mover", cmd: "mv arquivo.txt novo_nome.txt", profile: "Dev"},
+					{label: "Remover arquivo", cmd: "rm arquivo.txt", profile: "Dev"},
+					{label: "Remover pasta", cmd: "rm -rf pasta_antiga", quick: true, profile: "Infra"},
 				},
 			},
 			{
 				title: "Disco e memória",
 				items: []commandItem{
-					{label: "Uso de disco", cmd: "df -h", quick: true},
-					{label: "Tamanho de pasta", cmd: "du -sh /var/log"},
-					{label: "Uso de memória", cmd: "free -h", quick: true},
+					{label: "Uso de disco", cmd: "df -h", quick: true, profile: "Infra"},
+					{label: "Tamanho de pasta", cmd: "du -sh /var/log", profile: "Infra"},
+					{label: "Uso de memória", cmd: "free -h", quick: true, profile: "Infra"},
 				},
 			},
 			{
 				title: "Processos e serviços",
 				items: []commandItem{
-					{label: "Filtrar processo", cmd: "ps aux | grep nome"},
-					{label: "Monitor de processos", cmd: "top", quick: true},
-					{label: "Monitor avançado", cmd: "htop", quick: true},
-					{label: "Status de serviço", cmd: "systemctl status nginx"},
+					{label: "Filtrar processo", cmd: "ps aux | grep nome", profile: "Infra"},
+					{label: "Monitor de processos", cmd: "top", quick: true, profile: "Infra"},
+					{label: "Monitor avançado", cmd: "htop", quick: true, profile: "Infra"},
+					{label: "Status de serviço", cmd: "systemctl status nginx", profile: "Infra"},
 				},
 			},
 			{
 				title: "Rede",
 				items: []commandItem{
-					{label: "Interfaces de rede", cmd: "ip a"},
-					{label: "Teste de conectividade", cmd: "ping 8.8.8.8", quick: true},
-					{label: "Portas abertas", cmd: "ss -tulpen"},
+					{label: "Interfaces de rede", cmd: "ip a", profile: "Infra"},
+					{label: "Teste de conectividade", cmd: "ping 8.8.8.8", quick: true, profile: "Infra"},
+					{label: "Portas abertas", cmd: "ss -tulpen", profile: "Infra"},
 				},
 			},
 			{
 				title: "Dono e grupo",
 				items: []commandItem{
-					{label: "Alterar dono/grupo", cmd: "chown usuario:grupo arquivo_ou_pasta"},
-					{label: "Alterar dono/grupo recursivo", cmd: "chown -R usuario:grupo caminho_diretorio"},
+					{label: "Alterar dono/grupo", cmd: "chown usuario:grupo arquivo_ou_pasta", profile: "Infra"},
+					{label: "Alterar dono/grupo recursivo", cmd: "chown -R usuario:grupo caminho_diretorio", profile: "Infra"},
+				},
+			},
+			{
+				title: "Docker",
+				items: []commandItem{
+					{label: "Listar contêineres", cmd: "docker ps -a", quick: true, profile: "Docker"},
+					{label: "Ver logs do contêiner", cmd: "docker logs -f nome_container", profile: "Docker"},
+					{label: "Entrar no contêiner", cmd: "docker exec -it nome_container bash", quick: true, profile: "Docker"},
+					{label: "Reiniciar contêiner", cmd: "docker restart nome_container", profile: "Docker"},
 				},
 			},
 		}
@@ -1376,13 +1392,68 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 			sendKey(cmd)
 			status.SetText("Comando inserido no terminal: " + cmd)
 		}
+		isDangerousCommand := func(cmd string) bool {
+			c := strings.ToLower(strings.TrimSpace(cmd))
+			if c == "" {
+				return false
+			}
+			dangerPatterns := []string{
+				"rm -rf /",
+				"rm -rf",
+				"chmod -r 777",
+				"chmod 777 -r",
+				"mkfs",
+				"dd if=",
+				":(){ :|:& };:",
+			}
+			for _, p := range dangerPatterns {
+				if strings.Contains(c, p) {
+					return true
+				}
+			}
+			return false
+		}
 		insertAndRunCommand := func(cmd string) {
 			if strings.TrimSpace(cmd) == "" || closed.Load() {
 				return
 			}
-			sendKey(cmd + "\r")
-			status.SetText("Comando executado no terminal: " + cmd)
+			runNow := func() {
+				sendKey(cmd + "\r")
+				status.SetText("Comando executado no terminal: " + cmd)
+			}
+			if isDangerousCommand(cmd) {
+				dialog.ShowConfirm(
+					"Confirmar execução",
+					"Este comando pode ser destrutivo. Deseja realmente executar?\n\n"+cmd,
+					func(ok bool) {
+						if ok {
+							runNow()
+						}
+					},
+					ui.win,
+				)
+				return
+			}
+			runNow()
 		}
+		favorites := loadTerminalCommandFavorites()
+		favoritesMap := map[string]bool{}
+		for _, fav := range favorites {
+			favoritesMap[strings.TrimSpace(fav)] = true
+		}
+		saveFavorites := func() {
+			flat := make([]string, 0, len(favoritesMap))
+			for cmd, enabled := range favoritesMap {
+				if enabled && strings.TrimSpace(cmd) != "" {
+					flat = append(flat, cmd)
+				}
+			}
+			saveTerminalCommandFavorites(flat)
+		}
+		var rebuildResults func(filter string)
+		activeFilter := ""
+		selectedProfile := "Todos"
+		onlyFavorites := false
 		buildCommandRow := func(item commandItem) fyne.CanvasObject {
 			descLabel := widget.NewLabel(item.label)
 			cmdLabel := widget.NewLabelWithStyle(item.cmd, fyne.TextAlignLeading, fyne.TextStyle{Monospace: true})
@@ -1394,12 +1465,31 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 				return func() { insertAndRunCommand(cmd) }
 			}(item.cmd))
 			runBtn.Importance = widget.LowImportance
-			btns := fynecontainer.NewHBox(insertBtn, runBtn)
+			favIcon := terminalStarOutlineIcon
+			if favoritesMap[item.cmd] {
+				favIcon = terminalStarFilledIcon
+			}
+			favBtn := widget.NewButtonWithIcon("", favIcon, func(cmd string) func() {
+				return func() {
+					favoritesMap[cmd] = !favoritesMap[cmd]
+					if favoritesMap[cmd] {
+						status.SetText("Comando favoritado: " + cmd)
+					} else {
+						status.SetText("Comando removido dos favoritos: " + cmd)
+					}
+					saveFavorites()
+					if rebuildResults != nil {
+						rebuildResults(activeFilter)
+					}
+				}
+			}(item.cmd))
+			favBtn.Importance = widget.LowImportance
+			btns := fynecontainer.NewHBox(insertBtn, runBtn, favBtn)
 			return fynecontainer.NewBorder(nil, nil, nil, btns, fynecontainer.NewVBox(descLabel, cmdLabel))
 		}
 		results := fynecontainer.NewVBox()
 		onlyQuick := false
-		rebuildResults := func(filter string) {
+		rebuildResults = func(filter string) {
 			filter = strings.ToLower(strings.TrimSpace(filter))
 			rows := []fyne.CanvasObject{
 				widget.NewLabel("Descrição primeiro, comando abaixo. Use Inserir (sem executar) ou Inserir e executar."),
@@ -1414,6 +1504,12 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 				sectionRows := []fyne.CanvasObject{}
 				for _, item := range section.items {
 					if onlyQuick && !item.quick {
+						continue
+					}
+					if onlyFavorites && !favoritesMap[item.cmd] {
+						continue
+					}
+					if selectedProfile != "Todos" && !strings.EqualFold(strings.TrimSpace(item.profile), selectedProfile) {
 						continue
 					}
 					searchText := strings.ToLower(section.title + " " + item.label + " " + item.cmd)
@@ -1454,17 +1550,35 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 		searchEntry := widget.NewEntry()
 		searchEntry.SetPlaceHolder("Pesquisar comando (ex.: pasta, chmod, rede, memória...)")
 		searchEntry.OnChanged = func(s string) {
-			rebuildResults(s)
+			activeFilter = s
+			rebuildResults(activeFilter)
 		}
+		profileSelect := widget.NewSelect([]string{"Todos", "Dev", "Infra", "Docker"}, func(v string) {
+			if strings.TrimSpace(v) == "" {
+				v = "Todos"
+			}
+			selectedProfile = v
+			rebuildResults(activeFilter)
+		})
+		profileSelect.SetSelected("Todos")
 		quickToggle := widget.NewCheck("Mostrar só mais usados", func(v bool) {
 			onlyQuick = v
-			rebuildResults(searchEntry.Text)
+			rebuildResults(activeFilter)
+		})
+		favToggle := widget.NewCheck("Mostrar só favoritos", func(v bool) {
+			onlyFavorites = v
+			rebuildResults(activeFilter)
 		})
 		rebuildResults("")
 		content := fynecontainer.NewVBox(
 			widget.NewLabelWithStyle("Lista de comandos Linux", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 			searchEntry,
-			quickToggle,
+			fynecontainer.NewHBox(
+				fynecontainer.NewGridWrap(fyne.NewSize(220, profileSelect.MinSize().Height), profileSelect),
+				layout.NewSpacer(),
+				quickToggle,
+				favToggle,
+			),
 			widget.NewSeparator(),
 			results,
 		)
@@ -5036,6 +5150,16 @@ func loadOperationHistoryPreference() []string {
 // saveOperationHistoryPreference executa parte da logica deste modulo.
 func saveOperationHistoryPreference(values []string) {
 	saveStringSlicePreference(operationHistoryPreferenceKey, values)
+}
+
+// loadTerminalCommandFavorites executa parte da logica deste modulo.
+func loadTerminalCommandFavorites() []string {
+	return loadStringSlicePreference(terminalCommandFavoritesKey)
+}
+
+// saveTerminalCommandFavorites executa parte da logica deste modulo.
+func saveTerminalCommandFavorites(values []string) {
+	saveStringSlicePreference(terminalCommandFavoritesKey, values)
 }
 
 // defaultAccessAccounts executa parte da logica deste modulo.
