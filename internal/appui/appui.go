@@ -1561,6 +1561,112 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 			}
 			runNow()
 		}
+		composeFileEntry := widget.NewEntry()
+		composeFileEntry.SetPlaceHolder("/caminho/docker-compose.yml")
+		composeProjectEntry := widget.NewEntry()
+		composeProjectEntry.SetPlaceHolder("nome_projeto")
+		composeServiceEntry := widget.NewEntry()
+		composeServiceEntry.SetPlaceHolder("nome_servico")
+		composePrefix := func() string {
+			composeFile := strings.TrimSpace(composeFileEntry.Text)
+			composeProject := strings.TrimSpace(composeProjectEntry.Text)
+			base := "docker compose"
+			if composeFile != "" {
+				base += " -f " + composeFile
+			}
+			if composeProject != "" {
+				base += " -p " + composeProject
+			}
+			return base
+		}
+		composeServiceOrWarn := func() (string, bool) {
+			service := strings.TrimSpace(composeServiceEntry.Text)
+			if service == "" {
+				showStatus("Informe o nome do serviço para este comando Docker Compose.")
+				clearStatusAfter("Informe o nome do serviço para este comando Docker Compose.", 2400*time.Millisecond)
+				return "", false
+			}
+			return service, true
+		}
+		composeToolsCard := func() fyne.CanvasObject {
+			composeFields := fynecontainer.NewVBox(
+				fynecontainer.NewGridWithColumns(2, widget.NewLabel("Compose file"), composeFileEntry),
+				fynecontainer.NewGridWithColumns(2, widget.NewLabel("Projeto (-p)"), composeProjectEntry),
+				fynecontainer.NewGridWithColumns(2, widget.NewLabel("Serviço"), composeServiceEntry),
+			)
+			validateCmd := func() string {
+				return composePrefix() + " config -q"
+			}
+			recreateAllCmd := func() string {
+				return composePrefix() + " up -d --force-recreate --pull always"
+			}
+			recreateServiceCmd := func() (string, bool) {
+				service, ok := composeServiceOrWarn()
+				if !ok {
+					return "", false
+				}
+				return recreateAllCmd() + " " + service, true
+			}
+			diagnosePsCmd := func() string {
+				return composePrefix() + " ps"
+			}
+			diagnoseLogsCmd := func() (string, bool) {
+				service, ok := composeServiceOrWarn()
+				if !ok {
+					return "", false
+				}
+				return composePrefix() + " logs -f " + service, true
+			}
+			diagnoseTopCmd := func() (string, bool) {
+				service, ok := composeServiceOrWarn()
+				if !ok {
+					return "", false
+				}
+				return composePrefix() + " top " + service, true
+			}
+			row1 := fynecontainer.NewHBox(
+				widget.NewButton("Inserir validação", func() { insertCommand(validateCmd()) }),
+				widget.NewButton("Validar e executar", func() { insertAndRunCommand(validateCmd()) }),
+				widget.NewButton("Inserir reiniciar tudo", func() { insertCommand(recreateAllCmd()) }),
+				widget.NewButton("Executar reiniciar tudo", func() { insertAndRunCommand(recreateAllCmd()) }),
+			)
+			row2 := fynecontainer.NewHBox(
+				widget.NewButton("Inserir reiniciar serviço", func() {
+					cmd, ok := recreateServiceCmd()
+					if ok {
+						insertCommand(cmd)
+					}
+				}),
+				widget.NewButton("Executar reiniciar serviço", func() {
+					cmd, ok := recreateServiceCmd()
+					if ok {
+						insertAndRunCommand(cmd)
+					}
+				}),
+			)
+			row3 := fynecontainer.NewHBox(
+				widget.NewButton("Diagnóstico: ps", func() { insertAndRunCommand(diagnosePsCmd()) }),
+				widget.NewButton("Diagnóstico: logs serviço", func() {
+					cmd, ok := diagnoseLogsCmd()
+					if ok {
+						insertAndRunCommand(cmd)
+					}
+				}),
+				widget.NewButton("Diagnóstico: top serviço", func() {
+					cmd, ok := diagnoseTopCmd()
+					if ok {
+						insertAndRunCommand(cmd)
+					}
+				}),
+			)
+			return fynecontainer.NewVBox(
+				widget.NewLabel("Defina variáveis e gere/executa comandos sem editar na mão."),
+				composeFields,
+				row1,
+				row2,
+				row3,
+			)
+		}
 		favorites := loadTerminalCommandFavorites()
 		favoritesMap := map[string]bool{}
 		for _, fav := range favorites {
@@ -1695,8 +1801,11 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 			rebuildResults(activeFilter)
 		})
 		rebuildResults("")
-		content := fynecontainer.NewVBox(
-			widget.NewLabelWithStyle("Lista de comandos Linux", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		dockerComposeSection := widget.NewAccordion(
+			widget.NewAccordionItem("Docker Compose rápido", composeToolsCard()),
+		)
+		dockerComposeSection.CloseAll()
+		commandsSectionBody := fynecontainer.NewVBox(
 			searchEntry,
 			fynecontainer.NewHBox(
 				fynecontainer.NewGridWrap(fyne.NewSize(220, profileSelect.MinSize().Height), profileSelect),
@@ -1706,6 +1815,15 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 			),
 			widget.NewSeparator(),
 			results,
+		)
+		commandsSection := widget.NewAccordion(
+			widget.NewAccordionItem("Comandos Linux", commandsSectionBody),
+		)
+		commandsSection.Open(0)
+		content := fynecontainer.NewVBox(
+			widget.NewLabelWithStyle("Lista de comandos Linux", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+			dockerComposeSection,
+			commandsSection,
 		)
 		contentScroller := fynecontainer.NewVScroll(content)
 		contentScroller.SetMinSize(fyne.NewSize(820, 480))
