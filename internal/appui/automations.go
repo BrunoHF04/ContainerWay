@@ -326,9 +326,13 @@ func (ui *explorer) showAutomationCenter() {
 
 	totalLbl := widget.NewLabel("")
 	totalLbl.Wrapping = fyne.TextWrapOff
+	statsLbl := widget.NewLabel("")
+	statsLbl.Wrapping = fyne.TextWrapOff
 	engineLbl := widget.NewLabel("Motor: parado")
 	engineLbl.Wrapping = fyne.TextWrapOff
 	engineLbl.TextStyle = fyne.TextStyle{Bold: true}
+	statusFilter := widget.NewSelect([]string{"Todas", "Ativas", "Desativadas"}, nil)
+	statusFilter.SetSelected("Todas")
 	search := widget.NewEntry()
 	search.SetPlaceHolder("Pesquisar automações (nome, gatilho, ação)…")
 	btnHelp := widget.NewButtonWithIcon("", theme.HelpIcon(), func() {
@@ -443,14 +447,33 @@ func (ui *explorer) showAutomationCenter() {
 
 	applyFilter := func(q string) {
 		q = strings.ToLower(strings.TrimSpace(q))
+		mode := strings.TrimSpace(statusFilter.Selected)
+		if mode == "" {
+			mode = "Todas"
+		}
+		allRules := ui.getAutomationRules()
 		filtered = filtered[:0]
-		for _, p := range ui.getAutomationRules() {
+		activeCount := 0
+		disabledCount := 0
+		for _, p := range allRules {
+			if p.Enabled {
+				activeCount++
+			} else {
+				disabledCount++
+			}
+			if mode == "Ativas" && !p.Enabled {
+				continue
+			}
+			if mode == "Desativadas" && p.Enabled {
+				continue
+			}
 			blob := strings.ToLower(strings.Join([]string{p.Name, p.Description, p.Trigger, p.Action, p.Target, p.Kind}, " "))
 			if q == "" || strings.Contains(blob, q) {
 				filtered = append(filtered, p)
 			}
 		}
 		totalLbl.SetText(fmt.Sprintf("Mostrando %d automação(ões) no host %s.", len(filtered), host))
+		statsLbl.SetText(fmt.Sprintf("Ativas: %d  |  Desativadas: %d", activeCount, disabledCount))
 		list.Refresh()
 		for i := 0; i < len(filtered); i++ {
 			list.SetItemHeight(widget.ListItemID(i), 156)
@@ -460,6 +483,9 @@ func (ui *explorer) showAutomationCenter() {
 		updateRuleButtons()
 	}
 	search.OnChanged = applyFilter
+	statusFilter.OnChanged = func(_ string) {
+		applyFilter(search.Text)
+	}
 	applyFilter("")
 
 	btnNew := widget.NewButtonWithIcon("Nova automação", theme.ContentAddIcon(), nil)
@@ -733,7 +759,9 @@ func (ui *explorer) showAutomationCenter() {
 		hint,
 		widget.NewSeparator(),
 		container.NewBorder(nil, nil, nil, btnHelp, search),
+		container.NewHBox(widget.NewLabel("Status"), statusFilter, layout.NewSpacer()),
 		totalLbl,
+		statsLbl,
 		engineLbl,
 		widget.NewSeparator(),
 	)
