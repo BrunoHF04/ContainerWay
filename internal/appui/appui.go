@@ -1958,6 +1958,12 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 	copyWrap := fynecontainer.NewGridWrap(fyne.NewSize(terminalCopyBtnW, btnCopyOutput.MinSize().Height), btnCopyOutput)
 	clearWrap := fynecontainer.NewGridWrap(fyne.NewSize(terminalToolBtnW+8, clearBtn.MinSize().Height), clearBtn)
 	controls := fynecontainer.NewHBox(btnHtop, btnNcdu, btnCmdList, layout.NewSpacer(), ctrlCWrap, copyWrap, clearWrap)
+	if ui.useCompactLayout() {
+		controls = fynecontainer.NewVBox(
+			fynecontainer.NewHScroll(fynecontainer.NewHBox(btnHtop, btnNcdu, btnCmdList)),
+			fynecontainer.NewHBox(ctrlCWrap, copyWrap, clearWrap, layout.NewSpacer()),
+		)
+	}
 	toggleHostBtn := widget.NewButtonWithIcon("Detalhes", theme.InfoIcon(), func() {
 		detailsText := strings.Join([]string{
 			hostOSValue.Text,
@@ -6720,6 +6726,12 @@ func (ui *explorer) showTerminalConsoleCompat(currentDir, host string) {
 	ctrlCWrap := fynecontainer.NewGridWrap(fyne.NewSize(terminalToolBtnW, ctrlCBtn.MinSize().Height), ctrlCBtn)
 	clearWrap := fynecontainer.NewGridWrap(fyne.NewSize(terminalToolBtnW+8, clearBtn.MinSize().Height), clearBtn)
 	controls := fynecontainer.NewHBox(btnHtop, btnNcdu, layout.NewSpacer(), ctrlCWrap, clearWrap)
+	if ui.useCompactLayout() {
+		controls = fynecontainer.NewVBox(
+			fynecontainer.NewHScroll(fynecontainer.NewHBox(btnHtop, btnNcdu)),
+			fynecontainer.NewHBox(ctrlCWrap, clearWrap, layout.NewSpacer()),
+		)
+	}
 	header := fynecontainer.NewVBox(controls)
 	footer := fynecontainer.NewVBox(widget.NewSeparator(), status)
 	body := fynecontainer.NewBorder(

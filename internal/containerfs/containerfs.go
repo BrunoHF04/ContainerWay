@@ -3,6 +3,7 @@ package containerfs
 import (
 	"archive/tar"
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -10,9 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"containerway/internal/fsutil"
 	"github.com/docker/docker/api/types/container"
 	docker "github.com/docker/docker/client"
-	"containerway/internal/fsutil"
+	"github.com/docker/docker/pkg/stdcopy"
 )
 
 // FS opera sobre ficheiros dentro de um contentor via API Docker (arquivos tar).
@@ -170,7 +172,16 @@ func (f *FS) listDirDirect(ctx context.Context, p string) ([]fsutil.DirEntry, er
 		out = append(out, fsutil.DirEntry{Name: "..", Path: parent, IsDir: true})
 	}
 
-	sc := bufio.NewScanner(resp.Reader)
+	var stdoutBuf bytes.Buffer
+	var stderrBuf bytes.Buffer
+	if _, err := stdcopy.StdCopy(&stdoutBuf, &stderrBuf, resp.Reader); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(stderrBuf.String()) != "" {
+		return nil, fmt.Errorf("%s", strings.TrimSpace(stderrBuf.String()))
+	}
+
+	sc := bufio.NewScanner(strings.NewReader(stdoutBuf.String()))
 	for sc.Scan() {
 		line := strings.TrimSpace(sc.Text())
 		if line == "" {
