@@ -1501,6 +1501,14 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 					{label: "Reiniciar contêiner", cmd: "docker restart nome_container", profile: "Docker"},
 				},
 			},
+			{
+				title: "Docker Compose",
+				items: []commandItem{
+					{label: "Listar serviços do compose", cmd: "docker compose -f /opt/siplan/docker-compose-orion.yml -p orion ps", profile: "Docker"},
+					{label: "Reiniciar tudo (recriar + pull)", cmd: "docker compose -f /opt/siplan/docker-compose-orion.yml -p orion up -d --force-recreate --pull always", quick: true, profile: "Docker"},
+					{label: "Reiniciar serviço específico", cmd: "docker compose -f /opt/siplan/docker-compose-orion.yml -p orion up -d --force-recreate --pull always nome_servico", quick: true, profile: "Docker"},
+				},
+			},
 		}
 		insertCommand := func(cmd string) {
 			if strings.TrimSpace(cmd) == "" || closed.Load() {
