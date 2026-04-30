@@ -58,6 +58,28 @@ func (ui *explorer) automationConfigPath() (string, error) {
 	return filepath.Join(dir, "automations-"+host+".json"), nil
 }
 
+// automationHistoryPath resolve o arquivo de histórico por host.
+func (ui *explorer) automationHistoryPath() (string, error) {
+	cfgDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("não foi possível localizar diretório de configuração: %w", err)
+	}
+	dir := filepath.Join(cfgDir, "ContainerWay")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", fmt.Errorf("não foi possível criar diretório de configuração: %w", err)
+	}
+	host := strings.TrimSpace(ui.connCreds.Host)
+	if host == "" {
+		host = "host-desconhecido"
+	}
+	host = strings.ToLower(host)
+	host = strings.ReplaceAll(host, ":", "_")
+	host = strings.ReplaceAll(host, "/", "_")
+	host = strings.ReplaceAll(host, "\\", "_")
+	host = strings.ReplaceAll(host, " ", "_")
+	return filepath.Join(dir, "automations-history-"+host+".json"), nil
+}
+
 // defaultAutomationRules retorna regras iniciais para o host.
 func defaultAutomationRules() []automationRule {
 	return []automationRule{
@@ -192,6 +214,7 @@ func (ui *explorer) appendAutomationHistory(message string) {
 	if len(ui.automationHistory) > 120 {
 		ui.automationHistory = ui.automationHistory[:120]
 	}
+	_ = ui.saveAutomationHistoryLocked()
 	ui.automationMu.Unlock()
 }
 
@@ -208,7 +231,43 @@ func (ui *explorer) getAutomationHistory() []string {
 func (ui *explorer) clearAutomationHistory() {
 	ui.automationMu.Lock()
 	ui.automationHistory = nil
+	_ = ui.saveAutomationHistoryLocked()
 	ui.automationMu.Unlock()
+}
+
+// loadAutomationHistory carrega histórico persistido do host.
+func (ui *explorer) loadAutomationHistory() {
+	p, err := ui.automationHistoryPath()
+	if err != nil {
+		return
+	}
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return
+	}
+	if strings.TrimSpace(string(b)) == "" {
+		return
+	}
+	var rows []string
+	if err := json.Unmarshal(b, &rows); err != nil {
+		return
+	}
+	ui.automationMu.Lock()
+	ui.automationHistory = rows
+	ui.automationMu.Unlock()
+}
+
+// saveAutomationHistoryLocked persiste histórico assumindo lock ativo.
+func (ui *explorer) saveAutomationHistoryLocked() error {
+	p, err := ui.automationHistoryPath()
+	if err != nil {
+		return err
+	}
+	b, err := json.MarshalIndent(ui.automationHistory, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(p, b, 0o644)
 }
 
 // automationTargetLabel formata o alvo da regra para exibição.
@@ -319,9 +378,20 @@ func (ui *explorer) runAutomationTick(lastActionAt map[string]time.Time, onEvent
 		if !last.IsZero() && time.Since(last) < cooldown {
 			continue
 		}
-		rctx, rcancel := context.WithTimeout(context.Background(), 40*time.Second)
-		err := ui.s.Docker.ContainerRestart(rctx, c.ID, dcontainer.StopOptions{})
-		rcancel()
+		var err error
+		for attempt := 1; attempt <= 3; attempt++ {
+			rctx, rcancel := context.WithTimeout(context.Background(), 40*time.Second)
+			err = ui.s.Docker.ContainerRestart(rctx, c.ID, dcontainer.StopOptions{})
+			rcancel()
+			if err == nil {
+				break
+			}
+			if attempt < 3 {
+				backoff := time.Duration(attempt) * 2 * time.Second
+				onEvent(fmt.Sprintf("Motor: tentativa %d/3 falhou para '%s', retry em %s.", attempt, target, backoff))
+				time.Sleep(backoff)
+			}
+		}
 		if err != nil {
 			onEvent(fmt.Sprintf("Motor: falha ao reiniciar '%s': %v", target, err))
 			continue
@@ -350,6 +420,7 @@ func (ui *explorer) showAutomationCenter() {
 		dialog.ShowError(err, ui.win)
 		return
 	}
+	ui.loadAutomationHistory()
 	if len(ui.getAutomationHistory()) == 0 {
 		ui.appendAutomationHistory("Central de automações aberta.")
 	}
