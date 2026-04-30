@@ -34,6 +34,7 @@ Depois de **Conectar** com sucesso, abre-se primeiro a **tela inicial da sessão
 - **Pesquisar módulos** (filtro por palavra-chave);
 - **Gerenciador de arquivos** — abre o explorador em painel duplo (no Windows/macOS a janela tende a **maximizar**);
 - **Contêineres Docker** — lista e ações no host remoto;
+- **Central de automações** — regras com gatilho/ação, motor de execução e histórico operacional;
 - **Terminal SSH** — console remoto integrado para executar comandos no host;
 - **Configurações** (somente **admin**) — atalhos para **Usuários** e **Alertas por e-mail**.
 
@@ -118,6 +119,15 @@ Somente o usuário **admin** vê **E-mail** na barra do explorador ou no cartão
   - início;
   - atualizar.
 - Breadcrumbs clicáveis para navegação rápida por níveis.
+
+### Central de automacoes (MVP)
+
+- Regras por host com persistência em JSON local (`automations-<host>.json`).
+- Motor de automações em background (liga/desliga na UI) com varredura periódica.
+- Gatilho implementado: contêiner parado -> ação de `docker restart` com cooldown.
+- Retry com backoff para falhas de restart (até 3 tentativas).
+- Gestão de regras na tela: criar, editar, ativar/desativar e excluir.
+- Histórico operacional na própria tela (inclui ações manuais e eventos do motor), com exportação `.txt` e limpeza.
 - Busca por painel (local e remoto) com:
   - texto por nome;
   - filtro por extensão (`ext:log`);
