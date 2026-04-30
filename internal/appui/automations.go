@@ -349,6 +349,7 @@ func (ui *explorer) showAutomationCenter() {
 	btnHelp.Importance = widget.LowImportance
 
 	filtered := append([]automationRule(nil), rules...)
+	selectedRuleID := ""
 	list := widget.NewList(
 		func() int { return len(filtered) },
 		func() fyne.CanvasObject {
@@ -391,11 +392,35 @@ func (ui *explorer) showAutomationCenter() {
 	for i := 0; i < len(filtered); i++ {
 		list.SetItemHeight(widget.ListItemID(i), 156)
 	}
+	btnEdit := widget.NewButtonWithIcon("Editar selecionada", theme.DocumentCreateIcon(), nil)
+	btnToggleRule := widget.NewButtonWithIcon("Ativar/Desativar", theme.VisibilityIcon(), nil)
+	btnDelete := widget.NewButtonWithIcon("Excluir selecionada", theme.DeleteIcon(), nil)
+	btnEdit.Importance = widget.MediumImportance
+	btnToggleRule.Importance = widget.MediumImportance
+	btnDelete.Importance = widget.DangerImportance
+	btnEdit.Disable()
+	btnToggleRule.Disable()
+	btnDelete.Disable()
+
+	updateRuleButtons := func() {
+		if strings.TrimSpace(selectedRuleID) == "" {
+			btnEdit.Disable()
+			btnToggleRule.Disable()
+			btnDelete.Disable()
+			return
+		}
+		btnEdit.Enable()
+		btnToggleRule.Enable()
+		btnDelete.Enable()
+	}
+
 	list.OnSelected = func(id widget.ListItemID) {
 		if id < 0 || int(id) >= len(filtered) {
 			return
 		}
 		row := filtered[id]
+		selectedRuleID = row.ID
+		updateRuleButtons()
 		dialog.ShowInformation(
 			"Detalhes da automação",
 			fmt.Sprintf(
@@ -410,6 +435,10 @@ func (ui *explorer) showAutomationCenter() {
 			),
 			ui.win,
 		)
+	}
+	list.OnUnselected = func(_ widget.ListItemID) {
+		selectedRuleID = ""
+		updateRuleButtons()
 	}
 
 	applyFilter := func(q string) {
@@ -426,7 +455,9 @@ func (ui *explorer) showAutomationCenter() {
 		for i := 0; i < len(filtered); i++ {
 			list.SetItemHeight(widget.ListItemID(i), 156)
 		}
+		selectedRuleID = ""
 		list.UnselectAll()
+		updateRuleButtons()
 	}
 	search.OnChanged = applyFilter
 	applyFilter("")
@@ -543,6 +574,161 @@ func (ui *explorer) showAutomationCenter() {
 		form.Show()
 	}
 
+	findRuleByID := func(id string) (automationRule, bool) {
+		for _, r := range ui.getAutomationRules() {
+			if r.ID == id {
+				return r, true
+			}
+		}
+		return automationRule{}, false
+	}
+
+	btnToggleRule.OnTapped = func() {
+		if strings.TrimSpace(selectedRuleID) == "" {
+			return
+		}
+		all := ui.getAutomationRules()
+		changedName := ""
+		nextState := false
+		for i := range all {
+			if all[i].ID != selectedRuleID {
+				continue
+			}
+			all[i].Enabled = !all[i].Enabled
+			changedName = all[i].Name
+			nextState = all[i].Enabled
+			break
+		}
+		if changedName == "" {
+			dialog.ShowInformation("Automação", "Regra selecionada não foi encontrada.", ui.win)
+			return
+		}
+		if err := ui.replaceAutomationRules(all); err != nil {
+			dialog.ShowError(err, ui.win)
+			return
+		}
+		status := "desativada"
+		if nextState {
+			status = "ativada"
+		}
+		appendAuditLog("automacao", "Regra "+status+": "+changedName)
+		applyFilter(search.Text)
+		dialog.ShowInformation("Automação", "Regra "+status+" com sucesso.", ui.win)
+	}
+
+	btnDelete.OnTapped = func() {
+		if strings.TrimSpace(selectedRuleID) == "" {
+			return
+		}
+		row, ok := findRuleByID(selectedRuleID)
+		if !ok {
+			dialog.ShowInformation("Automação", "Regra selecionada não foi encontrada.", ui.win)
+			return
+		}
+		dialog.ShowConfirm(
+			"Excluir automação",
+			"Confirma excluir a regra?\n\n"+row.Name,
+			func(confirm bool) {
+				if !confirm {
+					return
+				}
+				all := ui.getAutomationRules()
+				out := make([]automationRule, 0, len(all))
+				for _, r := range all {
+					if r.ID != selectedRuleID {
+						out = append(out, r)
+					}
+				}
+				if err := ui.replaceAutomationRules(out); err != nil {
+					dialog.ShowError(err, ui.win)
+					return
+				}
+				appendAuditLog("automacao", "Regra excluída: "+row.Name)
+				applyFilter(search.Text)
+				dialog.ShowInformation("Automação", "Regra excluída com sucesso.", ui.win)
+			},
+			ui.win,
+		)
+	}
+
+	btnEdit.OnTapped = func() {
+		if strings.TrimSpace(selectedRuleID) == "" {
+			return
+		}
+		row, ok := findRuleByID(selectedRuleID)
+		if !ok {
+			dialog.ShowInformation("Automação", "Regra selecionada não foi encontrada.", ui.win)
+			return
+		}
+		nameEntry := widget.NewEntry()
+		nameEntry.SetText(row.Name)
+		targetEntry := widget.NewEntry()
+		targetEntry.SetText(row.Target)
+		cooldownEntry := widget.NewEntry()
+		cooldownEntry.SetText(strconv.Itoa(row.CooldownSec))
+		descEntry := widget.NewEntry()
+		descEntry.SetText(row.Description)
+		form := dialog.NewForm(
+			"Editar automação",
+			"Salvar",
+			"Cancelar",
+			[]*widget.FormItem{
+				widget.NewFormItem("Nome", nameEntry),
+				widget.NewFormItem("Contêiner alvo", targetEntry),
+				widget.NewFormItem("Cooldown (segundos)", cooldownEntry),
+				widget.NewFormItem("Descrição", descEntry),
+			},
+			func(ok bool) {
+				if !ok {
+					return
+				}
+				name := strings.TrimSpace(nameEntry.Text)
+				target := strings.TrimSpace(targetEntry.Text)
+				cooldown, convErr := strconv.Atoi(strings.TrimSpace(cooldownEntry.Text))
+				desc := strings.TrimSpace(descEntry.Text)
+				if name == "" || target == "" {
+					dialog.ShowInformation("Editar automação", "Preencha nome e contêiner alvo.", ui.win)
+					return
+				}
+				if convErr != nil || cooldown < 10 {
+					dialog.ShowInformation("Editar automação", "Cooldown inválido. Use um número inteiro >= 10.", ui.win)
+					return
+				}
+				if desc == "" {
+					desc = "Regra atualizada pelo usuário."
+				}
+				all := ui.getAutomationRules()
+				updated := false
+				for i := range all {
+					if all[i].ID != selectedRuleID {
+						continue
+					}
+					all[i].Name = name
+					all[i].Target = target
+					all[i].CooldownSec = cooldown
+					all[i].Description = desc
+					all[i].Trigger = "Container parado por mais de " + strconv.Itoa(cooldown) + "s"
+					updated = true
+					break
+				}
+				if !updated {
+					dialog.ShowInformation("Editar automação", "Regra selecionada não foi encontrada.", ui.win)
+					return
+				}
+				if err := ui.replaceAutomationRules(all); err != nil {
+					dialog.ShowError(err, ui.win)
+					return
+				}
+				appendAuditLog("automacao", "Regra editada: "+name+" -> "+target)
+				applyFilter(search.Text)
+				dialog.ShowInformation("Editar automação", "Regra atualizada com sucesso.", ui.win)
+			},
+			ui.win,
+		)
+		form.Resize(fyne.NewSize(520, 300))
+		form.Show()
+	}
+
 	top := container.NewVBox(
 		hint,
 		widget.NewSeparator(),
@@ -554,6 +740,9 @@ func (ui *explorer) showAutomationCenter() {
 	actions := container.NewHBox(
 		btnNew,
 		btnToggleEngine,
+		btnEdit,
+		btnToggleRule,
+		btnDelete,
 		btnRunbook,
 		btnPolicies,
 		layout.NewSpacer(),
