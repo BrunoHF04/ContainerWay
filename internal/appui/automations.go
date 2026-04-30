@@ -758,10 +758,14 @@ func (ui *explorer) showAutomationCenter() {
 	top := container.NewVBox(
 		hint,
 		widget.NewSeparator(),
-		container.NewBorder(nil, nil, nil, btnHelp, search),
-		container.NewHBox(widget.NewLabel("Status"), statusFilter, layout.NewSpacer()),
-		totalLbl,
-		statsLbl,
+		container.NewBorder(
+			nil,
+			nil,
+			container.NewHBox(widget.NewLabel("Status"), statusFilter),
+			btnHelp,
+			search,
+		),
+		container.NewHBox(totalLbl, widget.NewLabel(" | "), statsLbl, layout.NewSpacer()),
 		engineLbl,
 		widget.NewSeparator(),
 	)
