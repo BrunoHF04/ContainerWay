@@ -706,6 +706,7 @@ type explorer struct {
 
 	automationMu            sync.Mutex
 	automationRules         []automationRule
+	automationHistory       []string
 	automationEngineMu      sync.Mutex
 	automationEngineStop    chan struct{}
 	automationEngineRunning atomic.Bool

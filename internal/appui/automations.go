@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -179,6 +180,37 @@ func (ui *explorer) getAutomationRules() []automationRule {
 	return copyAutomationRules(ui.automationRules)
 }
 
+// appendAutomationHistory registra evento local para exibição na UI.
+func (ui *explorer) appendAutomationHistory(message string) {
+	msg := strings.TrimSpace(message)
+	if msg == "" {
+		return
+	}
+	line := time.Now().Format("15:04:05") + "  " + msg
+	ui.automationMu.Lock()
+	ui.automationHistory = append([]string{line}, ui.automationHistory...)
+	if len(ui.automationHistory) > 120 {
+		ui.automationHistory = ui.automationHistory[:120]
+	}
+	ui.automationMu.Unlock()
+}
+
+// getAutomationHistory retorna cópia dos eventos locais.
+func (ui *explorer) getAutomationHistory() []string {
+	ui.automationMu.Lock()
+	defer ui.automationMu.Unlock()
+	out := make([]string, len(ui.automationHistory))
+	copy(out, ui.automationHistory)
+	return out
+}
+
+// clearAutomationHistory limpa eventos locais exibidos na tela.
+func (ui *explorer) clearAutomationHistory() {
+	ui.automationMu.Lock()
+	ui.automationHistory = nil
+	ui.automationMu.Unlock()
+}
+
 // automationTargetLabel formata o alvo da regra para exibição.
 func automationTargetLabel(r automationRule) string {
 	target := strings.TrimSpace(r.Target)
@@ -318,6 +350,9 @@ func (ui *explorer) showAutomationCenter() {
 		dialog.ShowError(err, ui.win)
 		return
 	}
+	if len(ui.getAutomationHistory()) == 0 {
+		ui.appendAutomationHistory("Central de automações aberta.")
+	}
 
 	hint := widget.NewLabel(
 		"Crie regras com gatilho e ação para reduzir tarefas manuais. MVP atual já salva regras e executa auto-restart de contêiner parado.",
@@ -331,6 +366,73 @@ func (ui *explorer) showAutomationCenter() {
 	engineLbl := widget.NewLabel("Motor: parado")
 	engineLbl.Wrapping = fyne.TextWrapOff
 	engineLbl.TextStyle = fyne.TextStyle{Bold: true}
+	historyTitle := widget.NewLabelWithStyle("Histórico recente", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	historyRows := ui.getAutomationHistory()
+	historyList := widget.NewList(
+		func() int { return len(historyRows) },
+		func() fyne.CanvasObject {
+			lbl := widget.NewLabel("evento")
+			lbl.Wrapping = fyne.TextWrapWord
+			return lbl
+		},
+		func(id widget.ListItemID, obj fyne.CanvasObject) {
+			lbl := obj.(*widget.Label)
+			if id < 0 || int(id) >= len(historyRows) {
+				lbl.SetText("")
+				return
+			}
+			lbl.SetText(historyRows[id])
+		},
+	)
+	refreshHistory := func() {
+		historyRows = ui.getAutomationHistory()
+		historyList.Refresh()
+		for i := 0; i < len(historyRows); i++ {
+			historyList.SetItemHeight(widget.ListItemID(i), 30)
+		}
+	}
+	refreshHistory()
+	btnClearHistory := widget.NewButtonWithIcon("Limpar histórico", theme.DeleteIcon(), func() {
+		dialog.ShowConfirm(
+			"Limpar histórico",
+			"Deseja remover os eventos exibidos no histórico?",
+			func(ok bool) {
+				if !ok {
+					return
+				}
+				ui.clearAutomationHistory()
+				ui.appendAutomationHistory("Histórico limpo manualmente.")
+				refreshHistory()
+			},
+			ui.win,
+		)
+	})
+	btnClearHistory.Importance = widget.WarningImportance
+	btnExportHistory := widget.NewButtonWithIcon("Exportar histórico", theme.DownloadIcon(), func() {
+		saveDlg := dialog.NewFileSave(func(dst fyne.URIWriteCloser, err error) {
+			if err != nil {
+				dialog.ShowError(fmt.Errorf("falha ao preparar exportação: %w", err), ui.win)
+				return
+			}
+			if dst == nil {
+				return
+			}
+			defer dst.Close()
+			rows := ui.getAutomationHistory()
+			if len(rows) == 0 {
+				rows = []string{"(histórico vazio)"}
+			}
+			text := strings.Join(rows, "\n") + "\n"
+			if _, wErr := io.WriteString(dst, text); wErr != nil {
+				dialog.ShowError(fmt.Errorf("falha ao salvar histórico: %w", wErr), ui.win)
+				return
+			}
+			dialog.ShowInformation("Histórico", "Histórico exportado com sucesso.", ui.win)
+		}, ui.win)
+		saveDlg.SetFileName("automations-history.txt")
+		saveDlg.Show()
+	})
+	btnExportHistory.Importance = widget.MediumImportance
 	statusFilter := widget.NewSelect([]string{"Todas", "Ativas", "Desativadas"}, nil)
 	statusFilter.SetSelected("Todas")
 	search := widget.NewEntry()
@@ -503,6 +605,8 @@ func (ui *explorer) showAutomationCenter() {
 		}
 		if strings.TrimSpace(msg) != "" {
 			engineLbl.SetText("Motor: " + msg)
+			ui.appendAutomationHistory(msg)
+			refreshHistory()
 		} else if ui.automationEngineRunning.Load() {
 			engineLbl.SetText("Motor: ativo")
 		} else {
@@ -591,7 +695,9 @@ func (ui *explorer) showAutomationCenter() {
 					return
 				}
 				appendAuditLog("automacao", "Nova regra criada: "+name+" -> "+target)
+				ui.appendAutomationHistory("Regra criada: " + name + " -> " + target)
 				applyFilter(search.Text)
+				refreshHistory()
 				dialog.ShowInformation("Nova automação", "Regra criada e salva no host atual.", ui.win)
 			},
 			ui.win,
@@ -638,7 +744,9 @@ func (ui *explorer) showAutomationCenter() {
 			status = "ativada"
 		}
 		appendAuditLog("automacao", "Regra "+status+": "+changedName)
+		ui.appendAutomationHistory("Regra " + status + ": " + changedName)
 		applyFilter(search.Text)
+		refreshHistory()
 		dialog.ShowInformation("Automação", "Regra "+status+" com sucesso.", ui.win)
 	}
 
@@ -670,7 +778,9 @@ func (ui *explorer) showAutomationCenter() {
 					return
 				}
 				appendAuditLog("automacao", "Regra excluída: "+row.Name)
+				ui.appendAutomationHistory("Regra excluída: " + row.Name)
 				applyFilter(search.Text)
+				refreshHistory()
 				dialog.ShowInformation("Automação", "Regra excluída com sucesso.", ui.win)
 			},
 			ui.win,
@@ -746,7 +856,9 @@ func (ui *explorer) showAutomationCenter() {
 					return
 				}
 				appendAuditLog("automacao", "Regra editada: "+name+" -> "+target)
+				ui.appendAutomationHistory("Regra editada: " + name + " -> " + target)
 				applyFilter(search.Text)
+				refreshHistory()
 				dialog.ShowInformation("Editar automação", "Regra atualizada com sucesso.", ui.win)
 			},
 			ui.win,
@@ -779,12 +891,35 @@ func (ui *explorer) showAutomationCenter() {
 		btnPolicies,
 		layout.NewSpacer(),
 	)
+	mainSplit := container.NewVSplit(
+		container.NewVScroll(list),
+		container.NewVScroll(historyList),
+	)
+	mainSplit.SetOffset(0.72)
+
 	body := container.NewBorder(
 		container.NewPadded(top),
 		container.NewPadded(container.NewVBox(widget.NewSeparator(), actions)),
 		nil,
 		nil,
-		container.NewPadded(container.NewVScroll(list)),
+		container.NewPadded(
+			container.NewBorder(
+				nil,
+				container.NewVBox(
+					widget.NewSeparator(),
+					container.NewBorder(
+						nil,
+						nil,
+						historyTitle,
+						container.NewHBox(btnExportHistory, btnClearHistory),
+						widget.NewLabel(""),
+					),
+				),
+				nil,
+				nil,
+				mainSplit,
+			),
+		),
 	)
 
 	ui.openSettingsFullscreenWithBack("Central de automações", body, nil)
