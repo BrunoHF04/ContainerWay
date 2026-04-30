@@ -1561,6 +1561,26 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 			}
 			runNow()
 		}
+		confirmTerminalAction := func(actionLabel, cmd string, willExecute bool, onConfirm func()) {
+			modeText := "Inserir no terminal (sem executar)"
+			if willExecute {
+				modeText = "Executar no terminal"
+			}
+			message := "Ação: " + actionLabel + "\n" +
+				"Modo: " + modeText + "\n\n" +
+				"Comando:\n" + cmd + "\n\n" +
+				"Deseja continuar?"
+			dialog.ShowConfirm(
+				"Confirmar ação no terminal",
+				message,
+				func(ok bool) {
+					if ok && onConfirm != nil {
+						onConfirm()
+					}
+				},
+				ui.win,
+			)
+		}
 		composeFileEntry := widget.NewEntry()
 		composeFileEntry.SetPlaceHolder("/caminho/docker-compose.yml")
 		composeProjectEntry := widget.NewEntry()
@@ -1589,10 +1609,19 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 			return service, true
 		}
 		composeToolsCard := func() fyne.CanvasObject {
-			composeFields := fynecontainer.NewVBox(
-				fynecontainer.NewGridWithColumns(2, widget.NewLabel("Compose file"), composeFileEntry),
-				fynecontainer.NewGridWithColumns(2, widget.NewLabel("Projeto (-p)"), composeProjectEntry),
-				fynecontainer.NewGridWithColumns(2, widget.NewLabel("Serviço"), composeServiceEntry),
+			composeFields := fynecontainer.NewGridWithColumns(3,
+				fynecontainer.NewVBox(
+					widget.NewLabelWithStyle("Compose file", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+					composeFileEntry,
+				),
+				fynecontainer.NewVBox(
+					widget.NewLabelWithStyle("Projeto (-p)", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+					composeProjectEntry,
+				),
+				fynecontainer.NewVBox(
+					widget.NewLabelWithStyle("Serviço", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+					composeServiceEntry,
+				),
 			)
 			validateCmd := func() string {
 				return composePrefix() + " config -q"
@@ -1624,47 +1653,90 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 				}
 				return composePrefix() + " top " + service, true
 			}
-			row1 := fynecontainer.NewHBox(
-				widget.NewButton("Inserir validação", func() { insertCommand(validateCmd()) }),
-				widget.NewButton("Validar e executar", func() { insertAndRunCommand(validateCmd()) }),
-				widget.NewButton("Inserir reiniciar tudo", func() { insertCommand(recreateAllCmd()) }),
-				widget.NewButton("Executar reiniciar tudo", func() { insertAndRunCommand(recreateAllCmd()) }),
-			)
-			row2 := fynecontainer.NewHBox(
-				widget.NewButton("Inserir reiniciar serviço", func() {
-					cmd, ok := recreateServiceCmd()
-					if ok {
-						insertCommand(cmd)
-					}
-				}),
-				widget.NewButton("Executar reiniciar serviço", func() {
-					cmd, ok := recreateServiceCmd()
-					if ok {
-						insertAndRunCommand(cmd)
-					}
-				}),
-			)
-			row3 := fynecontainer.NewHBox(
-				widget.NewButton("Diagnóstico: ps", func() { insertAndRunCommand(diagnosePsCmd()) }),
-				widget.NewButton("Diagnóstico: logs serviço", func() {
-					cmd, ok := diagnoseLogsCmd()
-					if ok {
-						insertAndRunCommand(cmd)
-					}
-				}),
-				widget.NewButton("Diagnóstico: top serviço", func() {
-					cmd, ok := diagnoseTopCmd()
-					if ok {
-						insertAndRunCommand(cmd)
-					}
-				}),
+			detectComposeCmd := func() string {
+				return "find /opt -maxdepth 5 -type f \\( -name 'docker-compose*.yml' -o -name 'docker-compose*.yaml' -o -name 'compose*.yml' -o -name 'compose*.yaml' \\) 2>/dev/null | head -n 20"
+			}
+			redeployDownUpCmd := func() string {
+				return composePrefix() + " down && " + composePrefix() + " up -d --pull always"
+			}
+			healthCheckCmd := func() string {
+				base := composePrefix()
+				return base + " ps; " + base + " ps | grep -Ei 'unhealthy|exit|restarting' || echo 'Sem serviços em estado crítico (unhealthy/exited/restarting).'"
+			}
+			insertValidateBtn := widget.NewButton("Inserir validação", func() {
+				cmd := validateCmd()
+				confirmTerminalAction("Inserir validação", cmd, false, func() { insertCommand(cmd) })
+			})
+			runValidateBtn := widget.NewButton("Validar e executar", func() {
+				cmd := validateCmd()
+				confirmTerminalAction("Validar e executar", cmd, true, func() { insertAndRunCommand(cmd) })
+			})
+			insertRecreateAllBtn := widget.NewButton("Inserir reiniciar tudo", func() {
+				cmd := recreateAllCmd()
+				confirmTerminalAction("Inserir reiniciar tudo", cmd, false, func() { insertCommand(cmd) })
+			})
+			runRecreateAllBtn := widget.NewButton("Executar reiniciar tudo", func() {
+				cmd := recreateAllCmd()
+				confirmTerminalAction("Executar reiniciar tudo", cmd, true, func() { insertAndRunCommand(cmd) })
+			})
+			insertRecreateSvcBtn := widget.NewButton("Inserir reiniciar serviço", func() {
+				cmd, ok := recreateServiceCmd()
+				if ok {
+					confirmTerminalAction("Inserir reiniciar serviço", cmd, false, func() { insertCommand(cmd) })
+				}
+			})
+			runRecreateSvcBtn := widget.NewButton("Executar reiniciar serviço", func() {
+				cmd, ok := recreateServiceCmd()
+				if ok {
+					confirmTerminalAction("Executar reiniciar serviço", cmd, true, func() { insertAndRunCommand(cmd) })
+				}
+			})
+			diagPsBtn := widget.NewButton("Diagnóstico: ps", func() {
+				cmd := diagnosePsCmd()
+				confirmTerminalAction("Diagnóstico: ps", cmd, true, func() { insertAndRunCommand(cmd) })
+			})
+			diagLogsBtn := widget.NewButton("Diagnóstico: logs serviço", func() {
+				cmd, ok := diagnoseLogsCmd()
+				if ok {
+					confirmTerminalAction("Diagnóstico: logs serviço", cmd, true, func() { insertAndRunCommand(cmd) })
+				}
+			})
+			diagTopBtn := widget.NewButton("Diagnóstico: top serviço", func() {
+				cmd, ok := diagnoseTopCmd()
+				if ok {
+					confirmTerminalAction("Diagnóstico: top serviço", cmd, true, func() { insertAndRunCommand(cmd) })
+				}
+			})
+			detectComposeBtn := widget.NewButton("Buscar compose em /opt", func() {
+				cmd := detectComposeCmd()
+				confirmTerminalAction("Buscar compose em /opt", cmd, true, func() { insertAndRunCommand(cmd) })
+			})
+			redeployBtn := widget.NewButton("Executar down && up", func() {
+				cmd := redeployDownUpCmd()
+				confirmTerminalAction("Executar down && up", cmd, true, func() { insertAndRunCommand(cmd) })
+			})
+			healthBtn := widget.NewButton("Saúde pós-deploy", func() {
+				cmd := healthCheckCmd()
+				confirmTerminalAction("Saúde pós-deploy", cmd, true, func() { insertAndRunCommand(cmd) })
+			})
+			actionGrid := fynecontainer.NewGridWithColumns(3,
+				insertValidateBtn,
+				runValidateBtn,
+				insertRecreateAllBtn,
+				runRecreateAllBtn,
+				insertRecreateSvcBtn,
+				runRecreateSvcBtn,
+				diagPsBtn,
+				diagLogsBtn,
+				diagTopBtn,
+				detectComposeBtn,
+				redeployBtn,
+				healthBtn,
 			)
 			return fynecontainer.NewVBox(
 				widget.NewLabel("Defina variáveis e gere/executa comandos sem editar na mão."),
 				composeFields,
-				row1,
-				row2,
-				row3,
+				actionGrid,
 			)
 		}
 		favorites := loadTerminalCommandFavorites()
@@ -1689,11 +1761,15 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 			descLabel := widget.NewLabel(item.label)
 			cmdLabel := widget.NewLabelWithStyle(item.cmd, fyne.TextAlignLeading, fyne.TextStyle{Monospace: true})
 			insertBtn := widget.NewButtonWithIcon("Inserir", theme.ContentAddIcon(), func(cmd string) func() {
-				return func() { insertCommand(cmd) }
+				return func() {
+					confirmTerminalAction("Inserir comando", cmd, false, func() { insertCommand(cmd) })
+				}
 			}(item.cmd))
 			insertBtn.Importance = widget.MediumImportance
 			runBtn := widget.NewButtonWithIcon("Inserir e executar", theme.MediaPlayIcon(), func(cmd string) func() {
-				return func() { insertAndRunCommand(cmd) }
+				return func() {
+					confirmTerminalAction("Inserir e executar comando", cmd, true, func() { insertAndRunCommand(cmd) })
+				}
 			}(item.cmd))
 			runBtn.Importance = widget.LowImportance
 			favIcon := terminalStarOutlineIcon
