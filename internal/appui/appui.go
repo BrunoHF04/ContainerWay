@@ -783,9 +783,9 @@ type terminalCellStyle struct {
 	bg        color.Color
 }
 
-func (s terminalCellStyle) Style() fyne.TextStyle         { return s.textStyle }
-func (s terminalCellStyle) TextColor() color.Color        { return s.fg }
-func (s terminalCellStyle) BackgroundColor() color.Color  { return s.bg }
+func (s terminalCellStyle) Style() fyne.TextStyle        { return s.textStyle }
+func (s terminalCellStyle) TextColor() color.Color       { return s.fg }
+func (s terminalCellStyle) BackgroundColor() color.Color { return s.bg }
 
 func xtermColorToRGBA(c vt10x.Color, isFG bool) color.Color {
 	if isFG && c == vt10x.DefaultFG {
@@ -1418,9 +1418,9 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 	}
 	btnCmdList := widget.NewButtonWithIcon("Lista de comandos", theme.InfoIcon(), func() {
 		type commandItem struct {
-			label string
-			cmd   string
-			quick bool
+			label   string
+			cmd     string
+			quick   bool
 			profile string
 		}
 		sections := []struct {
@@ -2606,6 +2606,20 @@ func buildSessionHub(ui *explorer) fyne.CanvasObject {
 	mods = append(mods, hubModule{
 		wrap: fynecontainer.NewPadded(cardTerminal),
 		blob: "terminal ssh shell console comando host remoto bash sh",
+	})
+
+	openAutomations := widget.NewButtonWithIcon("Abrir", theme.SettingsIcon(), func() {
+		ui.showAutomationCenter()
+	})
+	openAutomations.Importance = widget.MediumImportance
+	cardAutomations := hubSessionCard(
+		"Central de automações",
+		"Regras operacionais com gatilho e ação para executar tarefas automáticas no host conectado.",
+		fynecontainer.NewPadded(openAutomations),
+	)
+	mods = append(mods, hubModule{
+		wrap: fynecontainer.NewPadded(cardAutomations),
+		blob: "automação automacoes gatilho ação acao tarefa rotina runbook operação incidente alerta",
 	})
 
 	if isCurrentAccessAdmin() {
