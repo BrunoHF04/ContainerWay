@@ -1,8 +1,14 @@
 package appui
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -10,17 +16,296 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	dcontainer "github.com/docker/docker/api/types/container"
 )
 
-type automationPreset struct {
-	Title       string
+const (
+	automationKindDockerStoppedRestart = "docker_container_stopped_restart"
+)
+
+type automationRule struct {
+	ID          string
+	Kind        string
+	Name        string
 	Description string
 	Trigger     string
 	Action      string
+	Target      string
+	CooldownSec int
 	Enabled     bool
 }
 
-// showAutomationCenter abre a tela inicial da central de automações.
+// automationConfigPath resolve o arquivo de regras por host.
+func (ui *explorer) automationConfigPath() (string, error) {
+	cfgDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("não foi possível localizar diretório de configuração: %w", err)
+	}
+	dir := filepath.Join(cfgDir, "ContainerWay")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", fmt.Errorf("não foi possível criar diretório de configuração: %w", err)
+	}
+	host := strings.TrimSpace(ui.connCreds.Host)
+	if host == "" {
+		host = "host-desconhecido"
+	}
+	host = strings.ToLower(host)
+	host = strings.ReplaceAll(host, ":", "_")
+	host = strings.ReplaceAll(host, "/", "_")
+	host = strings.ReplaceAll(host, "\\", "_")
+	host = strings.ReplaceAll(host, " ", "_")
+	return filepath.Join(dir, "automations-"+host+".json"), nil
+}
+
+// defaultAutomationRules retorna regras iniciais para o host.
+func defaultAutomationRules() []automationRule {
+	return []automationRule{
+		{
+			ID:          "auto-restart-critico",
+			Kind:        automationKindDockerStoppedRestart,
+			Name:        "Auto-restart de contêiner crítico",
+			Description: "Reinicia automaticamente serviço crítico quando o estado sai de execução.",
+			Trigger:     "Container parado por mais de 20s",
+			Action:      "docker restart",
+			Target:      "",
+			CooldownSec: 20,
+			Enabled:     true,
+		},
+		{
+			ID:          "protecao-disco",
+			Kind:        "placeholder_disk_cleanup",
+			Name:        "Proteção de disco",
+			Description: "Executa limpeza de logs temporários quando uso de disco passa do limite.",
+			Trigger:     "Disco /var acima de 85%",
+			Action:      "Script de limpeza + notificação",
+			Target:      "/var",
+			CooldownSec: 60,
+			Enabled:     false,
+		},
+		{
+			ID:          "diagnostico-pos-erro",
+			Kind:        "placeholder_diagnostic_bundle",
+			Name:        "Diagnóstico pós-erro",
+			Description: "Coleta evidências quando um serviço principal apresenta falha.",
+			Trigger:     "Falha repetida do serviço (3x em 10 min)",
+			Action:      "Gerar pacote de diagnóstico + abrir incidente",
+			Target:      "serviço principal",
+			CooldownSec: 120,
+			Enabled:     true,
+		},
+	}
+}
+
+// loadAutomationRules lê as regras persistidas em disco.
+func (ui *explorer) loadAutomationRules() ([]automationRule, error) {
+	p, err := ui.automationConfigPath()
+	if err != nil {
+		return nil, err
+	}
+	b, err := os.ReadFile(p)
+	if err != nil {
+		if os.IsNotExist(err) {
+			out := defaultAutomationRules()
+			if saveErr := ui.saveAutomationRules(out); saveErr != nil {
+				return nil, saveErr
+			}
+			return out, nil
+		}
+		return nil, fmt.Errorf("não foi possível ler automações: %w", err)
+	}
+	if strings.TrimSpace(string(b)) == "" {
+		return []automationRule{}, nil
+	}
+	var out []automationRule
+	if err := json.Unmarshal(b, &out); err != nil {
+		return nil, fmt.Errorf("arquivo de automações inválido: %w", err)
+	}
+	return out, nil
+}
+
+// saveAutomationRules grava as regras no arquivo do host.
+func (ui *explorer) saveAutomationRules(rules []automationRule) error {
+	p, err := ui.automationConfigPath()
+	if err != nil {
+		return err
+	}
+	b, err := json.MarshalIndent(rules, "", "  ")
+	if err != nil {
+		return fmt.Errorf("não foi possível serializar automações: %w", err)
+	}
+	if err := os.WriteFile(p, b, 0o644); err != nil {
+		return fmt.Errorf("não foi possível salvar automações: %w", err)
+	}
+	return nil
+}
+
+// copyAutomationRules cria cópia independente para leitura concorrente segura.
+func copyAutomationRules(in []automationRule) []automationRule {
+	out := make([]automationRule, len(in))
+	copy(out, in)
+	return out
+}
+
+// ensureAutomationRules carrega e mantém cache em memória.
+func (ui *explorer) ensureAutomationRules() ([]automationRule, error) {
+	ui.automationMu.Lock()
+	defer ui.automationMu.Unlock()
+	if len(ui.automationRules) > 0 {
+		return copyAutomationRules(ui.automationRules), nil
+	}
+	rules, err := ui.loadAutomationRules()
+	if err != nil {
+		return nil, err
+	}
+	ui.automationRules = copyAutomationRules(rules)
+	return copyAutomationRules(ui.automationRules), nil
+}
+
+// replaceAutomationRules substitui regras em memória + disco.
+func (ui *explorer) replaceAutomationRules(rules []automationRule) error {
+	if err := ui.saveAutomationRules(rules); err != nil {
+		return err
+	}
+	ui.automationMu.Lock()
+	ui.automationRules = copyAutomationRules(rules)
+	ui.automationMu.Unlock()
+	return nil
+}
+
+// getAutomationRules retorna snapshot thread-safe das regras em memória.
+func (ui *explorer) getAutomationRules() []automationRule {
+	ui.automationMu.Lock()
+	defer ui.automationMu.Unlock()
+	return copyAutomationRules(ui.automationRules)
+}
+
+// automationTargetLabel formata o alvo da regra para exibição.
+func automationTargetLabel(r automationRule) string {
+	target := strings.TrimSpace(r.Target)
+	if target == "" {
+		return "não definido"
+	}
+	return target
+}
+
+// startAutomationEngine inicia loop de execução com ticker.
+func (ui *explorer) startAutomationEngine(onEvent func(string)) {
+	if !ui.automationEngineRunning.CompareAndSwap(false, true) {
+		return
+	}
+	appendAuditLog("automacao", "Motor de automações iniciado")
+	stop := make(chan struct{})
+	ui.automationEngineMu.Lock()
+	ui.automationEngineStop = stop
+	ui.automationEngineMu.Unlock()
+
+	go func() {
+		ticker := time.NewTicker(8 * time.Second)
+		defer ticker.Stop()
+		lastActionAt := map[string]time.Time{}
+		onEvent("Motor ativo: monitorando gatilhos a cada 8s.")
+		ui.runAutomationTick(lastActionAt, onEvent)
+		for {
+			select {
+			case <-stop:
+				onEvent("Motor parado.")
+				return
+			case <-ticker.C:
+				ui.runAutomationTick(lastActionAt, onEvent)
+			}
+		}
+	}()
+}
+
+// stopAutomationEngine encerra loop de execução.
+func (ui *explorer) stopAutomationEngine() {
+	if !ui.automationEngineRunning.CompareAndSwap(true, false) {
+		return
+	}
+	ui.automationEngineMu.Lock()
+	ch := ui.automationEngineStop
+	ui.automationEngineStop = nil
+	ui.automationEngineMu.Unlock()
+	if ch != nil {
+		close(ch)
+	}
+	appendAuditLog("automacao", "Motor de automações parado")
+}
+
+// runAutomationTick verifica gatilhos e dispara ações suportadas.
+func (ui *explorer) runAutomationTick(lastActionAt map[string]time.Time, onEvent func(string)) {
+	if ui.s == nil || ui.s.Docker == nil {
+		onEvent("Motor: cliente Docker indisponível na sessão atual.")
+		return
+	}
+	rules := ui.getAutomationRules()
+	if len(rules) == 0 {
+		onEvent("Motor: sem regras cadastradas.")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	defer cancel()
+	containers, err := ui.s.Docker.ContainerList(ctx, dcontainer.ListOptions{All: true})
+	if err != nil {
+		onEvent("Motor: falha ao listar contêineres: " + err.Error())
+		return
+	}
+
+	byName := map[string]dcontainer.Summary{}
+	for _, c := range containers {
+		name := containerDisplayName(c)
+		if name == "" {
+			continue
+		}
+		byName[strings.ToLower(strings.TrimSpace(name))] = c
+	}
+
+	executed := 0
+	for _, rule := range rules {
+		if !rule.Enabled || rule.Kind != automationKindDockerStoppedRestart {
+			continue
+		}
+		target := strings.ToLower(strings.TrimSpace(rule.Target))
+		if target == "" {
+			continue
+		}
+		c, ok := byName[target]
+		if !ok {
+			continue
+		}
+		state := strings.ToLower(strings.TrimSpace(string(c.State)))
+		if state == "running" || state == "restarting" {
+			continue
+		}
+		key := rule.ID + "::" + c.ID
+		cooldown := time.Duration(rule.CooldownSec) * time.Second
+		if cooldown < 10*time.Second {
+			cooldown = 10 * time.Second
+		}
+		last := lastActionAt[key]
+		if !last.IsZero() && time.Since(last) < cooldown {
+			continue
+		}
+		rctx, rcancel := context.WithTimeout(context.Background(), 40*time.Second)
+		err := ui.s.Docker.ContainerRestart(rctx, c.ID, dcontainer.StopOptions{})
+		rcancel()
+		if err != nil {
+			onEvent(fmt.Sprintf("Motor: falha ao reiniciar '%s': %v", target, err))
+			continue
+		}
+		lastActionAt[key] = time.Now()
+		executed++
+		msg := fmt.Sprintf("Ação automática: '%s' reiniciado pela regra '%s'.", target, rule.Name)
+		onEvent(msg)
+		appendAuditLog("automacao", msg)
+	}
+	if executed == 0 {
+		onEvent("Motor: varredura concluída, sem ações necessárias.")
+	}
+}
+
+// showAutomationCenter abre a tela da central de automações.
 func (ui *explorer) showAutomationCenter() {
 	appendAuditLog("automacao", "Central de automações aberta")
 
@@ -28,38 +313,22 @@ func (ui *explorer) showAutomationCenter() {
 	if host == "" {
 		host = "(host não informado)"
 	}
+	rules, err := ui.ensureAutomationRules()
+	if err != nil {
+		dialog.ShowError(err, ui.win)
+		return
+	}
 
 	hint := widget.NewLabel(
-		"Crie regras com gatilho e ação para reduzir tarefas manuais. Esta é a base inicial do módulo, pronta para evoluir com persistência e execução real.",
+		"Crie regras com gatilho e ação para reduzir tarefas manuais. MVP atual já salva regras e executa auto-restart de contêiner parado.",
 	)
 	hint.Wrapping = fyne.TextWrapWord
 
-	presets := []automationPreset{
-		{
-			Title:       "Auto-restart de contêiner crítico",
-			Description: "Reinicia automaticamente serviço crítico quando o estado sai de execução.",
-			Trigger:     "Container parado por mais de 20s",
-			Action:      "docker restart + alerta por e-mail",
-			Enabled:     true,
-		},
-		{
-			Title:       "Proteção de disco",
-			Description: "Executa limpeza de logs temporários quando uso de disco passa do limite.",
-			Trigger:     "Disco /var acima de 85%",
-			Action:      "Script de limpeza + notificação",
-			Enabled:     false,
-		},
-		{
-			Title:       "Diagnóstico pós-erro",
-			Description: "Coleta evidências quando um serviço principal apresenta falha.",
-			Trigger:     "Falha repetida do serviço (3x em 10 min)",
-			Action:      "Gerar pacote de diagnóstico + abrir incidente",
-			Enabled:     true,
-		},
-	}
-
 	totalLbl := widget.NewLabel("")
 	totalLbl.Wrapping = fyne.TextWrapOff
+	engineLbl := widget.NewLabel("Motor: parado")
+	engineLbl.Wrapping = fyne.TextWrapOff
+	engineLbl.TextStyle = fyne.TextStyle{Bold: true}
 	search := widget.NewEntry()
 	search.SetPlaceHolder("Pesquisar automações (nome, gatilho, ação)…")
 	btnHelp := widget.NewButtonWithIcon("", theme.HelpIcon(), func() {
@@ -67,19 +336,19 @@ func (ui *explorer) showAutomationCenter() {
 			"Sobre a Central de automações",
 			"Esta tela serve para criar regras operacionais com gatilho + ação.\n\n"+
 				"Já disponível:\n"+
-				"- Visualização e pesquisa de automações\n"+
-				"- Estrutura de interface para criar/organizar regras\n\n"+
-				"Pendente (motor):\n"+
-				"- Persistência das regras no host\n"+
-				"- Executor em segundo plano para monitorar gatilhos\n"+
-				"- Disparo de ações reais (SSH, Docker, alertas)\n\n"+
-				"Próximo passo recomendado: implementar o motor com loop de execução e histórico de eventos.",
+				"- Visualização, pesquisa e criação rápida de automações\n"+
+				"- Persistência por host em arquivo JSON\n"+
+				"- Motor MVP para auto-restart de contêiner parado\n\n"+
+				"Pendente (próximas evoluções):\n"+
+				"- Mais tipos de gatilho e ação (disco, logs, alertas)\n"+
+				"- Histórico completo de execuções\n"+
+				"- Edição/remoção avançada das regras",
 			ui.win,
 		)
 	})
 	btnHelp.Importance = widget.LowImportance
 
-	filtered := append([]automationPreset(nil), presets...)
+	filtered := append([]automationRule(nil), rules...)
 	list := widget.NewList(
 		func() int { return len(filtered) },
 		func() fyne.CanvasObject {
@@ -114,9 +383,9 @@ func (ui *explorer) showAutomationCenter() {
 			if row.Enabled {
 				status = "Ativa"
 			}
-			title.SetText(fmt.Sprintf("%s  [%s]", row.Title, status))
+			title.SetText(fmt.Sprintf("%s  [%s]", row.Name, status))
 			desc.SetText(row.Description)
-			meta.SetText(fmt.Sprintf("Gatilho: %s\nAção: %s", row.Trigger, row.Action))
+			meta.SetText(fmt.Sprintf("Gatilho: %s\nAção: %s\nAlvo: %s", row.Trigger, row.Action, automationTargetLabel(row)))
 		},
 	)
 	for i := 0; i < len(filtered); i++ {
@@ -130,11 +399,14 @@ func (ui *explorer) showAutomationCenter() {
 		dialog.ShowInformation(
 			"Detalhes da automação",
 			fmt.Sprintf(
-				"%s\n\nDescrição: %s\n\nGatilho: %s\nAção: %s\n\nPróximo passo: conectar esta automação ao motor de execução.",
-				row.Title,
+				"%s\n\nDescrição: %s\n\nGatilho: %s\nAção: %s\nAlvo: %s\nCooldown: %ds\nTipo: %s",
+				row.Name,
 				row.Description,
 				row.Trigger,
 				row.Action,
+				automationTargetLabel(row),
+				row.CooldownSec,
+				row.Kind,
 			),
 			ui.win,
 		)
@@ -143,8 +415,8 @@ func (ui *explorer) showAutomationCenter() {
 	applyFilter := func(q string) {
 		q = strings.ToLower(strings.TrimSpace(q))
 		filtered = filtered[:0]
-		for _, p := range presets {
-			blob := strings.ToLower(strings.Join([]string{p.Title, p.Description, p.Trigger, p.Action}, " "))
+		for _, p := range ui.getAutomationRules() {
+			blob := strings.ToLower(strings.Join([]string{p.Name, p.Description, p.Trigger, p.Action, p.Target, p.Kind}, " "))
 			if q == "" || strings.Contains(blob, q) {
 				filtered = append(filtered, p)
 			}
@@ -159,42 +431,129 @@ func (ui *explorer) showAutomationCenter() {
 	search.OnChanged = applyFilter
 	applyFilter("")
 
-	btnNew := widget.NewButtonWithIcon("Nova automação", theme.ContentAddIcon(), func() {
-		dialog.ShowInformation(
-			"Nova automação",
-			"Em seguida, podemos implementar o assistente para criar regras com gatilho + ação e salvar no host.",
-			ui.win,
-		)
-	})
+	btnNew := widget.NewButtonWithIcon("Nova automação", theme.ContentAddIcon(), nil)
 	btnNew.Importance = widget.HighImportance
 
+	btnToggleEngine := widget.NewButtonWithIcon("Ativar motor", theme.MediaPlayIcon(), nil)
+	btnToggleEngine.Importance = widget.HighImportance
+	updateEngineUI := func(msg string) {
+		if ui.automationEngineRunning.Load() {
+			btnToggleEngine.SetText("Parar motor")
+			btnToggleEngine.SetIcon(theme.MediaStopIcon())
+		} else {
+			btnToggleEngine.SetText("Ativar motor")
+			btnToggleEngine.SetIcon(theme.MediaPlayIcon())
+		}
+		if strings.TrimSpace(msg) != "" {
+			engineLbl.SetText("Motor: " + msg)
+		} else if ui.automationEngineRunning.Load() {
+			engineLbl.SetText("Motor: ativo")
+		} else {
+			engineLbl.SetText("Motor: parado")
+		}
+	}
+	updateEngineUI("")
+	btnToggleEngine.OnTapped = func() {
+		if ui.automationEngineRunning.Load() {
+			ui.stopAutomationEngine()
+			updateEngineUI("parado")
+			return
+		}
+		ui.startAutomationEngine(func(msg string) {
+			fyne.Do(func() {
+				updateEngineUI(msg)
+			})
+		})
+		updateEngineUI("ativando...")
+	}
+
 	btnRunbook := widget.NewButtonWithIcon("Executar runbook", theme.MediaPlayIcon(), func() {
-		dialog.ShowInformation(
-			"Runbook",
-			"Futuro fluxo: executar playbook operacional com validações e confirmação antes de aplicar mudanças.",
-			ui.win,
-		)
+		dialog.ShowInformation("Runbook", "Este botão ficará para playbooks guiados em próximas versões.", ui.win)
 	})
 	btnRunbook.Importance = widget.MediumImportance
 
 	btnPolicies := widget.NewButtonWithIcon("Políticas", theme.WarningIcon(), func() {
-		dialog.ShowInformation(
-			"Políticas e compliance",
-			"Futuro fluxo: monitorar violações (sem limite de recursos, uso de root, imagem não aprovada) e sugerir correções.",
-			ui.win,
-		)
+		dialog.ShowInformation("Políticas e compliance", "Este botão ficará para validações de políticas em próximas versões.", ui.win)
 	})
 	btnPolicies.Importance = widget.MediumImportance
+
+	btnNew.OnTapped = func() {
+		nameEntry := widget.NewEntry()
+		nameEntry.SetPlaceHolder("Ex.: Auto-restart do nginx")
+		targetEntry := widget.NewEntry()
+		targetEntry.SetPlaceHolder("Nome do contêiner (ex.: nginx)")
+		cooldownEntry := widget.NewEntry()
+		cooldownEntry.SetPlaceHolder("20")
+		cooldownEntry.SetText("20")
+		descEntry := widget.NewEntry()
+		descEntry.SetPlaceHolder("Descrição opcional")
+		form := dialog.NewForm(
+			"Nova automação",
+			"Criar",
+			"Cancelar",
+			[]*widget.FormItem{
+				widget.NewFormItem("Nome", nameEntry),
+				widget.NewFormItem("Contêiner alvo", targetEntry),
+				widget.NewFormItem("Cooldown (segundos)", cooldownEntry),
+				widget.NewFormItem("Descrição", descEntry),
+			},
+			func(ok bool) {
+				if !ok {
+					return
+				}
+				name := strings.TrimSpace(nameEntry.Text)
+				target := strings.TrimSpace(targetEntry.Text)
+				cooldown, convErr := strconv.Atoi(strings.TrimSpace(cooldownEntry.Text))
+				if name == "" || target == "" {
+					dialog.ShowInformation("Nova automação", "Preencha nome e contêiner alvo.", ui.win)
+					return
+				}
+				if convErr != nil || cooldown < 10 {
+					dialog.ShowInformation("Nova automação", "Cooldown inválido. Use um número inteiro >= 10.", ui.win)
+					return
+				}
+				desc := strings.TrimSpace(descEntry.Text)
+				if desc == "" {
+					desc = "Regra criada pelo usuário para auto-restart."
+				}
+				all := ui.getAutomationRules()
+				id := fmt.Sprintf("rule-%d", time.Now().UnixNano())
+				all = append(all, automationRule{
+					ID:          id,
+					Kind:        automationKindDockerStoppedRestart,
+					Name:        name,
+					Description: desc,
+					Trigger:     "Container parado por mais de " + strconv.Itoa(cooldown) + "s",
+					Action:      "docker restart",
+					Target:      target,
+					CooldownSec: cooldown,
+					Enabled:     true,
+				})
+				if err := ui.replaceAutomationRules(all); err != nil {
+					dialog.ShowError(err, ui.win)
+					return
+				}
+				appendAuditLog("automacao", "Nova regra criada: "+name+" -> "+target)
+				applyFilter(search.Text)
+				dialog.ShowInformation("Nova automação", "Regra criada e salva no host atual.", ui.win)
+			},
+			ui.win,
+		)
+		form.Resize(fyne.NewSize(520, 300))
+		form.Show()
+	}
 
 	top := container.NewVBox(
 		hint,
 		widget.NewSeparator(),
 		container.NewBorder(nil, nil, nil, btnHelp, search),
 		totalLbl,
+		engineLbl,
 		widget.NewSeparator(),
 	)
 	actions := container.NewHBox(
 		btnNew,
+		btnToggleEngine,
 		btnRunbook,
 		btnPolicies,
 		layout.NewSpacer(),

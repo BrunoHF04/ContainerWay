@@ -704,6 +704,12 @@ type explorer struct {
 	sessionHub    fyne.CanvasObject
 	explorerOnTop atomic.Bool // true quando a janela mostra o gerenciador (atalhos do explorador ativos)
 
+	automationMu            sync.Mutex
+	automationRules         []automationRule
+	automationEngineMu      sync.Mutex
+	automationEngineStop    chan struct{}
+	automationEngineRunning atomic.Bool
+
 	// Destino do botão Voltar nas telas cheias de configuração (admin): explorador ou hub da sessão.
 	settingsReturnToExplorer bool
 }
