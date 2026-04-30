@@ -420,6 +420,7 @@ func (ui *explorer) showAutomationCenter() {
 		dialog.ShowError(err, ui.win)
 		return
 	}
+	compact := ui.useCompactLayout()
 	ui.loadAutomationHistory()
 	if len(ui.getAutomationHistory()) == 0 {
 		ui.appendAutomationHistory("Central de automações aberta.")
@@ -938,35 +939,70 @@ func (ui *explorer) showAutomationCenter() {
 		form.Show()
 	}
 
+	filterBar := container.NewBorder(
+		nil,
+		nil,
+		container.NewHBox(widget.NewLabel("Status"), statusFilter),
+		btnHelp,
+		search,
+	)
+	if compact {
+		filterBar = container.NewBorder(
+			nil,
+			nil,
+			nil,
+			btnHelp,
+			container.NewVBox(
+				search,
+				container.NewHBox(widget.NewLabel("Status"), statusFilter, layout.NewSpacer()),
+			),
+		)
+	}
+
 	top := container.NewVBox(
 		hint,
 		widget.NewSeparator(),
-		container.NewBorder(
-			nil,
-			nil,
-			container.NewHBox(widget.NewLabel("Status"), statusFilter),
-			btnHelp,
-			search,
-		),
+		filterBar,
 		container.NewHBox(totalLbl, widget.NewLabel(" | "), statsLbl, layout.NewSpacer()),
 		engineLbl,
 		widget.NewSeparator(),
 	)
-	actions := container.NewHBox(
-		btnNew,
-		btnToggleEngine,
-		btnEdit,
-		btnToggleRule,
-		btnDelete,
-		btnRunbook,
-		btnPolicies,
-		layout.NewSpacer(),
+	actions := container.NewVBox(
+		container.NewHBox(
+			btnNew,
+			btnToggleEngine,
+			btnEdit,
+			btnToggleRule,
+			btnDelete,
+			layout.NewSpacer(),
+		),
+		container.NewHBox(
+			btnRunbook,
+			btnPolicies,
+			layout.NewSpacer(),
+		),
 	)
+	if !compact {
+		actions = container.NewVBox(container.NewHBox(
+			btnNew,
+			btnToggleEngine,
+			btnEdit,
+			btnToggleRule,
+			btnDelete,
+			btnRunbook,
+			btnPolicies,
+			layout.NewSpacer(),
+		))
+	}
 	mainSplit := container.NewVSplit(
 		container.NewVScroll(list),
 		container.NewVScroll(historyList),
 	)
-	mainSplit.SetOffset(0.72)
+	if compact {
+		mainSplit.SetOffset(0.65)
+	} else {
+		mainSplit.SetOffset(0.72)
+	}
 
 	body := container.NewBorder(
 		container.NewPadded(top),
@@ -982,7 +1018,7 @@ func (ui *explorer) showAutomationCenter() {
 						nil,
 						nil,
 						historyTitle,
-						container.NewHBox(btnExportHistory, btnClearHistory),
+						container.NewHBox(btnExportHistory, btnClearHistory, layout.NewSpacer()),
 						widget.NewLabel(""),
 					),
 				),

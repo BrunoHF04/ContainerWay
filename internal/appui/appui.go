@@ -2391,6 +2391,30 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 		btnDisconnect,
 	)
 	toolbar := fynecontainer.NewHBox(toolbarItems...)
+	if ui.useCompactLayout() {
+		primaryRow := []fyne.CanvasObject{
+			btnSessionHome,
+			ui.btnUp,
+			ui.btnDown,
+			btnHistory,
+			btnDocker,
+			btnTerminal,
+			btnManual,
+		}
+		if isCurrentAccessAdmin() {
+			primaryRow = append(primaryRow, btnManageUsers, btnMailNotify)
+		}
+		secondaryRow := []fyne.CanvasObject{
+			ui.lblSudoState,
+			ui.btnDisableSudo,
+			layout.NewSpacer(),
+			btnDisconnect,
+		}
+		toolbar = fynecontainer.NewVBox(
+			fynecontainer.NewHScroll(fynecontainer.NewHBox(primaryRow...)),
+			fynecontainer.NewHBox(secondaryRow...),
+		)
+	}
 	top := fynecontainer.NewVBox(
 		fynecontainer.NewPadded(toolbar),
 		widget.NewSeparator(),
@@ -2739,6 +2763,18 @@ func (ui *explorer) showSessionHub() {
 	ui.explorerOnTop.Store(false)
 	ui.win.SetContent(ui.sessionHub)
 	setSessionHubWindow(ui.win)
+}
+
+// useCompactLayout indica quando a janela exige layout compacto.
+func (ui *explorer) useCompactLayout() bool {
+	if ui == nil || ui.win == nil || ui.win.Canvas() == nil {
+		return false
+	}
+	sz := ui.win.Canvas().Size()
+	if sz.Width <= 0 && sz.Height <= 0 {
+		return false
+	}
+	return sz.Width <= 1280 || sz.Height <= 800
 }
 
 // homeOrRoot executa parte da logica deste modulo.
@@ -6838,7 +6874,11 @@ func (ui *explorer) openSettingsFullscreenWithBack(title string, content fyne.Ca
 	titleLbl.Wrapping = fyne.TextWrapWord
 	top := fynecontainer.NewBorder(nil, nil, fynecontainer.NewPadded(btnBack), nil, titleLbl)
 	header := fynecontainer.NewVBox(top, widget.NewSeparator())
-	center := fynecontainer.NewMax(fynecontainer.NewPadded(content))
+	var centerContent fyne.CanvasObject = content
+	if ui.useCompactLayout() {
+		centerContent = fynecontainer.NewVScroll(content)
+	}
+	center := fynecontainer.NewMax(fynecontainer.NewPadded(centerContent))
 	root := fynecontainer.NewBorder(header, nil, nil, nil, center)
 	ui.win.SetContent(root)
 	ui.explorerOnTop.Store(false)
