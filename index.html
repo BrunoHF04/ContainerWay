@@ -871,7 +871,7 @@
       <h1>Gestao de arquivos em painel duplo para host Linux e containers Docker remotos</h1>
       <p class="subtitle">
         O ContainerWay entrega uma experiencia estilo WinSCP para rotina operacional: conexao via SSH/SFTP, navegacao local e remota,
-        transferencias com fila e suporte a contexto de containers em execucao, tudo com interface em pt-BR.
+        transferencias com fila, suporte a contexto de containers em execucao e central de automacoes operacional, tudo com interface em pt-BR.
       </p>
       <div class="actions">
         <a class="btn" href="https://github.com/BrunoHF04/ContainerWay/releases/latest" target="_blank" rel="noopener noreferrer">Baixar ultima release (v1.0.0)</a>
@@ -885,7 +885,7 @@
       <div class="stats">
         <div class="stat"><strong>SSH, SFTP e Docker remoto</strong><span>Docker acessado pelo socket remoto via SSH</span></div>
         <div class="stat"><strong>Transferencia local, host e container</strong><span>Suporte recursivo, historico e retry</span></div>
-        <div class="stat"><strong>Fluxo completo em pt-BR</strong><span>Login local, hub de modulos e explorador integrado</span></div>
+        <div class="stat"><strong>Fluxo completo em pt-BR</strong><span>Login local, hub de modulos, automacoes e explorador integrado</span></div>
       </div>
     </section>
 
@@ -1038,13 +1038,23 @@
           </ul>
         </article>
         <article class="card">
+          <span class="card-icon" aria-hidden="true">AUTO</span>
+          <h3>Central de automacoes</h3>
+          <p>Modulo dedicado para regras operacionais com motor em background, historico e controle direto pela interface.</p>
+          <ul>
+            <li>CRUD de regras com filtro por status e busca.</li>
+            <li>Motor com auto-restart de container parado, cooldown e retry com backoff.</li>
+            <li>Historico local persistente por host, com exportacao em .txt e limpeza.</li>
+          </ul>
+        </article>
+        <article class="card">
           <span class="card-icon" aria-hidden="true">DOC</span>
           <h3>Docker remoto e terminal SSH</h3>
-          <p>Selecao de containers em execucao, acoes operacionais e terminal integrado na mesma sessao autenticada.</p>
+          <p>Selecao de containers em execucao, acoes operacionais, terminal integrado e ajustes para resolucoes compactas.</p>
           <ul>
-            <li>Listagem de diretorio com caminho rapido e fallback.</li>
+            <li>Listagem de diretorio de container com parser corrigido para evitar caminhos corrompidos.</li>
             <li>Reinicio priorizando recriacao via Compose.</li>
-            <li>Terminal com suporte a atalhos e fallback de renderizacao.</li>
+            <li>Terminal com suporte a atalhos, fallback e header adaptado para 1024x768.</li>
           </ul>
         </article>
         <article class="card">
@@ -1091,6 +1101,7 @@
           <ul>
             <li>Gerenciador de arquivos</li>
             <li>Containers Docker</li>
+            <li>Central de automacoes</li>
             <li>Terminal SSH</li>
             <li>Configuracoes (usuario admin)</li>
           </ul>
