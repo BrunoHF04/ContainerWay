@@ -63,6 +63,11 @@ func normalize(dir string) string {
 	return path.Clean(d)
 }
 
+// Stat devolve metadados de um caminho remoto (ficheiro ou pasta).
+func (f *FS) Stat(p string) (os.FileInfo, error) {
+	return f.Client.Stat(normalize(p))
+}
+
 // OpenReader abre um ficheiro remoto para leitura.
 func (f *FS) OpenReader(path string) (*sftp.File, error) {
 	return f.Client.Open(normalize(path))
@@ -130,9 +135,4 @@ func (f *FS) removeRecursive(p string) error {
 		return fmt.Errorf("não foi possível remover pasta %s: %w", p, err)
 	}
 	return nil
-}
-
-// Stat devolve metadados SFTP.
-func (f *FS) Stat(p string) (os.FileInfo, error) {
-	return f.Client.Stat(normalize(p))
 }

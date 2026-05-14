@@ -40,6 +40,7 @@ import (
 	"containerway/internal/hostfs"
 	"containerway/internal/localfs"
 	"containerway/internal/mailnotify"
+	"containerway/internal/policy"
 	"containerway/internal/session"
 	"containerway/internal/tarxfer"
 	"containerway/internal/transfer"
@@ -90,12 +91,16 @@ const (
 	themeModeLight                    = "light"
 	themeModeDark                     = "dark"
 	sessionEmailMaxLines              = 1500 // máx. de linhas do registro no e-mail de fim de sessão
+	firstRunTipsPreferenceKey         = "access.firstRunTipsDismissed"
 )
 
 // Run inicia a aplicação Fyne.
 func Run() {
 	a := app.NewWithID("io.containerway.app")
 	applyThemeMode(a, loadThemeMode(a))
+	a.Settings().AddListener(func(_ fyne.Settings) {
+		applyThemeMode(a, loadThemeMode(a))
+	})
 	if ico := appWindowIcon(); ico != nil {
 		a.SetIcon(ico)
 	}
@@ -189,6 +194,7 @@ func buildAccessLogin(w fyne.Window) fyne.CanvasObject {
 			}
 			w.SetContent(buildLogin(w))
 			setLoginWindow(w)
+			maybeShowFirstRunTips(w)
 			// Após SetContent o layout pode alterar o tamanho real da janela; recentrar no próximo ciclo.
 			fyne.Do(func() { w.CenterOnScreen() })
 			return
@@ -240,6 +246,12 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 	}
 	insecureHost := widget.NewCheck("Ignorar chave de host SSH (inseguro)", nil)
 	insecureHost.SetChecked(true)
+	if policy.ForbidInsecureHostKey() {
+		insecureHost.SetChecked(false)
+		insecureHost.Disable()
+	}
+	dockerSocketEntry := widget.NewEntry()
+	dockerSocketEntry.SetPlaceHolder("/var/run/docker.sock — Podman: /run/user/…/podman/podman.sock")
 	parallelJobsEntry := widget.NewEntry()
 	parallelJobsEntry.SetText("3")
 	parallelJobsEntry.SetPlaceHolder("transferências em paralelo (1–16)")
@@ -279,7 +291,11 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 		keyPath.SetText(c.KeyPath)
 		keyPass.SetText(c.KeyPass)
 		knownHosts.SetText(c.KnownHosts)
+		dockerSocketEntry.SetText(c.DockerSocket)
 		insecureHost.SetChecked(c.InsecureHostKey)
+		if policy.ForbidInsecureHostKey() {
+			insecureHost.SetChecked(false)
+		}
 		if strings.TrimSpace(c.ParallelJobs) == "" {
 			parallelJobsEntry.SetText("3")
 		} else {
@@ -302,7 +318,11 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 		keyPath.SetText("")
 		keyPass.SetText("")
 		knownHosts.SetText("")
+		dockerSocketEntry.SetText("")
 		insecureHost.SetChecked(true)
+		if policy.ForbidInsecureHostKey() {
+			insecureHost.SetChecked(false)
+		}
 		parallelJobsEntry.SetText("3")
 		saveSecrets.SetChecked(false)
 		rememberSession.SetChecked(false)
@@ -339,6 +359,10 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 			KnownHosts:      strings.TrimSpace(knownHosts.Text),
 			InsecureHostKey: insecureHost.Checked,
 			ParallelJobs:    strings.TrimSpace(parallelJobsEntry.Text),
+			DockerSocket:    strings.TrimSpace(dockerSocketEntry.Text),
+		}
+		if policy.ForbidInsecureHostKey() {
+			saved.InsecureHostKey = false
 		}
 		if saveSecrets.Checked {
 			saved.Password = pass.Text
@@ -441,6 +465,7 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 			{Text: "Senha da chave", Widget: keyPass},
 			{Text: "known_hosts", Widget: knownHosts},
 			{Text: "", Widget: insecureHost},
+			{Text: "Socket Docker/Podman (remoto)", Widget: dockerSocketEntry},
 			{Text: "Paralelismo", Widget: parallelJobsEntry},
 		},
 	}
@@ -475,14 +500,20 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 	connect = widget.NewButtonWithIcon("Conectar", theme.LoginIcon(), func() {
 		status.SetText("Conectando…")
 		appendAuditLog("login", "Tentativa de conexão para "+strings.TrimSpace(host.Text))
+		if policy.ForbidInsecureHostKey() && insecureHost.Checked {
+			status.SetText("Política local: não é permitido ignorar a chave de host.")
+			dialog.ShowInformation("Política de segurança", "A ligação com \"Ignorar chave de host\" não é permitida por política (CONTAINERWAY_FORBID_INSECURE_HOSTKEY ou policy.json).", w)
+			return
+		}
 		creds := session.Credentials{
-			Host:            host.Text,
-			User:            user.Text,
-			Password:        pass.Text,
-			KeyPath:         strings.TrimSpace(keyPath.Text),
-			KeyPass:         keyPass.Text,
-			KnownHostsFiles: splitKnownHostsFiles(knownHosts.Text),
-			InsecureHostKey: insecureHost.Checked,
+			Host:              host.Text,
+			User:              user.Text,
+			Password:          pass.Text,
+			KeyPath:           strings.TrimSpace(keyPath.Text),
+			KeyPass:           keyPass.Text,
+			KnownHostsFiles:   splitKnownHostsFiles(knownHosts.Text),
+			InsecureHostKey:   insecureHost.Checked && !policy.ForbidInsecureHostKey(),
+			DockerUnixSocket:  strings.TrimSpace(dockerSocketEntry.Text),
 		}
 		pJobs := parseParallelWorkers(parallelJobsEntry.Text)
 		go func() {
@@ -516,14 +547,20 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 	testConn = widget.NewButtonWithIcon("Testar conexão", theme.ConfirmIcon(), func() {
 		status.SetText("Testando conexão…")
 		appendAuditLog("login", "Teste de conexão iniciado para "+strings.TrimSpace(host.Text))
+		if policy.ForbidInsecureHostKey() && insecureHost.Checked {
+			status.SetText("Política local: não é permitido ignorar a chave de host.")
+			dialog.ShowInformation("Política de segurança", "A ligação com \"Ignorar chave de host\" não é permitida por política (CONTAINERWAY_FORBID_INSECURE_HOSTKEY ou policy.json).", w)
+			return
+		}
 		creds := session.Credentials{
-			Host:            host.Text,
-			User:            user.Text,
-			Password:        pass.Text,
-			KeyPath:         strings.TrimSpace(keyPath.Text),
-			KeyPass:         keyPass.Text,
-			KnownHostsFiles: splitKnownHostsFiles(knownHosts.Text),
-			InsecureHostKey: insecureHost.Checked,
+			Host:              host.Text,
+			User:              user.Text,
+			Password:          pass.Text,
+			KeyPath:           strings.TrimSpace(keyPath.Text),
+			KeyPass:           keyPass.Text,
+			KnownHostsFiles:   splitKnownHostsFiles(knownHosts.Text),
+			InsecureHostKey:   insecureHost.Checked && !policy.ForbidInsecureHostKey(),
+			DockerUnixSocket:  strings.TrimSpace(dockerSocketEntry.Text),
 		}
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -540,7 +577,7 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 			}
 			sess.Close()
 			fyne.Do(func() {
-				status.SetText("Teste de conexão:\nSSH: OK\nSFTP: OK\nDocker: OK")
+				status.SetText("Teste de conexão:\nSSH: OK\nSFTP: OK\nDocker/Podman: OK")
 			})
 			appendAuditLog("login", "Teste de conexão concluído com sucesso para "+strings.TrimSpace(host.Text))
 		}()
@@ -2160,7 +2197,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 			finalizeLocalAccessSession(w, s, "Sessão encerrada (fechamento da janela após erro no Docker)")
 		})
 		inner := fynecontainer.NewVBox(errLabel, widget.NewSeparator(), closeBtn)
-		return fynecontainer.NewPadded(widget.NewCard("Docker", "Verifique as permissões em /var/run/docker.sock", inner))
+		return fynecontainer.NewPadded(widget.NewCard("Docker / Podman", "Verifique o socket Unix nas preferências da ligação e permissões no servidor.", inner))
 	}
 
 	ui := &explorer{
@@ -2325,6 +2362,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 		ui.rightList.UnselectAll()
 		ui.refreshRight()
 		ui.updateBreadcrumb()
+		ui.refreshRightShortcutOptions("")
 	})
 	ui.ctxSelect.SetSelectedIndex(0)
 
@@ -2358,6 +2396,8 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	ui.btnDown = widget.NewButtonWithIcon("Receber", theme.DownloadIcon(), func() { ui.download() })
 	ui.btnDown.Importance = widget.HighImportance
 	btnHistory := widget.NewButtonWithIcon("Histórico", theme.HistoryIcon(), func() { ui.showOperationHistory() })
+	btnCompare := widget.NewButtonWithIcon("Comparar", theme.SearchIcon(), func() { ui.showCompareFoldersExplorer() })
+	btnCompare.Importance = widget.MediumImportance
 	btnDocker := widget.NewButtonWithIcon("Contêineres Docker", theme.StorageIcon(), func() { ui.showDockerContainerManager() })
 	btnDocker.Importance = widget.MediumImportance
 	btnTerminal := widget.NewButtonWithIcon("Terminal", theme.ComputerIcon(), func() { ui.showTerminalConsole() })
@@ -2382,6 +2422,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 		ui.btnUp,
 		ui.btnDown,
 		btnHistory,
+		btnCompare,
 		btnDocker,
 		btnTerminal,
 		btnManual,
@@ -2403,6 +2444,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 			ui.btnUp,
 			ui.btnDown,
 			btnHistory,
+			btnCompare,
 			btnDocker,
 			btnTerminal,
 			btnManual,
@@ -4660,6 +4702,10 @@ func (ui *explorer) enqueueLocalToRemote(src fsutil.DirEntry, dstDir string) {
 				if ui.sudoEnabled {
 					return ui.copyLocalFileToHostWithSudo(ctx, src.Path, dst)
 				}
+				if st, err := ui.hfs.Stat(dst); err == nil && !st.IsDir() && st.Size() == src.Size {
+					appendAuditLog("transfer", fmt.Sprintf("Omitido upload (destino já existe com mesmo tamanho): %s", dst))
+					return nil
+				}
 				f, err := os.Open(src.Path)
 				if err != nil {
 					return err
@@ -4866,7 +4912,7 @@ func (ui *explorer) startDrain() {
 				} else {
 					ui.progress.SetValue(0)
 				}
-				ui.lastJobText.SetText(j.Name)
+				ui.lastJobText.SetText(fmt.Sprintf("[fila:%d exec:%d] %s", ui.tm.Queued(), ui.tm.Running(), j.Name))
 				ui.status.SetText("Transferindo…")
 			})
 		},
@@ -6084,6 +6130,30 @@ func readAuditLogLines(maxLines int, filter string) []string {
 	return filtered
 }
 
+// remoteFavoritesPreferenceKey devolve chave de preferências para atalhos do painel direito (host + contexto).
+func (ui *explorer) remoteFavoritesPreferenceKey() string {
+	h := strings.TrimSpace(ui.connCreds.Host)
+	if h == "" {
+		h = "host"
+	}
+	h = strings.ToLower(h)
+	h = strings.ReplaceAll(h, ":", "_")
+	h = strings.ReplaceAll(h, "/", "_")
+	h = strings.ReplaceAll(h, "\\", "_")
+	h = strings.ReplaceAll(h, " ", "_")
+	if ui.hostMode {
+		return rightFavoritesPreferenceKey + "." + h + ".host"
+	}
+	cid := "ctx"
+	if ui.cfs != nil {
+		cid = strings.TrimPrefix(ui.cfs.ID, "sha256:")
+		if len(cid) > 16 {
+			cid = cid[:16]
+		}
+	}
+	return rightFavoritesPreferenceKey + "." + h + ".c." + cid
+}
+
 // localShortcutOptions executa parte da logica deste modulo.
 func (ui *explorer) localShortcutOptions() []string {
 	base := ui.defaultLocalShortcuts()
@@ -6094,7 +6164,8 @@ func (ui *explorer) localShortcutOptions() []string {
 // remoteShortcutOptions executa parte da logica deste modulo.
 func (ui *explorer) remoteShortcutOptions() []string {
 	base := defaultRemoteShortcuts()
-	saved := loadStringSlicePreference(rightFavoritesPreferenceKey)
+	key := ui.remoteFavoritesPreferenceKey()
+	saved := uniqueNonEmpty(append(loadStringSlicePreference(key), loadStringSlicePreference(rightFavoritesPreferenceKey)...))
 	return uniqueNonEmpty(append(base, saved...))
 }
 
@@ -6150,8 +6221,9 @@ func (ui *explorer) addRightFavoriteCurrentPath() {
 	if p == "" {
 		return
 	}
-	saved := append(loadStringSlicePreference(rightFavoritesPreferenceKey), p)
-	saveStringSlicePreference(rightFavoritesPreferenceKey, saved)
+	key := ui.remoteFavoritesPreferenceKey()
+	saved := append(loadStringSlicePreference(key), p)
+	saveStringSlicePreference(key, uniqueNonEmpty(saved))
 	ui.refreshRightShortcutOptions(p)
 	ui.status.SetText("Atalho do servidor salvo: " + p)
 	appendAuditLog("favoritos", "Atalho remoto salvo: "+p)
@@ -6197,13 +6269,23 @@ func (ui *explorer) removeRightFavoriteCurrentPath() {
 	if p == "" {
 		return
 	}
-	saved := loadStringSlicePreference(rightFavoritesPreferenceKey)
+	key := ui.remoteFavoritesPreferenceKey()
+	saved := loadStringSlicePreference(key)
 	next := removePathFromList(saved, p)
 	if len(next) == len(saved) {
-		ui.status.SetText("Atalho do servidor não está na lista de favoritos.")
+		legacy := loadStringSlicePreference(rightFavoritesPreferenceKey)
+		nextL := removePathFromList(legacy, p)
+		if len(nextL) == len(legacy) {
+			ui.status.SetText("Atalho do servidor não está na lista de favoritos.")
+			return
+		}
+		saveStringSlicePreference(rightFavoritesPreferenceKey, nextL)
+		ui.refreshRightShortcutOptions("")
+		ui.status.SetText("Atalho removido (lista global legada): " + p)
+		appendAuditLog("favoritos", "Atalho remoto removido (global): "+p)
 		return
 	}
-	saveStringSlicePreference(rightFavoritesPreferenceKey, next)
+	saveStringSlicePreference(key, next)
 	ui.refreshRightShortcutOptions("")
 	ui.status.SetText("Atalho do servidor removido: " + p)
 	appendAuditLog("favoritos", "Atalho remoto removido: "+p)
@@ -6448,6 +6530,20 @@ func (ui *explorer) showOperationHistory() {
 		ui.status.SetText("Histórico exportado: " + target)
 		appendAuditLog("historico", "Histórico exportado para "+target)
 	})
+	btnExportAuditCSV := widget.NewButtonWithIcon("Exportar trilha CSV", theme.DownloadIcon(), func() {
+		target := filepath.Join(filepath.Dir(auditLogPath()), "containerway-audit.csv")
+		b, err := writeAuditLogCSVBytes(8000, fullLogFilter.Text)
+		if err != nil {
+			dialog.ShowError(fmt.Errorf("não foi possível gerar CSV: %w", err), ui.win)
+			return
+		}
+		if err := os.WriteFile(target, b, 0o644); err != nil {
+			dialog.ShowError(fmt.Errorf("não foi possível gravar CSV: %w", err), ui.win)
+			return
+		}
+		ui.status.SetText("Trilha de auditoria exportada: " + target)
+		appendAuditLog("historico", "Trilha exportada em CSV: "+target)
+	})
 	btnOpenFullLog := widget.NewButtonWithIcon("Abrir log geral", theme.DocumentIcon(), func() {
 		logPath := auditLogPath()
 		if _, err := os.Stat(logPath); err != nil {
@@ -6492,7 +6588,7 @@ func (ui *explorer) showOperationHistory() {
 	}
 	contentWrap := fynecontainer.NewBorder(
 		nil,
-		fynecontainer.NewHBox(btnExport, btnOpenFullLog, btnOpenLogFolder, btnRetry, btnRetryAll, btnClear),
+		fynecontainer.NewHBox(btnExport, btnExportAuditCSV, btnOpenFullLog, btnOpenLogFolder, btnRetry, btnRetryAll, btnClear),
 		nil,
 		nil,
 		tabs,
@@ -6856,7 +6952,7 @@ ContainerWay - Manual de uso
 1) Visão geral
 - Painel esquerdo: computador local.
 - Painel direito: servidor remoto (host) ou contêiner selecionado.
-- Barra superior: início, enviar/receber, histórico, contêineres Docker, manual e sair.
+- Barra superior: início, enviar/receber, histórico, comparar pastas, contêineres Docker, manual e sair.
 - Barra de status: mostra ações, progresso e mensagens.
 - Após conectar, aparece a tela "Início da sessão" com atalhos para módulos; use "Início" na barra para voltar a ela.
 
@@ -6864,7 +6960,8 @@ ContainerWay - Manual de uso
 - Configure Host, Usuário e Senha (ou chave).
 - Use "Testar conexão" antes de conectar.
 - Você pode salvar conexões e carregar depois.
-- Tema: padrão do sistema, claro ou escuro.
+- Tema: padrão do sistema, claro ou escuro (o app reage a mudanças do sistema quando o tema está em "Padrão do sistema").
+- Na aba avançada pode indicar o socket Unix remoto do Docker ou Podman (por omissão /var/run/docker.sock).
 
 3) Navegação de pastas
 - Botões por painel: voltar, subir nível, home e atualizar.
@@ -6878,6 +6975,8 @@ ContainerWay - Manual de uso
 - "Receber": servidor/contêiner -> local.
 - "Enviar visíveis" / "Receber visíveis": opera em lote com os itens filtrados.
 - Em lote, o progresso é por quantidade de itens concluídos.
+- Envio de ficheiro único para o servidor via SFTP: se já existir destino com o mesmo tamanho, o upload é omitido (registado no log de auditoria).
+- Durante jobs, a barra mostra fila pendente e execuções em curso.
 
 5) Busca e filtros avançados
 - Campo de busca em cada painel suporta:
@@ -6890,7 +6989,14 @@ ContainerWay - Manual de uso
 6) Favoritos
 - Botão "+" salva a pasta atual nos atalhos.
 - Botão "-" remove a pasta atual dos atalhos.
-- Favoritos são persistidos entre sessões.
+- Favoritos locais são globais; no servidor/contêiner são guardados por host e contexto (host vs contêiner), mantendo compatibilidade com a lista global antiga.
+
+6b) Comparar pastas
+- Botão "Comparar" na barra: relatório entre o painel local e o direito (nomes, tipo, tamanho e data).
+
+6c) Política de segurança local
+- Opcional: ficheiro policy.json em ContainerWay nas preferências, ou variável CONTAINERWAY_FORBID_INSECURE_HOSTKEY=1 para impedir "Ignorar chave de host".
+- Botão "Políticas" na central de automações resume o estado.
 
 7) Edição remota
 - Em arquivo remoto, use abrir para edição.
@@ -6912,6 +7018,7 @@ ContainerWay - Manual de uso
 - Ações disponíveis:
   - filtrar eventos por texto.
   - exportar histórico.
+  - exportar trilha de auditoria em CSV (log geral filtrado).
   - abrir log geral e pasta de logs.
   - tentar novamente última falha ou todas as falhas.
 

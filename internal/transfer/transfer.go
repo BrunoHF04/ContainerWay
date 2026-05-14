@@ -19,9 +19,10 @@ type Job struct {
 
 // Manager fila jobs e drena com um ou mais workers em paralelo.
 type Manager struct {
-	mu     sync.Mutex
-	queue  []Job
-	workMu sync.Mutex
+	mu      sync.Mutex
+	queue   []Job
+	workMu  sync.Mutex
+	running atomic.Int32
 }
 
 // Enqueue adiciona um job à fila.
@@ -43,6 +44,18 @@ func (m *Manager) pop() (Job, bool) {
 	return j, true
 }
 
+// Queued devolve quantos jobs ainda estão na fila (não contabiliza os em execução).
+func (m *Manager) Queued() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.queue)
+}
+
+// Running devolve quantos jobs estão a ser executados neste momento.
+func (m *Manager) Running() int {
+	return int(m.running.Load())
+}
+
 // DrainAsync processa jobs pendentes. parallel < 2 é estritamente sequencial.
 func (m *Manager) DrainAsync(ctx context.Context, parallel int, onStart func(Job), onDone func(Job, error), onProgress Progress) {
 	if parallel < 1 {
@@ -57,6 +70,7 @@ func (m *Manager) DrainAsync(ctx context.Context, parallel int, onStart func(Job
 				if !ok {
 					return
 				}
+				m.running.Add(1)
 				if onStart != nil {
 					onStart(j)
 				}
@@ -64,6 +78,7 @@ func (m *Manager) DrainAsync(ctx context.Context, parallel int, onStart func(Job
 				if onDone != nil {
 					onDone(j, err)
 				}
+				m.running.Add(-1)
 			}
 		}
 		sem := make(chan struct{}, parallel)
@@ -80,6 +95,7 @@ func (m *Manager) DrainAsync(ctx context.Context, parallel int, onStart func(Job
 					<-sem
 					wg.Done()
 				}()
+				m.running.Add(1)
 				if onStart != nil {
 					onStart(job)
 				}
@@ -87,6 +103,7 @@ func (m *Manager) DrainAsync(ctx context.Context, parallel int, onStart func(Job
 				if onDone != nil {
 					onDone(job, err)
 				}
+				m.running.Add(-1)
 			}(j)
 		}
 		wg.Wait()

@@ -10,15 +10,16 @@ import (
 )
 
 type savedConnection struct {
-	Name            string `json:"name"`
-	Host            string `json:"host"`
-	User            string `json:"user"`
-	Password        string `json:"password,omitempty"`
-	KeyPath         string `json:"keyPath,omitempty"`
-	KeyPass         string `json:"keyPass,omitempty"`
-	KnownHosts      string `json:"knownHosts,omitempty"`
-	InsecureHostKey bool   `json:"insecureHostKey"`
-	ParallelJobs    string `json:"parallelJobs,omitempty"`
+	Name             string `json:"name"`
+	Host             string `json:"host"`
+	User             string `json:"user"`
+	Password         string `json:"password,omitempty"`
+	KeyPath          string `json:"keyPath,omitempty"`
+	KeyPass          string `json:"keyPass,omitempty"`
+	KnownHosts       string `json:"knownHosts,omitempty"`
+	InsecureHostKey  bool   `json:"insecureHostKey"`
+	ParallelJobs     string `json:"parallelJobs,omitempty"`
+	DockerSocket     string `json:"dockerSocket,omitempty"` // socket Unix remoto (Docker ou Podman)
 }
 
 // connectionsFilePath executa parte da logica deste modulo.

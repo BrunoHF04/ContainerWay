@@ -23,6 +23,9 @@ type Credentials struct {
 	KeyPass           string
 	KnownHostsFiles   []string // caminhos absolutos; separados na UI por |
 	InsecureHostKey   bool     // se true, ignora known_hosts (inseguro)
+	// DockerUnixSocket caminho do socket Unix no host remoto (Docker ou API compatível, ex. Podman).
+	// Vazio usa /var/run/docker.sock.
+	DockerUnixSocket string
 }
 
 // Session mantém SSH, SFTP e API Docker sobre o socket Unix remoto.
@@ -124,8 +127,13 @@ func Connect(ctx context.Context, c Credentials) (*Session, error) {
 		return nil, fmt.Errorf("SFTP: %w", err)
 	}
 
+	dockerSock := strings.TrimSpace(c.DockerUnixSocket)
+	if dockerSock == "" {
+		dockerSock = "/var/run/docker.sock"
+	}
+
 	sshDial := func(ctx context.Context, _, _ string) (net.Conn, error) {
-		return sshClient.DialContext(ctx, "unix", "/var/run/docker.sock")
+		return sshClient.DialContext(ctx, "unix", dockerSock)
 	}
 
 	dockerClient, err := client.NewClientWithOpts(
@@ -146,7 +154,7 @@ func Connect(ctx context.Context, c Credentials) (*Session, error) {
 		_ = dockerClient.Close()
 		_ = sftpClient.Close()
 		_ = sshClient.Close()
-		return nil, fmt.Errorf("docker (permissão em /var/run/docker.sock?): %w", err)
+		return nil, fmt.Errorf("docker/podman (permissão em %s?): %w", dockerSock, err)
 	}
 
 	return &Session{

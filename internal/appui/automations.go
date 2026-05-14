@@ -1,10 +1,12 @@
 package appui
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -34,6 +36,41 @@ type automationRule struct {
 	Target      string
 	CooldownSec int
 	Enabled     bool
+	WebhookURL  string `json:"webhookURL,omitempty"`
+}
+
+// postAutomationWebhook envia POST JSON após uma ação de automação bem-sucedida.
+func postAutomationWebhook(ctx context.Context, urlStr, ruleName, target, message string) error {
+	urlStr = strings.TrimSpace(urlStr)
+	if urlStr == "" {
+		return nil
+	}
+	payload := map[string]string{
+		"source":  "containerway",
+		"rule":    ruleName,
+		"target":  target,
+		"message": message,
+		"time":    time.Now().UTC().Format(time.RFC3339),
+	}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, urlStr, bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return fmt.Errorf("http %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	return nil
 }
 
 // automationConfigPath resolve o arquivo de regras por host.
@@ -401,6 +438,17 @@ func (ui *explorer) runAutomationTick(lastActionAt map[string]time.Time, onEvent
 		msg := fmt.Sprintf("Ação automática: '%s' reiniciado pela regra '%s'.", target, rule.Name)
 		onEvent(msg)
 		appendAuditLog("automacao", msg)
+		if hook := strings.TrimSpace(rule.WebhookURL); hook != "" {
+			msgCopy := msg
+			ruleName := rule.Name
+			go func() {
+				hctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+				defer cancel()
+				if werr := postAutomationWebhook(hctx, hook, ruleName, target, msgCopy); werr != nil {
+					appendAuditLog("automacao", fmt.Sprintf("Webhook falhou (%s): %v", ruleName, werr))
+				}
+			}()
+		}
 	}
 	if executed == 0 {
 		onEvent("Motor: varredura concluída, sem ações necessárias.")
@@ -427,7 +475,7 @@ func (ui *explorer) showAutomationCenter() {
 	}
 
 	hint := widget.NewLabel(
-		"Crie regras com gatilho e ação para reduzir tarefas manuais. MVP atual já salva regras e executa auto-restart de contêiner parado.",
+		"Crie regras com gatilho e ação para reduzir tarefas manuais. MVP atual já salva regras e executa auto-restart de contêiner parado. Opcional: webhook HTTPS (POST JSON) após reinício bem-sucedido.",
 	)
 	hint.Wrapping = fyne.TextWrapWord
 
@@ -706,7 +754,7 @@ func (ui *explorer) showAutomationCenter() {
 	btnRunbook.Importance = widget.MediumImportance
 
 	btnPolicies := widget.NewButtonWithIcon("Políticas", theme.WarningIcon(), func() {
-		dialog.ShowInformation("Políticas e compliance", "Este botão ficará para validações de políticas em próximas versões.", ui.win)
+		ui.showSecurityPolicyDialog()
 	})
 	btnPolicies.Importance = widget.MediumImportance
 
@@ -720,6 +768,8 @@ func (ui *explorer) showAutomationCenter() {
 		cooldownEntry.SetText("20")
 		descEntry := widget.NewEntry()
 		descEntry.SetPlaceHolder("Descrição opcional")
+		webhookEntry := widget.NewEntry()
+		webhookEntry.SetPlaceHolder("Webhook HTTPS opcional (POST JSON após reinício)")
 		form := dialog.NewForm(
 			"Nova automação",
 			"Criar",
@@ -729,6 +779,7 @@ func (ui *explorer) showAutomationCenter() {
 				widget.NewFormItem("Contêiner alvo", targetEntry),
 				widget.NewFormItem("Cooldown (segundos)", cooldownEntry),
 				widget.NewFormItem("Descrição", descEntry),
+				widget.NewFormItem("Webhook (opcional)", webhookEntry),
 			},
 			func(ok bool) {
 				if !ok {
@@ -761,6 +812,7 @@ func (ui *explorer) showAutomationCenter() {
 					Target:      target,
 					CooldownSec: cooldown,
 					Enabled:     true,
+					WebhookURL:  strings.TrimSpace(webhookEntry.Text),
 				})
 				if err := ui.replaceAutomationRules(all); err != nil {
 					dialog.ShowError(err, ui.win)
@@ -774,7 +826,7 @@ func (ui *explorer) showAutomationCenter() {
 			},
 			ui.win,
 		)
-		form.Resize(fyne.NewSize(520, 300))
+		form.Resize(fyne.NewSize(560, 380))
 		form.Show()
 	}
 
@@ -876,6 +928,9 @@ func (ui *explorer) showAutomationCenter() {
 		cooldownEntry.SetText(strconv.Itoa(row.CooldownSec))
 		descEntry := widget.NewEntry()
 		descEntry.SetText(row.Description)
+		webhookEntry := widget.NewEntry()
+		webhookEntry.SetText(row.WebhookURL)
+		webhookEntry.SetPlaceHolder("https://… (POST JSON, opcional)")
 		form := dialog.NewForm(
 			"Editar automação",
 			"Salvar",
@@ -885,6 +940,7 @@ func (ui *explorer) showAutomationCenter() {
 				widget.NewFormItem("Contêiner alvo", targetEntry),
 				widget.NewFormItem("Cooldown (segundos)", cooldownEntry),
 				widget.NewFormItem("Descrição", descEntry),
+				widget.NewFormItem("Webhook (opcional)", webhookEntry),
 			},
 			func(ok bool) {
 				if !ok {
@@ -894,6 +950,7 @@ func (ui *explorer) showAutomationCenter() {
 				target := strings.TrimSpace(targetEntry.Text)
 				cooldown, convErr := strconv.Atoi(strings.TrimSpace(cooldownEntry.Text))
 				desc := strings.TrimSpace(descEntry.Text)
+				hook := strings.TrimSpace(webhookEntry.Text)
 				if name == "" || target == "" {
 					dialog.ShowInformation("Editar automação", "Preencha nome e contêiner alvo.", ui.win)
 					return
@@ -915,6 +972,7 @@ func (ui *explorer) showAutomationCenter() {
 					all[i].Target = target
 					all[i].CooldownSec = cooldown
 					all[i].Description = desc
+					all[i].WebhookURL = hook
 					all[i].Trigger = "Container parado por mais de " + strconv.Itoa(cooldown) + "s"
 					updated = true
 					break
@@ -935,7 +993,7 @@ func (ui *explorer) showAutomationCenter() {
 			},
 			ui.win,
 		)
-		form.Resize(fyne.NewSize(520, 300))
+		form.Resize(fyne.NewSize(560, 380))
 		form.Show()
 	}
 

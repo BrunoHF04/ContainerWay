@@ -6,7 +6,7 @@ Gestor de arquivos de painel duplo (estilo WinSCP), com foco em uso prático no 
 
 - painel esquerdo no **computador local**;
 - painel direito no **host Linux** via **SSH/SFTP** ou dentro de **contêineres Docker** remotos;
-- Docker acessado pelo socket Unix remoto (`/var/run/docker.sock`) **sobre SSH**, sem abrir API Docker em TCP.
+- **Docker** ou API **compatível** (ex.: **Podman**) no servidor, via socket Unix remoto (por omissão `/var/run/docker.sock`) **sobre SSH**, sem expor a API em TCP; o caminho do socket é configurável por ligação.
 
 Toda a interface está em **pt-BR**.
 
@@ -21,8 +21,9 @@ Antes da tela de conexão SSH/SFTP, o app pede **login de acesso local** (usuár
 - **Senha padrão:** `!q1w2e3r4$`
 - **Cadastro de usuários:** após entrar como `admin`, use **Usuários** na tela inicial da sessão (cartão **Configurações**) ou na barra superior do explorador. A tela de gestão abre **em janela maximizada**, com **Voltar** para retornar ao hub ou ao explorador. O `admin` não pode ser removido; no mesmo lugar há o atalho **Abrir configuração de alertas por e-mail…**.
 - **Logs:** o nome exibido nos logs segue o cadastro de cada usuário.
+- **Primeiro acesso:** após o primeiro login de acesso com sucesso, o app pode mostrar um diálogo curto de boas-vindas (dicas de segurança e onde configurar política opcional); não volta a aparecer após confirmado.
 
-> Atenção: isso **não** substitui autenticação do servidor SSH; é apenas uma trava local do app. Em ambientes sensíveis, altere a senha do `admin` e cadastre usuários com senhas fortes.
+> Atenção: isso **não** substitui autenticação do servidor SSH; é apenas uma trava local do app. Em ambientes sensíveis, altere a senha do `admin` e cadastre usuários com senhas fortes. Resumo de política local e ameaças: ver **`SECURITY.md`** na raiz do repositório.
 
 </details>
 
@@ -85,13 +86,15 @@ Somente o usuário **admin** vê **E-mail** na barra do explorador ou no cartão
 - Configuração de verificação de host:
   - `known_hosts` (um ou mais arquivos separados por `|`);
   - ou opção explícita para ignorar chave de host (inseguro).
+- **Política local (opcional, corporativa):** impedir «Ignorar chave de host» via variável de ambiente `CONTAINERWAY_FORBID_INSECURE_HOSTKEY=1` (ou `true`/`yes`) e/ou ficheiro `%APPDATA%\ContainerWay\policy.json` (Windows) / pasta de configuração do utilizador + `ContainerWay/policy.json` com `{"forbidInsecureHostKey":true}`. Com política ativa, a opção insegura fica desativada na UI.
+- **Socket Docker/Podman (remoto):** na aba `Chave e segurança`, campo opcional para o caminho Unix no servidor (útil para Podman em `/run/user/.../podman/podman.sock`); o valor é guardado no perfil de ligação.
 - Perfis de conexão:
   - salvar, carregar e excluir conexão;
   - manter segredo no disco (opcional) ou lembrar só na sessão atual.
 - Teste rápido de conexão com status por etapa:
   - `SSH`;
   - `SFTP`;
-  - `Docker`.
+  - `Docker/Podman` (API no socket configurado).
 - Validação visual em tempo real no login:
   - host obrigatório;
   - usuário obrigatório;
@@ -101,6 +104,7 @@ Somente o usuário **admin** vê **E-mail** na barra do explorador ou no cartão
 - Layout de login por abas:
   - `Conexões SSH/SFTP`;
   - `Chave e segurança`.
+- **Tema:** `Padrão do sistema`, `Claro` ou `Escuro`; com padrão do sistema, o app **reaplica** o tema quando as definições do SO mudam (listener Fyne).
 
 ### Navegação e usabilidade no explorador
 
@@ -112,6 +116,7 @@ Somente o usuário **admin** vê **E-mail** na barra do explorador ou no cartão
   - `Enviar`;
   - `Receber`;
   - `Histórico`;
+  - **Comparar** (relatório entre as pastas atuais dos dois painéis: nomes, tipo, tamanho e data de modificação);
   - `?` (manual completo do sistema);
   - **Usuários** e **E-mail** (somente para o usuário `admin`).
 - Barra de navegação por painel com:
@@ -126,6 +131,8 @@ Somente o usuário **admin** vê **E-mail** na barra do explorador ou no cartão
 - Regras por host com persistência em JSON local (`automations-<host>.json`).
 - Motor de automações em background (liga/desliga na UI) com varredura periódica.
 - Gatilho implementado: contêiner parado -> ação de `docker restart` com cooldown.
+- **Webhook opcional (HTTPS):** por regra, URL para **POST JSON** após reinício bem-sucedido (`source`, `rule`, `target`, `message`, `time`); falhas registam-se no log de auditoria.
+- Botão **Políticas:** resume política local (`policy.json` / variável de ambiente) e o estado «bloquear ignorar chave de host».
 - Retry com backoff para falhas de restart (até 3 tentativas).
 - Gestão de regras na tela: criar, editar, ativar/desativar e excluir.
 - Histórico operacional na própria tela (inclui ações manuais e eventos do motor), com exportação `.txt` e limpeza.
@@ -138,6 +145,8 @@ Somente o usuário **admin** vê **E-mail** na barra do explorador ou no cartão
 - Favoritos por painel:
   - adicionar pasta atual (`+`);
   - remover pasta atual (`-`);
+  - **local:** lista global de atalhos;
+  - **servidor/contêiner:** atalhos guardados por **host e contexto** (host vs contêiner), com compatibilidade com a lista global antiga para leitura;
   - persistência entre sessões.
 - Duplo clique:
   - pasta abre;
@@ -172,8 +181,9 @@ Somente o usuário **admin** vê **E-mail** na barra do explorador ou no cartão
   - progresso por itens concluídos.
 - Fila de transferências com:
   - progresso;
-  - status de tarefa;
+  - status de tarefa e texto com **fila pendente** e **jobs em execução** (`[fila:N exec:M] …`);
   - workers paralelos configuráveis (`1` a `16`).
+- Envio de **ficheiro único** para o host por SFTP (sem sudo): se o destino já existir com o **mesmo tamanho**, o upload é **omitido** (evento no log de auditoria).
 
 ### Histórico, retry e log geral
 
@@ -182,6 +192,7 @@ Somente o usuário **admin** vê **E-mail** na barra do explorador ou no cartão
   - `Log geral`.
 - Filtro por texto no histórico e no log geral.
 - Exportação de histórico filtrado para `.log`.
+- **Exportar trilha CSV:** gera `containerway-audit.csv` (na pasta dos logs) a partir do log geral filtrado, com colunas `timestamp`, `level`, `scope`, `operator`, `message`.
 - Ações de recuperação:
   - tentar novamente última falha;
   - tentar novamente todas as falhas (com confirmação).
@@ -194,6 +205,7 @@ Somente o usuário **admin** vê **E-mail** na barra do explorador ou no cartão
 
 ### Docker remoto
 
+- O cliente usa a API **compatível com Docker** no socket Unix remoto (Docker ou Podman, conforme o caminho configurado na ligação).
 - Lista apenas contêineres **em execução**.
 - Identificação amigável com nome e ID curto no seletor.
 - Listagem de diretório preferencial por `docker exec ls -1Ap` (direta e rápida).
@@ -306,7 +318,7 @@ Somente o usuário **admin** vê **E-mail** na barra do explorador ou no cartão
   - cria `opengl32.dll` local quando necessário e marca o arquivo como oculto.
 - Servidor remoto:
   - OpenSSH com SFTP;
-  - permissão de acesso ao Docker socket (`/var/run/docker.sock`) quando for usar contêineres.
+  - permissão de leitura/escrita no socket da API de contentores quando for usar o explorador de contêineres (por omissão `/var/run/docker.sock`; **Podman** costuma expor socket noutro caminho, configurável na ligação).
 
 
 </details>
@@ -351,6 +363,8 @@ Build de validação sem GUI (CI/ambiente sem GCC para Fyne):
 ```powershell
 go build -tags ci -o containerway_ci.exe ./cmd/containerway/
 ```
+
+**CI no GitHub:** o workflow `.github/workflows/ci.yml` executa `go test` em pacotes internos sem depender da UI Fyne (`internal/policy`, `internal/transfer`, `internal/hostfs`, `internal/session`).
 
 
 </details>
