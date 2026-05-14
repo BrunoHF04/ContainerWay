@@ -41,6 +41,7 @@ Este arquivo serve como guia rapido para manutencao do projeto `ContainerWay`.
 - `internal/appui/connections.go`: tela/acoes relacionadas a conexoes.
 - `internal/appui/dirrow.go`: componente visual para linhas de diretorio/arquivo.
 - `internal/appui/dockercontainers.go`: listagem de conteineres, metricas e reinicio/recriacao de servicos Docker Compose na UI.
+- `internal/appui/diskstorage.go`: modulo **Discos e armazenamento** (hub): sondagem remota (`lsblk`, `df`, LVM), abas assistente / host / detalhe tecnico, lista com uso e correcao de layout (colunas fixas a esquerda + `Border` para area «Tamanho / uso» expandir).
 - `internal/appui/theme.go`: definicao e aplicacao de tema visual.
 - `internal/appui/window_maximize_darwin.go`: comportamento de maximizar janela no macOS.
 - `internal/appui/window_maximize_windows.go`: comportamento de maximizar janela no Windows.
@@ -74,6 +75,7 @@ Este arquivo serve como guia rapido para manutencao do projeto `ContainerWay`.
 
 ## Notas recentes de manutencao
 
+- **Discos e armazenamento (`diskstorage.go`):** cartao no hub (`appui.go`); evitar `HBox` como unico layout para a ultima coluna de tabelas largas — no Fyne o `HBox` so atribui a cada filho a sua `MinSize().Width` e o «extra» so vai para `layout.Spacer`; para esticar conteudo use `container.NewBorder` (fixos em `left`, conteudo variavel no `center`) ou espacers explícitos.
 - Reinicio de contêineres na UI:
   - para contêineres Compose, a acao de "Reiniciar" tenta recriar servico com `docker compose up -d --force-recreate` (com tentativa de pull).
   - para contêineres fora de Compose, o fallback continua sendo `docker restart`.

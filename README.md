@@ -34,6 +34,7 @@ Depois de **Conectar** com sucesso, abre-se primeiro a **tela inicial da sessão
 - **Pesquisar módulos** (filtro por palavra-chave);
 - **Gerenciador de arquivos** — abre o explorador em painel duplo (no Windows/macOS a janela tende a **maximizar**);
 - **Contêineres Docker** — lista e ações no host remoto;
+- **Discos e armazenamento** — visão de `lsblk`, uso por `df`, LVM e assistente para ampliar LV (com sudo no host);
 - **Central de automações** — regras com gatilho/ação, motor de execução e histórico operacional;
 - **Terminal SSH** — console remoto integrado para executar comandos no host;
 - **Configurações** (somente **admin**) — atalhos para **Usuários** e **Alertas por e-mail**.
@@ -201,6 +202,15 @@ Somente o usuário **admin** vê **E-mail** na barra do explorador ou no cartão
   - tenta `docker compose up -d --force-recreate --pull always <serviço>`;
   - fallback para `docker compose ... --force-recreate` e `docker-compose ...`;
   - quando o contêiner não é Compose, usa `docker restart` como fallback.
+
+### Discos e armazenamento no servidor
+
+- Acesso pelo cartão **Discos e armazenamento** na tela inicial da sessão (também encontrável na pesquisa de módulos).
+- Dados obtidos por script remoto: `lsblk -J`, `df`, mapeamento `df` ↔ dispositivos (`readlink -f`), blocos LVM (`lvs`/`vgs`/`pvs` quando disponíveis).
+- Aba **Armazenamento no host**: lista com dispositivo, tipo, montagem, tamanho e barra de uso quando há `df`; filtro de texto; ordenação; opção de mostrar dispositivos loop (Snap); actualização manual e opcional automática a cada 90 s com a aba visível.
+- Aba **Assistente LVM**: escolha de LV, indicação de espaço livre no VG e ampliação do LV (requer **sudo** no servidor — botão para activar credenciais).
+- Aba **Detalhe técnico**: saída bruta para depuração.
+- Layout da lista usa `Border` no Fyne (em vez de `HBox` sozinho) para a coluna **Tamanho / uso** ocupar o espaço horizontal restante; a barra de progresso fica à esquerda dessa zona e o texto expande à direita.
 
 ### Terminal SSH (integrado)
 

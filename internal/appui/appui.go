@@ -2593,7 +2593,7 @@ func buildSessionHub(ui *explorer) fyne.CanvasObject {
 	sub.Wrapping = fyne.TextWrapWord
 
 	search := widget.NewEntry()
-	search.SetPlaceHolder("Pesquisar módulos (ex.: arquivos, docker, e-mail, usuários)…")
+	search.SetPlaceHolder("Pesquisar módulos (ex.: arquivos, docker, discos, e-mail, usuários)…")
 
 	openFiles := widget.NewButtonWithIcon("Abrir", theme.FolderIcon(), func() {
 		ui.win.SetContent(ui.explorerMain)
@@ -2629,6 +2629,20 @@ func buildSessionHub(ui *explorer) fyne.CanvasObject {
 	mods = append(mods, hubModule{
 		wrap: fynecontainer.NewPadded(cardDocker),
 		blob: "docker contêiner container rodando reiniciar host imagem compose",
+	})
+
+	openDisks := widget.NewButtonWithIcon("Abrir", theme.ListIcon(), func() {
+		ui.showDiskStorageManager()
+	})
+	openDisks.Importance = widget.MediumImportance
+	cardDisks := hubSessionCard(
+		"Discos e armazenamento",
+		"Tabela a partir de lsblk, abas (assistente LVM, resumo, df/LVM) e filtro opcional de dispositivos loop (Snap).",
+		fynecontainer.NewPadded(openDisks),
+	)
+	mods = append(mods, hubModule{
+		wrap: fynecontainer.NewPadded(cardDisks),
+		blob: "disco discos armazenamento lsblk lvm volume partição df montagem snap loop",
 	})
 
 	openTerminal := widget.NewButtonWithIcon("Abrir", theme.ComputerIcon(), func() {
@@ -3167,6 +3181,11 @@ func (ui *explorer) maybePromptRootAccess(listErr error) {
 	if !isPermissionDeniedError(listErr) {
 		return
 	}
+	ui.showSudoCredentialsDialog("Acesso negado")
+}
+
+// showSudoCredentialsDialog abre o formulário de credenciais sudo (explorador, discos/LVM, etc.).
+func (ui *explorer) showSudoCredentialsDialog(windowTitle string) {
 	if ui.rootPromptOpen.Load() {
 		return
 	}
@@ -3180,7 +3199,7 @@ func (ui *explorer) maybePromptRootAccess(listErr error) {
 	passEntry.Resize(fyne.NewSize(260, passEntry.MinSize().Height))
 
 	ui.openFormDialogWithShortcuts(
-		"Acesso negado",
+		windowTitle,
 		"Aplicar sudo",
 		"Cancelar",
 		fyne.NewSize(460, 240),
