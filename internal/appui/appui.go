@@ -2921,6 +2921,10 @@ func (ui *explorer) pasteCopiedTo(leftTarget bool, targetDir string) {
 		dialog.ShowInformation("Colar", "Copie um arquivo ou pasta antes de colar.", ui.win)
 		return
 	}
+	if leftTarget && localfs.IsWindowsDrivesVirtual(strings.TrimSpace(targetDir)) {
+		dialog.ShowInformation("Colar", "Abra uma pasta dentro de uma unidade (por exemplo D:\\Projetos) antes de colar ou receber aqui.", ui.win)
+		return
+	}
 	src := *ui.copiedEntry
 	name := filepath.Base(src.entry.Path)
 	if !src.fromLeft {
@@ -3009,9 +3013,17 @@ func copyLocalDir(ctx context.Context, srcDir, dstDir string) error {
 	})
 }
 
+// leftPathFooterLabel executa parte da logica deste modulo.
+func leftPathFooterLabel(p string) string {
+	if localfs.IsWindowsDrivesVirtual(p) {
+		return "Unidades de disco (Windows)"
+	}
+	return p
+}
+
 // updateBreadcrumb executa parte da logica deste modulo.
 func (ui *explorer) updateBreadcrumb() {
-	ui.leftPathLbl.SetText(fmt.Sprintf("Pasta local: %s", ui.leftPath))
+	ui.leftPathLbl.SetText(fmt.Sprintf("Pasta local: %s", leftPathFooterLabel(ui.leftPath)))
 	ui.leftCrumbs.Objects = ui.makePathButtons(ui.leftPath, true)
 	ui.leftCrumbs.Refresh()
 	if ui.hostMode {
@@ -3086,7 +3098,7 @@ func (ui *explorer) applyLeftFilter() {
 			}
 		}
 		if matches == 0 {
-			ui.status.SetText(fmt.Sprintf("Nenhum resultado para o filtro atual em %s.", ui.leftPath))
+			ui.status.SetText(fmt.Sprintf("Nenhum resultado para o filtro atual em %s.", leftPathFooterLabel(ui.leftPath)))
 		}
 	}
 	ui.updateBreadcrumb()
@@ -4014,6 +4026,22 @@ func (ui *explorer) goRightBack() {
 
 // goLeftUp executa parte da logica deste modulo.
 func (ui *explorer) goLeftUp() {
+	if runtime.GOOS == "windows" {
+		if localfs.IsWindowsDrivesVirtual(ui.leftPath) {
+			return
+		}
+		parent := filepath.Dir(ui.leftPath)
+		if parent == ui.leftPath {
+			ui.leftBack = append(ui.leftBack, ui.leftPath)
+			ui.leftPath = localfs.WindowsDrivesVirtualPath
+			ui.resetLeftSearch()
+			ui.refreshLeft()
+			if ui.leftQuick != nil {
+				ui.leftQuick.SetSelected("Unidades de disco")
+			}
+			return
+		}
+	}
 	parent := filepath.Dir(ui.leftPath)
 	if parent == ui.leftPath {
 		return
@@ -4160,6 +4188,10 @@ func (ui *explorer) onRightDoubleAction() {
 func (ui *explorer) upload() {
 	if ui.leftSel < 0 || ui.leftSel >= len(ui.leftRows) {
 		dialog.ShowInformation("ContainerWay", "Selecione um arquivo ou pasta na lista à esquerda (seu computador).", ui.win)
+		return
+	}
+	if localfs.IsWindowsDrivesVirtual(ui.leftPath) {
+		dialog.ShowInformation("ContainerWay", "Abra uma pasta dentro de uma unidade antes de enviar arquivos.", ui.win)
 		return
 	}
 	src := ui.leftRows[ui.leftSel]
@@ -4317,6 +4349,10 @@ func (ui *explorer) upload() {
 
 // download executa parte da logica deste modulo.
 func (ui *explorer) download() {
+	if localfs.IsWindowsDrivesVirtual(ui.leftPath) {
+		dialog.ShowInformation("ContainerWay", "Abra uma pasta dentro de uma unidade (por exemplo D:\\Projetos) antes de receber arquivos no computador local.", ui.win)
+		return
+	}
 	if ui.rightSel < 0 || ui.rightSel >= len(ui.rightRows) {
 		dialog.ShowInformation("ContainerWay", "Selecione um arquivo ou pasta na lista à direita (servidor ou contêiner).", ui.win)
 		return
@@ -4476,6 +4512,10 @@ func transferableEntries(rows []fsutil.DirEntry) []fsutil.DirEntry {
 
 // uploadVisibleBatch executa parte da logica deste modulo.
 func (ui *explorer) uploadVisibleBatch() {
+	if localfs.IsWindowsDrivesVirtual(ui.leftPath) {
+		dialog.ShowInformation("ContainerWay", "Abra uma pasta dentro de uma unidade antes de enviar em lote.", ui.win)
+		return
+	}
 	items := transferableEntries(ui.leftRows)
 	if len(items) == 0 {
 		dialog.ShowInformation("ContainerWay", "Não há itens visíveis no painel local para enviar.", ui.win)
@@ -4497,6 +4537,10 @@ func (ui *explorer) uploadVisibleBatch() {
 
 // downloadVisibleBatch executa parte da logica deste modulo.
 func (ui *explorer) downloadVisibleBatch() {
+	if localfs.IsWindowsDrivesVirtual(ui.leftPath) {
+		dialog.ShowInformation("ContainerWay", "Abra uma pasta dentro de uma unidade antes de receber em lote no computador local.", ui.win)
+		return
+	}
 	items := transferableEntries(ui.rightRows)
 	if len(items) == 0 {
 		dialog.ShowInformation("ContainerWay", "Não há itens visíveis no painel do servidor para receber.", ui.win)
@@ -4651,6 +4695,10 @@ func (ui *explorer) enqueueLocalToRemote(src fsutil.DirEntry, dstDir string) {
 
 // enqueueRemoteToLocal executa parte da logica deste modulo.
 func (ui *explorer) enqueueRemoteToLocal(src copiedItem, dstDir string) {
+	if localfs.IsWindowsDrivesVirtual(strings.TrimSpace(dstDir)) {
+		dialog.ShowInformation("ContainerWay", "Abra uma pasta em uma unidade (ex.: D:\\Projetos) antes de receber arquivos aqui.", ui.win)
+		return
+	}
 	dstPath := filepath.Join(dstDir, path.Base(src.entry.Path))
 	if src.entry.IsDir {
 		if src.hostMode {
@@ -5023,7 +5071,7 @@ func (ui *explorer) updateFooterPanels() {
 
 	ui.leftFooterInfo.SetText(fmt.Sprintf(
 		"Pasta local: %s | Itens: %d pastas, %d arquivos | %s",
-		ui.leftPath, leftDirs, leftFiles, leftSelText,
+		leftPathFooterLabel(ui.leftPath), leftDirs, leftFiles, leftSelText,
 	))
 	ui.rightFooterInfo.SetText(fmt.Sprintf(
 		"%s | Itens: %d pastas, %d arquivos | %s",
@@ -5251,6 +5299,10 @@ func (ui *explorer) renameActive() {
 			dialog.ShowInformation("Renomear", "Selecione um item válido no painel local.", ui.win)
 			return
 		}
+		if localfs.IsWindowsDrivesVirtual(ui.leftPath) {
+			dialog.ShowInformation("Renomear", "Não é possível renomear letras de unidade nesta lista.", ui.win)
+			return
+		}
 		name := widget.NewEntry()
 		name.SetText(e.Name)
 		ui.openFormDialogWithShortcuts(
@@ -5326,6 +5378,10 @@ func (ui *explorer) deleteActive() {
 			dialog.ShowInformation("Excluir", "Selecione um item válido no painel local.", ui.win)
 			return
 		}
+		if localfs.IsWindowsDrivesVirtual(ui.leftPath) {
+			dialog.ShowInformation("Excluir", "Não é possível excluir unidades de disco nesta lista. Abra a unidade e apague pastas ou arquivos dentro dela.", ui.win)
+			return
+		}
 		msg := fmt.Sprintf("Deseja excluir \"%s\" do computador local?", e.Name)
 		dialog.ShowConfirm("Confirmar exclusão", msg, func(confirm bool) {
 			if !confirm {
@@ -5392,6 +5448,10 @@ func (ui *explorer) createFolderActive() {
 				return
 			}
 			if ui.activePane == "left" {
+				if localfs.IsWindowsDrivesVirtual(ui.leftPath) {
+					dialog.ShowInformation("Nova pasta (local)", "Abra uma pasta em uma unidade antes de criar uma nova pasta aqui.", ui.win)
+					return
+				}
 				target := filepath.Join(ui.leftPath, folderName)
 				if err := localfs.Mkdir(target); err != nil {
 					dialog.ShowError(fmt.Errorf("não foi possível criar pasta local: %w", err), ui.win)
@@ -5424,6 +5484,16 @@ func (ui *explorer) createFolderActive() {
 // makePathButtons executa parte da logica deste modulo.
 func (ui *explorer) makePathButtons(p string, left bool) []fyne.CanvasObject {
 	if left {
+		if localfs.IsWindowsDrivesVirtual(strings.TrimSpace(p)) {
+			btn := widget.NewButton("Unidades de disco", func() {
+				ui.pushLeftHistory(p)
+				ui.leftPath = localfs.WindowsDrivesVirtualPath
+				ui.resetLeftSearch()
+				ui.refreshLeft()
+			})
+			btn.Importance = widget.LowImportance
+			return []fyne.CanvasObject{btn}
+		}
 		clean := filepath.Clean(p)
 		if clean == "" {
 			return nil
@@ -5498,7 +5568,11 @@ func (ui *explorer) makePathButtons(p string, left bool) []fyne.CanvasObject {
 
 // defaultLocalShortcuts executa parte da logica deste modulo.
 func (ui *explorer) defaultLocalShortcuts() []string {
-	return []string{"Diretório inicial", "Desktop", "Documentos", "Downloads"}
+	base := []string{"Diretório inicial", "Desktop", "Documentos", "Downloads"}
+	if runtime.GOOS == "windows" {
+		base = append(base, "Unidades de disco")
+	}
+	return base
 }
 
 // defaultRemoteShortcuts executa parte da logica deste modulo.
@@ -6054,6 +6128,10 @@ func (ui *explorer) addLeftFavoriteCurrentPath() {
 	if p == "" {
 		return
 	}
+	if localfs.IsWindowsDrivesVirtual(p) {
+		ui.status.SetText("Abra uma unidade (ex.: D:\\) para salvar atalho; a lista de unidades não pode ser favorita.")
+		return
+	}
 	if _, builtIn := ui.resolveLocalShortcut(p); builtIn {
 		ui.refreshLeftShortcutOptions(p)
 		ui.status.SetText("Atalho local já disponível.")
@@ -6133,6 +6211,10 @@ func (ui *explorer) removeRightFavoriteCurrentPath() {
 
 // resolveLocalShortcut executa parte da logica deste modulo.
 func (ui *explorer) resolveLocalShortcut(sel string) (string, bool) {
+	sel = strings.TrimSpace(sel)
+	if sel == "Unidades de disco" && runtime.GOOS == "windows" {
+		return localfs.WindowsDrivesVirtualPath, true
+	}
 	home := homeOrRoot()
 	switch sel {
 	case "Diretório inicial":
@@ -6144,7 +6226,10 @@ func (ui *explorer) resolveLocalShortcut(sel string) (string, bool) {
 	case "Downloads":
 		return filepath.Join(home, "Downloads"), true
 	default:
-		if strings.TrimSpace(sel) != "" {
+		if sel != "" && localfs.IsWindowsDrivesVirtual(sel) {
+			return localfs.WindowsDrivesVirtualPath, true
+		}
+		if sel != "" {
 			return sel, true
 		}
 		return "", false

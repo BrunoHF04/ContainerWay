@@ -1,16 +1,31 @@
 package localfs
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"time"
 
 	"containerway/internal/fsutil"
 )
 
+// WindowsDrivesVirtualPath é um caminho sentinela usado só no Windows para listar
+// todas as letras de unidade disponíveis (C:, D:, …). Não corresponde a pasta real no disco.
+const WindowsDrivesVirtualPath = "__CW_WIN32_DRIVES__"
+
+// IsWindowsDrivesVirtual indica se o caminho é a vista sintética de unidades do Windows.
+func IsWindowsDrivesVirtual(p string) bool {
+	return strings.TrimSpace(p) == WindowsDrivesVirtualPath
+}
+
 // List lista um diretório local (Windows).
 func List(dir string) ([]fsutil.DirEntry, error) {
 	d := strings.TrimSpace(dir)
+	if IsWindowsDrivesVirtual(d) {
+		return listWindowsDrives()
+	}
 	if d == "" {
 		d = "."
 	}
@@ -40,6 +55,27 @@ func List(dir string) ([]fsutil.DirEntry, error) {
 			IsDir:   fi.IsDir(),
 			Size:    fi.Size(),
 			ModTime: fi.ModTime(),
+		})
+	}
+	fsutil.SortLikeWinSCP(out)
+	return out, nil
+}
+
+func listWindowsDrives() ([]fsutil.DirEntry, error) {
+	if runtime.GOOS != "windows" {
+		return nil, fmt.Errorf("lista de unidades só está disponível no Windows")
+	}
+	var out []fsutil.DirEntry
+	for _, letter := range "ABCDEFGHIJKLMNOPQRSTUVWXYZ" {
+		root := string(letter) + ":\\"
+		if _, err := os.Stat(root); err != nil {
+			continue
+		}
+		out = append(out, fsutil.DirEntry{
+			Name:    string(letter) + ":",
+			Path:    root,
+			IsDir:   true,
+			ModTime: time.Time{},
 		})
 	}
 	fsutil.SortLikeWinSCP(out)
