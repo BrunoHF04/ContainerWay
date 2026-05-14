@@ -1193,7 +1193,7 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 		_ = sess.Close()
 		return err
 	}
-	startCmd := "cd -- " + shellQuote(currentDir) + " 2>/dev/null || cd /; export TERM=xterm-256color; exec bash -li"
+	startCmd := shellStartWithTerminalBanner(currentDir, host)
 	if err := sess.Start(startCmd); err != nil {
 		_ = sess.Close()
 		return err
