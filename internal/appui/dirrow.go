@@ -4,7 +4,24 @@ import (
 	"fyne.io/fyne/v2"
 	fynecontainer "fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+)
+
+// Ícones da lista do explorador: cores semânticas (pastas âmbar, ficheiros azul, pai no acento).
+var (
+	explorerListIconFolder   = theme.NewColoredResource(theme.FolderIcon(), theme.ColorNameWarning)
+	explorerListIconFile     = theme.NewColoredResource(theme.DocumentIcon(), theme.ColorNameHyperlink)
+	explorerListIconParent   = theme.NewColoredResource(theme.NavigateBackIcon(), theme.ColorNamePrimary)
+	hubIconDocker            = theme.NewColoredResource(theme.StorageIcon(), theme.ColorNameHyperlink)
+	hubIconDisks             = theme.NewColoredResource(theme.ListIcon(), theme.ColorNameSuccess)
+	hubIconTerminal          = theme.NewColoredResource(theme.ComputerIcon(), theme.ColorNamePrimary)
+	hubIconAutomations       = theme.NewColoredResource(theme.SettingsIcon(), theme.ColorNameError)
+	hubIconUsers             = theme.NewColoredResource(theme.AccountIcon(), theme.ColorNameWarning)
+	hubIconMail              = theme.NewColoredResource(theme.MailComposeIcon(), theme.ColorNamePrimary)
+	hubThemeIconSystem       = theme.NewColoredResource(theme.DesktopIcon(), theme.ColorNamePrimary)
+	hubThemeIconLight        = theme.NewColoredResource(theme.ColorChromaticIcon(), theme.ColorNameWarning)
+	hubThemeIconDark         = theme.NewColoredResource(theme.ColorAchromaticIcon(), theme.ColorNameHyperlink)
 )
 
 // dirListRow é a célula da lista: um toque seleciona; duplo clique do sistema abre a pasta (fyne.DoubleTappable).

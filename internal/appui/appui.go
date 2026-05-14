@@ -67,6 +67,10 @@ var (
 	currentAccessUserName = ""
 	sessionAuditMu        sync.Mutex
 	sessionAuditLines     []string
+	// Evita reentrância: SetTheme dispara Settings.AddListener e trocar tema dentro do pop-up do Select no Windows pode encerrar o processo.
+	themeApplyReentrant atomic.Bool
+	// Último modo de tema aplicado (preferência); evita segundo SetTheme idêntico vindos do listener.
+	lastAppliedThemePreference atomic.Value // string
 )
 
 const (
@@ -242,7 +246,9 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 		mode := themeModeFromLabel(selected)
 		app := fyne.CurrentApp()
 		app.Preferences().SetString(themePreferenceKey, mode)
-		applyThemeMode(app, mode)
+		fyne.Do(func() {
+			applyThemeMode(app, mode)
+		})
 	}
 	insecureHost := widget.NewCheck("Ignorar chave de host SSH (inseguro)", nil)
 	insecureHost.SetChecked(true)
@@ -621,14 +627,27 @@ func loadThemeMode(a fyne.App) string {
 
 // applyThemeMode executa parte da logica deste modulo.
 func applyThemeMode(a fyne.App, mode string) {
+	if !themeApplyReentrant.CompareAndSwap(false, true) {
+		return
+	}
+	defer themeApplyReentrant.Store(false)
+
+	// O listener de Settings volta a chamar isto após SetTheme; para Claro/Escuro isso repetia
+	// um tema novo (LightTheme aloca sempre) e forçava reflow desnecessário.
+	if prev, ok := lastAppliedThemePreference.Load().(string); ok && prev == mode &&
+		(mode == themeModeLight || mode == themeModeDark) {
+		return
+	}
+
 	switch mode {
 	case themeModeLight:
-		a.Settings().SetTheme(theme.LightTheme())
+		a.Settings().SetTheme(forcedLightTheme())
 	case themeModeDark:
 		a.Settings().SetTheme(newModernTheme())
 	default:
 		a.Settings().SetTheme(theme.DefaultTheme())
 	}
+	lastAppliedThemePreference.Store(mode)
 }
 
 // themeLabelForMode executa parte da logica deste modulo.
@@ -833,10 +852,10 @@ func (s terminalCellStyle) BackgroundColor() color.Color { return s.bg }
 
 func xtermColorToRGBA(c vt10x.Color, isFG bool) color.Color {
 	if isFG && c == vt10x.DefaultFG {
-		return color.NRGBA{R: 220, G: 220, B: 220, A: 255}
+		return color.NRGBA{R: 226, G: 232, B: 240, A: 255}
 	}
 	if !isFG && c == vt10x.DefaultBG {
-		return color.NRGBA{R: 25, G: 27, B: 34, A: 255}
+		return color.NRGBA{R: 11, G: 17, B: 32, A: 255}
 	}
 	n := int(c)
 	base16 := []color.NRGBA{
@@ -861,9 +880,9 @@ func xtermColorToRGBA(c vt10x.Color, isFG bool) color.Color {
 		return color.NRGBA{R: v, G: v, B: v, A: 255}
 	}
 	if isFG {
-		return color.NRGBA{R: 220, G: 220, B: 220, A: 255}
+		return color.NRGBA{R: 226, G: 232, B: 240, A: 255}
 	}
-	return color.NRGBA{R: 25, G: 27, B: 34, A: 255}
+	return color.NRGBA{R: 11, G: 17, B: 32, A: 255}
 }
 
 func renderVTToTextGrid(vt vt10x.Terminal, grid *widget.TextGrid) {
@@ -2287,11 +2306,11 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 			l2 := box.Objects[3].(*widget.Label)
 			switch {
 			case e.Name == "..":
-				ic.SetResource(theme.NavigateBackIcon())
+				ic.SetResource(explorerListIconParent)
 			case e.IsDir:
-				ic.SetResource(theme.FolderIcon())
+				ic.SetResource(explorerListIconFolder)
 			default:
-				ic.SetResource(theme.DocumentIcon())
+				ic.SetResource(explorerListIconFile)
 			}
 			l1.SetText(e.Name)
 			l2.SetText(sizeLabel(e))
@@ -2321,11 +2340,11 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 			l2 := box.Objects[3].(*widget.Label)
 			switch {
 			case e.Name == "..":
-				ic.SetResource(theme.NavigateBackIcon())
+				ic.SetResource(explorerListIconParent)
 			case e.IsDir:
-				ic.SetResource(theme.FolderIcon())
+				ic.SetResource(explorerListIconFolder)
 			default:
-				ic.SetResource(theme.DocumentIcon())
+				ic.SetResource(explorerListIconFile)
 			}
 			l1.SetText(e.Name)
 			l2.SetText(sizeLabel(e))
@@ -2398,16 +2417,6 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	btnHistory := widget.NewButtonWithIcon("Histórico", theme.HistoryIcon(), func() { ui.showOperationHistory() })
 	btnCompare := widget.NewButtonWithIcon("Comparar", theme.SearchIcon(), func() { ui.showCompareFoldersExplorer() })
 	btnCompare.Importance = widget.MediumImportance
-	btnDocker := widget.NewButtonWithIcon("Contêineres Docker", theme.StorageIcon(), func() { ui.showDockerContainerManager() })
-	btnDocker.Importance = widget.MediumImportance
-	btnTerminal := widget.NewButtonWithIcon("Terminal", theme.ComputerIcon(), func() { ui.showTerminalConsole() })
-	btnTerminal.Importance = widget.MediumImportance
-	btnManual := widget.NewButton("?", func() { ui.showUserManual() })
-	btnManual.Importance = widget.MediumImportance
-	btnManageUsers := widget.NewButtonWithIcon("Usuários", theme.AccountIcon(), func() { ui.showAccessUserManager() })
-	btnManageUsers.Importance = widget.MediumImportance
-	btnMailNotify := widget.NewButtonWithIcon("E-mail", theme.MailComposeIcon(), func() { ui.showMailNotifySettings() })
-	btnMailNotify.Importance = widget.MediumImportance
 	btnDisconnect := widget.NewButtonWithIcon("Sair", theme.LogoutIcon(), func() {
 		finalizeLocalAccessSession(w, s, "Sessão encerrada pelo usuário")
 	})
@@ -2415,20 +2424,14 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	ui.lblSudoState = widget.NewLabel("Sudo: inativo")
 	ui.btnDisableSudo = widget.NewButtonWithIcon("Desativar sudo", theme.CancelIcon(), func() { ui.disableSudoMode() })
 
-	btnSessionHome := widget.NewButtonWithIcon("Início", theme.HomeIcon(), func() { ui.showSessionHub() })
-	btnSessionHome.Importance = widget.MediumImportance
+	btnBackToHub := widget.NewButtonWithIcon("Voltar", theme.NavigateBackIcon(), func() { ui.showSessionHub() })
+	btnBackToHub.Importance = widget.MediumImportance
 	toolbarItems := []fyne.CanvasObject{
-		btnSessionHome,
+		btnBackToHub,
 		ui.btnUp,
 		ui.btnDown,
 		btnHistory,
 		btnCompare,
-		btnDocker,
-		btnTerminal,
-		btnManual,
-	}
-	if isCurrentAccessAdmin() {
-		toolbarItems = append(toolbarItems, btnManageUsers, btnMailNotify)
 	}
 	toolbarItems = append(toolbarItems,
 		layout.NewSpacer(),
@@ -2440,17 +2443,11 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	toolbar := fynecontainer.NewHBox(toolbarItems...)
 	if ui.useCompactLayout() {
 		primaryRow := []fyne.CanvasObject{
-			btnSessionHome,
+			btnBackToHub,
 			ui.btnUp,
 			ui.btnDown,
 			btnHistory,
 			btnCompare,
-			btnDocker,
-			btnTerminal,
-			btnManual,
-		}
-		if isCurrentAccessAdmin() {
-			primaryRow = append(primaryRow, btnManageUsers, btnMailNotify)
 		}
 		secondaryRow := []fyne.CanvasObject{
 			ui.lblSudoState,
@@ -2637,7 +2634,7 @@ func buildSessionHub(ui *explorer) fyne.CanvasObject {
 	search := widget.NewEntry()
 	search.SetPlaceHolder("Pesquisar módulos (ex.: arquivos, docker, discos, e-mail, usuários)…")
 
-	openFiles := widget.NewButtonWithIcon("Abrir", theme.FolderIcon(), func() {
+	openFiles := widget.NewButtonWithIcon("Abrir", explorerListIconFolder, func() {
 		ui.win.SetContent(ui.explorerMain)
 		ui.explorerOnTop.Store(true)
 		setExplorerWindow(ui.win)
@@ -2649,7 +2646,7 @@ func buildSessionHub(ui *explorer) fyne.CanvasObject {
 		fynecontainer.NewPadded(openFiles),
 	)
 
-	openDocker := widget.NewButtonWithIcon("Abrir", theme.StorageIcon(), func() {
+	openDocker := widget.NewButtonWithIcon("Abrir", hubIconDocker, func() {
 		ui.showDockerContainerManager()
 	})
 	openDocker.Importance = widget.MediumImportance
@@ -2673,7 +2670,7 @@ func buildSessionHub(ui *explorer) fyne.CanvasObject {
 		blob: "docker contêiner container rodando reiniciar host imagem compose",
 	})
 
-	openDisks := widget.NewButtonWithIcon("Abrir", theme.ListIcon(), func() {
+	openDisks := widget.NewButtonWithIcon("Abrir", hubIconDisks, func() {
 		ui.showDiskStorageManager()
 	})
 	openDisks.Importance = widget.MediumImportance
@@ -2687,7 +2684,7 @@ func buildSessionHub(ui *explorer) fyne.CanvasObject {
 		blob: "disco discos armazenamento lsblk lvm volume partição df montagem snap loop",
 	})
 
-	openTerminal := widget.NewButtonWithIcon("Abrir", theme.ComputerIcon(), func() {
+	openTerminal := widget.NewButtonWithIcon("Abrir", hubIconTerminal, func() {
 		ui.showTerminalConsole()
 	})
 	openTerminal.Importance = widget.MediumImportance
@@ -2701,7 +2698,7 @@ func buildSessionHub(ui *explorer) fyne.CanvasObject {
 		blob: "terminal ssh shell console comando host remoto bash sh",
 	})
 
-	openAutomations := widget.NewButtonWithIcon("Abrir", theme.SettingsIcon(), func() {
+	openAutomations := widget.NewButtonWithIcon("Abrir", hubIconAutomations, func() {
 		ui.showAutomationCenter()
 	})
 	openAutomations.Importance = widget.MediumImportance
@@ -2716,8 +2713,8 @@ func buildSessionHub(ui *explorer) fyne.CanvasObject {
 	})
 
 	if isCurrentAccessAdmin() {
-		btnUsers := widget.NewButtonWithIcon("Usuários", theme.AccountIcon(), func() { ui.showAccessUserManager() })
-		btnMail := widget.NewButtonWithIcon("Alertas por e-mail", theme.MailComposeIcon(), func() { ui.showMailNotifySettings() })
+		btnUsers := widget.NewButtonWithIcon("Usuários", hubIconUsers, func() { ui.showAccessUserManager() })
+		btnMail := widget.NewButtonWithIcon("Alertas por e-mail", hubIconMail, func() { ui.showMailNotifySettings() })
 		btnUsers.Importance = widget.MediumImportance
 		btnMail.Importance = widget.MediumImportance
 		settingsBody := fynecontainer.NewVBox(
@@ -2788,9 +2785,53 @@ func buildSessionHub(ui *explorer) fyne.CanvasObject {
 		grid.Add(m.wrap)
 	}
 
+	btnThemeSys := widget.NewButtonWithIcon("", hubThemeIconSystem, nil)
+	btnThemeLight := widget.NewButtonWithIcon("", hubThemeIconLight, nil)
+	btnThemeDark := widget.NewButtonWithIcon("", hubThemeIconDark, nil)
+	syncHubThemeButtons := func() {
+		m := loadThemeMode(fyne.CurrentApp())
+		set := func(b *widget.Button, active bool) {
+			if active {
+				b.Importance = widget.HighImportance
+			} else {
+				b.Importance = widget.MediumImportance
+			}
+			b.Refresh()
+		}
+		set(btnThemeSys, m == themeModeSystem)
+		set(btnThemeLight, m == themeModeLight)
+		set(btnThemeDark, m == themeModeDark)
+	}
+	applyHubThemeFromHub := func(mode string) {
+		app := fyne.CurrentApp()
+		app.Preferences().SetString(themePreferenceKey, mode)
+		fyne.Do(func() {
+			applyThemeMode(app, mode)
+			syncHubThemeButtons()
+		})
+	}
+	btnThemeSys.OnTapped = func() { applyHubThemeFromHub(themeModeSystem) }
+	btnThemeLight.OnTapped = func() { applyHubThemeFromHub(themeModeLight) }
+	btnThemeDark.OnTapped = func() { applyHubThemeFromHub(themeModeDark) }
+	syncHubThemeButtons()
+
+	btnHubManual := widget.NewButtonWithIcon("Manual do sistema", theme.HelpIcon(), func() {
+		ui.showUserManual()
+	})
+	btnHubManual.Importance = widget.MediumImportance
+	themeBar := fynecontainer.NewHBox(
+		btnHubManual,
+		layout.NewSpacer(),
+		widget.NewLabel("Tema"),
+		btnThemeSys,
+		btnThemeLight,
+		btnThemeDark,
+	)
+
 	head := widget.NewLabelWithStyle("Início da sessão", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 
 	top := fynecontainer.NewVBox(
+		themeBar,
 		head,
 		sub,
 		widget.NewSeparator(),
@@ -6947,98 +6988,79 @@ func (ui *explorer) showTerminalConsoleCompat(currentDir, host string) {
 // userManualText executa parte da logica deste modulo.
 func userManualText() string {
 	return strings.TrimSpace(`
-ContainerWay - Manual de uso
+ContainerWay — Manual do usuário
 
-1) Visão geral
-- Painel esquerdo: computador local.
-- Painel direito: servidor remoto (host) ou contêiner selecionado.
-- Barra superior: início, enviar/receber, histórico, comparar pastas, contêineres Docker, manual e sair.
-- Barra de status: mostra ações, progresso e mensagens.
-- Após conectar, aparece a tela "Início da sessão" com atalhos para módulos; use "Início" na barra para voltar a ela.
+0) Menu principal (Início da sessão)
+- Após conectar ao servidor, esta é a porta de entrada: atalhos para cada módulo (arquivos, Docker, discos, terminal, automações e, para administradores, configurações).
+- Campo de pesquisa filtra os cartões por palavras-chave (ex.: lvm, e-mail, ssh).
+- No canto superior: botão "Manual do sistema" (este texto) e o seletor de tema por ícones (computador = padrão do sistema, paleta colorida = claro, tons de cinza = escuro). Cada clique aplica o tema de imediato; o ícone ativo fica em destaque.
 
-2) Conexão e login
-- Configure Host, Usuário e Senha (ou chave).
-- Use "Testar conexão" antes de conectar.
-- Você pode salvar conexões e carregar depois.
-- Tema: padrão do sistema, claro ou escuro (o app reage a mudanças do sistema quando o tema está em "Padrão do sistema").
-- Na aba avançada pode indicar o socket Unix remoto do Docker ou Podman (por omissão /var/run/docker.sock).
+1) Acesso local e conexão SSH
+- Primeira tela: usuário e senha de acesso ao aplicativo (contas definidas pelo administrador).
+- Segunda tela: dados SSH/SFTP — host, usuário remoto, senha ou chave, known_hosts opcional, jobs em paralelo, socket Docker/Podman remoto.
+- "Testar conexão" valida SSH, SFTP e API de contêineres antes de "Conectar".
+- É possível salvar e carregar perfis de conexão. Tema e outras opções ficam no formulário de conexão.
 
-3) Navegação de pastas
-- Botões por painel: voltar, subir nível, home e atualizar.
-- Seletores de atalhos: pular para pastas favoritas.
-- Clique duplo:
-  - Pasta: abre.
-  - Arquivo local: abre no app padrão do sistema.
+2) Gerenciador de arquivos (barra superior)
+- "Voltar": retorna ao menu principal (Início da sessão) sem encerrar a sessão SSH.
+- "Enviar" / "Receber": transferência entre o painel local (esquerda) e o remoto ou contêiner (direita), conforme o painel ativo.
+- "Histórico": fila de operações, repetição de falhas, exportações.
+- "Comparar": relatório de diferenças entre pastas local e remota (nome, tipo, tamanho, data).
+- Estado "Sudo" e "Desativar sudo": quando o modo superusuário remoto está ativo (necessário para algumas operações em disco/LVM no servidor).
+- "Sair": encerra a sessão e volta à tela de conexão.
+
+3) Painéis e navegação
+- Esquerda: computador local. Direita: servidor ou contêiner escolhido no seletor de contexto.
+- Por painel: voltar pasta, subir, raiz do contexto, atualizar; atalhos favoritos (+/−); pesquisa e filtro (Tudo / Pastas / Arquivos).
+- Duplo clique: abrir pasta; arquivo local abre no app padrão do sistema.
 
 4) Transferências
-- "Enviar": local -> servidor/contêiner.
-- "Receber": servidor/contêiner -> local.
-- "Enviar visíveis" / "Receber visíveis": opera em lote com os itens filtrados.
-- Em lote, o progresso é por quantidade de itens concluídos.
-- Envio de ficheiro único para o servidor via SFTP: se já existir destino com o mesmo tamanho, o upload é omitido (registado no log de auditoria).
-- Durante jobs, a barra mostra fila pendente e execuções em curso.
+- Envio local → servidor/contêiner; recepção remota → local.
+- "Enviar visíveis" / "Receber visíveis": lote sobre linhas filtradas na lista.
+- Upload único por SFTP: se já existir destino com o mesmo tamanho, o envio pode ser omitido (registro no log de auditoria).
+- Durante jobs, a barra de status mostra fila e progresso.
 
-5) Busca e filtros avançados
-- Campo de busca em cada painel suporta:
-  - texto livre: parte do nome.
-  - ext:log (filtra por extensão).
-  - tipo:pasta ou tipo:arquivo.
-- Seletor ao lado da busca:
-  - Tudo, Pastas ou Arquivos.
+5) Pesquisa e filtros nas listas
+- Texto livre no nome; ext:log; tipo:pasta ou tipo:arquivo.
 
 6) Favoritos
-- Botão "+" salva a pasta atual nos atalhos.
-- Botão "-" remove a pasta atual dos atalhos.
-- Favoritos locais são globais; no servidor/contêiner são guardados por host e contexto (host vs contêiner), mantendo compatibilidade com a lista global antiga.
+- "+" salva a pasta atual nos atalhos do painel; "−" remove. Favoritos locais são globais; no servidor dependem do host e do contexto (host vs contêiner).
 
-6b) Comparar pastas
-- Botão "Comparar" na barra: relatório entre o painel local e o direito (nomes, tipo, tamanho e data).
+7) Comparar pastas e política local
+- "Comparar" na barra do explorador gera o relatório entre os dois painéis.
+- Política opcional: arquivo policy.json nas preferências do app ou variável CONTAINERWAY_FORBID_INSECURE_HOSTKEY=1 para impedir "Ignorar chave de host". O estado se resume em "Políticas" na central de automações.
 
-6c) Política de segurança local
-- Opcional: ficheiro policy.json em ContainerWay nas preferências, ou variável CONTAINERWAY_FORBID_INSECURE_HOSTKEY=1 para impedir "Ignorar chave de host".
-- Botão "Políticas" na central de automações resume o estado.
+8) Edição remota
+- Abrir arquivo remoto para edição: o app sincroniza de volta quando detecta salvamento local.
 
-7) Edição remota
-- Em arquivo remoto, use abrir para edição.
-- O app sincroniza de volta quando detectar salvamento local.
+9) Contêineres Docker (menu principal → cartão)
+- Lista de contêineres em execução no host conectado; atualização, logs, reinício unitário ou em lote (com confirmação).
 
-8) Contêineres Docker no servidor
-- Botão "Contêineres Docker" lista só contêineres em execução no host conectado.
-- É possível atualizar a lista, reiniciar o selecionado ou reiniciar todos os da lista (com confirmação).
+10) Discos e armazenamento (menu principal → cartão)
+- Visão a partir de lsblk; abas para assistente LVM, resumo e detalhe técnico; filtro opcional de dispositivos loop (ex.: Snap).
+- Operações sensíveis podem exigir sudo no servidor (ativar na própria janela quando disponível).
 
-9) Janela principal (explorador)
-- Após conectar com sucesso, abre-se primeiro a tela inicial da sessão em janela compacta e centralizada.
-- Ao abrir o gerenciador de arquivos, a janela tenta maximizar automaticamente no Windows e no macOS.
-- Em outros sistemas, o gerenciador permanece redimensionável e centralizado.
+11) Terminal SSH (menu principal → cartão)
+- Console remoto sobre a sessão já autenticada; modo ANSI ou compatibilidade textual.
+- Atalhos úteis: gerenciador de tarefas, uso de disco, lista de comandos favoritos (quando existir).
 
-10) Histórico e log
-- Botão "Histórico" abre:
-  - aba Sessão (eventos recentes da sessão).
-  - aba Log geral (acumulado entre usos).
-- Ações disponíveis:
-  - filtrar eventos por texto.
-  - exportar histórico.
-  - exportar trilha de auditoria em CSV (log geral filtrado).
-  - abrir log geral e pasta de logs.
-  - tentar novamente última falha ou todas as falhas.
+12) Central de automações (menu principal → cartão)
+- Regras com gatilho e ação no host; motor liga/desliga; runbooks e políticas de segurança.
 
-11) Atalhos de teclado
-- Os atalhos abaixo valem com o foco no gerenciador de arquivos (não na tela inicial da sessão).
-- Enter: abrir item/pasta no painel ativo.
-- Backspace: subir nível no painel ativo.
-- Tab: alternar foco entre painéis.
-- F3 ou Ctrl+F: focar busca.
-- F5: atualizar painéis.
-- F6: enviar/receber conforme painel ativo.
-- Ctrl+Shift+F6: enviar/receber itens visíveis (lote).
-- F2: renomear.
-- Del: excluir.
-- Ctrl+Shift+N: nova pasta.
+13) Configurações (somente administrador — cartão no menu principal)
+- Usuários de acesso ao app ContainerWay (local).
+- Alertas por e-mail (SMTP, destinatários, teste de envio).
 
-12) Dicas e solução rápida
-- Erro de permissão no servidor: considere ativar sudo quando necessário.
-- Falhas em lote: use histórico para reexecutar sem repetir tudo manualmente.
-- Se não aparecer resultado, revise filtros (tipo/extensão/texto).
+14) Histórico, sessão e auditoria
+- "Histórico" no explorador: abas de sessão e log geral; filtrar, exportar, CSV de auditoria, abrir arquivos de log, repetir falhas.
+
+15) Janela e atalhos de teclado (foco no gerenciador de arquivos)
+- Enter: abrir. Backspace: subir nível. Tab: alternar painel.
+- F3 ou Ctrl+F: focar pesquisa. F5: atualizar. F6: enviar/receber. Ctrl+Shift+F6: lote visível.
+- F2: renomear. Del: excluir. Ctrl+Shift+N: nova pasta.
+
+16) Dicas rápidas
+- Permissões no servidor: avaliar sudo. Falhas em lote: usar Histórico. Sem resultados: revisar filtros e texto de pesquisa.
 `)
 }
 
@@ -7127,7 +7149,7 @@ func (ui *explorer) showAccessUserManager() {
 	newName.SetPlaceHolder("nome exibido nos logs")
 	removeUser := widget.NewEntry()
 	removeUser.SetPlaceHolder("usuário para remover")
-	info := widget.NewLabel("Crie ou atualize usuários de acesso local. O botão \"E-mail\" na barra superior também abre as notificações por SMTP.")
+	info := widget.NewLabel("Crie ou atualize usuários de acesso local. Em Início → Configurações pode abrir alertas por e-mail (SMTP).")
 	info.Wrapping = fyne.TextWrapWord
 	usersList := widget.NewMultiLineEntry()
 	usersList.Disable()

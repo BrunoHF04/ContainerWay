@@ -30,8 +30,8 @@ func appWindowIcon() fyne.Resource {
 func buildAppIconImage() image.Image {
 	const s = 64
 	img := image.NewNRGBA(image.Rect(0, 0, s, s))
-	bg := color.NRGBA{R: 15, G: 23, B: 42, A: 255}
-	accent := color.NRGBA{R: 56, G: 189, B: 248, A: 255}
+	bg := color.NRGBA{R: 11, G: 17, B: 32, A: 255}
+	accent := color.NRGBA{R: 45, G: 212, B: 191, A: 255}
 	for y := 0; y < s; y++ {
 		for x := 0; x < s; x++ {
 			img.Set(x, y, bg)
