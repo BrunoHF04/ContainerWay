@@ -77,11 +77,11 @@ func postAutomationWebhook(ctx context.Context, urlStr, ruleName, target, messag
 func (ui *explorer) automationConfigPath() (string, error) {
 	cfgDir, err := os.UserConfigDir()
 	if err != nil {
-		return "", fmt.Errorf("não foi possível localizar diretório de configuração: %w", err)
+		return "", fmt.Errorf(tr("mod_auto_err_cfg_lookup"), err)
 	}
 	dir := filepath.Join(cfgDir, "ContainerWay")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", fmt.Errorf("não foi possível criar diretório de configuração: %w", err)
+		return "", fmt.Errorf(tr("mod_auto_err_cfg_mkdir"), err)
 	}
 	host := strings.TrimSpace(ui.connCreds.Host)
 	if host == "" {
@@ -99,11 +99,11 @@ func (ui *explorer) automationConfigPath() (string, error) {
 func (ui *explorer) automationHistoryPath() (string, error) {
 	cfgDir, err := os.UserConfigDir()
 	if err != nil {
-		return "", fmt.Errorf("não foi possível localizar diretório de configuração: %w", err)
+		return "", fmt.Errorf(tr("mod_auto_err_cfg_lookup"), err)
 	}
 	dir := filepath.Join(cfgDir, "ContainerWay")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", fmt.Errorf("não foi possível criar diretório de configuração: %w", err)
+		return "", fmt.Errorf(tr("mod_auto_err_cfg_mkdir"), err)
 	}
 	host := strings.TrimSpace(ui.connCreds.Host)
 	if host == "" {
@@ -123,9 +123,9 @@ func defaultAutomationRules() []automationRule {
 		{
 			ID:          "auto-restart-critico",
 			Kind:        automationKindDockerStoppedRestart,
-			Name:        "Auto-restart de contêiner crítico",
-			Description: "Reinicia automaticamente serviço crítico quando o estado sai de execução.",
-			Trigger:     "Container parado por mais de 20s",
+			Name:        tr("mod_auto_seed_crit_name"),
+			Description: tr("mod_auto_seed_crit_desc"),
+			Trigger:     tr("mod_auto_seed_crit_trigger"),
 			Action:      "docker restart",
 			Target:      "",
 			CooldownSec: 20,
@@ -134,10 +134,10 @@ func defaultAutomationRules() []automationRule {
 		{
 			ID:          "protecao-disco",
 			Kind:        "placeholder_disk_cleanup",
-			Name:        "Proteção de disco",
-			Description: "Executa limpeza de logs temporários quando uso de disco passa do limite.",
-			Trigger:     "Disco /var acima de 85%",
-			Action:      "Script de limpeza + notificação",
+			Name:        tr("mod_auto_seed_disk_name"),
+			Description: tr("mod_auto_seed_disk_desc"),
+			Trigger:     tr("mod_auto_seed_disk_trigger"),
+			Action:      tr("mod_auto_seed_disk_action"),
 			Target:      "/var",
 			CooldownSec: 60,
 			Enabled:     false,
@@ -145,11 +145,11 @@ func defaultAutomationRules() []automationRule {
 		{
 			ID:          "diagnostico-pos-erro",
 			Kind:        "placeholder_diagnostic_bundle",
-			Name:        "Diagnóstico pós-erro",
-			Description: "Coleta evidências quando um serviço principal apresenta falha.",
-			Trigger:     "Falha repetida do serviço (3x em 10 min)",
-			Action:      "Gerar pacote de diagnóstico + abrir incidente",
-			Target:      "serviço principal",
+			Name:        tr("mod_auto_seed_diag_name"),
+			Description: tr("mod_auto_seed_diag_desc"),
+			Trigger:     tr("mod_auto_seed_diag_trigger"),
+			Action:      tr("mod_auto_seed_diag_action"),
+			Target:      tr("mod_auto_seed_diag_target"),
 			CooldownSec: 120,
 			Enabled:     true,
 		},
@@ -171,14 +171,14 @@ func (ui *explorer) loadAutomationRules() ([]automationRule, error) {
 			}
 			return out, nil
 		}
-		return nil, fmt.Errorf("não foi possível ler automações: %w", err)
+		return nil, fmt.Errorf(tr("mod_auto_err_read"), err)
 	}
 	if strings.TrimSpace(string(b)) == "" {
 		return []automationRule{}, nil
 	}
 	var out []automationRule
 	if err := json.Unmarshal(b, &out); err != nil {
-		return nil, fmt.Errorf("arquivo de automações inválido: %w", err)
+		return nil, fmt.Errorf(tr("mod_auto_err_invalid_json"), err)
 	}
 	return out, nil
 }
@@ -191,10 +191,10 @@ func (ui *explorer) saveAutomationRules(rules []automationRule) error {
 	}
 	b, err := json.MarshalIndent(rules, "", "  ")
 	if err != nil {
-		return fmt.Errorf("não foi possível serializar automações: %w", err)
+		return fmt.Errorf(tr("mod_auto_err_serialize"), err)
 	}
 	if err := os.WriteFile(p, b, 0o644); err != nil {
-		return fmt.Errorf("não foi possível salvar automações: %w", err)
+		return fmt.Errorf(tr("mod_auto_err_save"), err)
 	}
 	return nil
 }
@@ -311,7 +311,7 @@ func (ui *explorer) saveAutomationHistoryLocked() error {
 func automationTargetLabel(r automationRule) string {
 	target := strings.TrimSpace(r.Target)
 	if target == "" {
-		return "não definido"
+		return tr("mod_auto_target_undefined")
 	}
 	return target
 }
@@ -321,7 +321,7 @@ func (ui *explorer) startAutomationEngine(onEvent func(string)) {
 	if !ui.automationEngineRunning.CompareAndSwap(false, true) {
 		return
 	}
-	appendAuditLog("automacao", "Motor de automações iniciado")
+	appendAuditLog("automacao", tr("mod_auto_audit_engine_started"))
 	stop := make(chan struct{})
 	ui.automationEngineMu.Lock()
 	ui.automationEngineStop = stop
@@ -331,12 +331,12 @@ func (ui *explorer) startAutomationEngine(onEvent func(string)) {
 		ticker := time.NewTicker(8 * time.Second)
 		defer ticker.Stop()
 		lastActionAt := map[string]time.Time{}
-		onEvent("Motor ativo: monitorando gatilhos a cada 8s.")
+		onEvent(tr("mod_auto_engine_tick_active"))
 		ui.runAutomationTick(lastActionAt, onEvent)
 		for {
 			select {
 			case <-stop:
-				onEvent("Motor parado.")
+				onEvent(tr("mod_auto_engine_tick_stopped"))
 				return
 			case <-ticker.C:
 				ui.runAutomationTick(lastActionAt, onEvent)
@@ -357,18 +357,18 @@ func (ui *explorer) stopAutomationEngine() {
 	if ch != nil {
 		close(ch)
 	}
-	appendAuditLog("automacao", "Motor de automações parado")
+	appendAuditLog("automacao", tr("mod_auto_audit_engine_stopped"))
 }
 
 // runAutomationTick verifica gatilhos e dispara ações suportadas.
 func (ui *explorer) runAutomationTick(lastActionAt map[string]time.Time, onEvent func(string)) {
 	if ui.s == nil || ui.s.Docker == nil {
-		onEvent("Motor: cliente Docker indisponível na sessão atual.")
+		onEvent(tr("mod_auto_engine_docker_unavail"))
 		return
 	}
 	rules := ui.getAutomationRules()
 	if len(rules) == 0 {
-		onEvent("Motor: sem regras cadastradas.")
+		onEvent(tr("mod_auto_engine_no_rules"))
 		return
 	}
 
@@ -376,7 +376,7 @@ func (ui *explorer) runAutomationTick(lastActionAt map[string]time.Time, onEvent
 	defer cancel()
 	containers, err := ui.s.Docker.ContainerList(ctx, dcontainer.ListOptions{All: true})
 	if err != nil {
-		onEvent("Motor: falha ao listar contêineres: " + err.Error())
+		onEvent(tr("mod_auto_engine_list_fail") + err.Error())
 		return
 	}
 
@@ -425,17 +425,17 @@ func (ui *explorer) runAutomationTick(lastActionAt map[string]time.Time, onEvent
 			}
 			if attempt < 3 {
 				backoff := time.Duration(attempt) * 2 * time.Second
-				onEvent(fmt.Sprintf("Motor: tentativa %d/3 falhou para '%s', retry em %s.", attempt, target, backoff))
+				onEvent(fmt.Sprintf(tr("mod_auto_engine_retry_fmt"), attempt, target, backoff))
 				time.Sleep(backoff)
 			}
 		}
 		if err != nil {
-			onEvent(fmt.Sprintf("Motor: falha ao reiniciar '%s': %v", target, err))
+			onEvent(fmt.Sprintf(tr("mod_auto_engine_restart_fail_fmt"), target, err))
 			continue
 		}
 		lastActionAt[key] = time.Now()
 		executed++
-		msg := fmt.Sprintf("Ação automática: '%s' reiniciado pela regra '%s'.", target, rule.Name)
+		msg := fmt.Sprintf(tr("mod_auto_engine_action_fmt"), target, rule.Name)
 		onEvent(msg)
 		appendAuditLog("automacao", msg)
 		if hook := strings.TrimSpace(rule.WebhookURL); hook != "" {
@@ -445,23 +445,23 @@ func (ui *explorer) runAutomationTick(lastActionAt map[string]time.Time, onEvent
 				hctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 				defer cancel()
 				if werr := postAutomationWebhook(hctx, hook, ruleName, target, msgCopy); werr != nil {
-					appendAuditLog("automacao", fmt.Sprintf("Webhook falhou (%s): %v", ruleName, werr))
+					appendAuditLog("automacao", fmt.Sprintf(tr("mod_auto_engine_webhook_fail_fmt"), ruleName, werr))
 				}
 			}()
 		}
 	}
 	if executed == 0 {
-		onEvent("Motor: varredura concluída, sem ações necessárias.")
+		onEvent(tr("mod_auto_engine_scan_done"))
 	}
 }
 
 // showAutomationCenter abre a tela da central de automações.
 func (ui *explorer) showAutomationCenter() {
-	appendAuditLog("automacao", "Central de automações aberta")
+	appendAuditLog("automacao", tr("mod_auto_hist_opened_center"))
 
 	host := strings.TrimSpace(ui.connCreds.Host)
 	if host == "" {
-		host = "(host não informado)"
+		host = tr("mod_auto_host_unnamed")
 	}
 	rules, err := ui.ensureAutomationRules()
 	if err != nil {
@@ -471,11 +471,11 @@ func (ui *explorer) showAutomationCenter() {
 	compact := ui.useCompactLayout()
 	ui.loadAutomationHistory()
 	if len(ui.getAutomationHistory()) == 0 {
-		ui.appendAutomationHistory("Central de automações aberta.")
+		ui.appendAutomationHistory(tr("mod_auto_hist_opened_center"))
 	}
 
 	hint := widget.NewLabel(
-		"Crie regras com gatilho e ação para reduzir tarefas manuais. MVP atual já salva regras e executa auto-restart de contêiner parado. Opcional: webhook HTTPS (POST JSON) após reinício bem-sucedido.",
+		tr("mod_auto_hint_banner"),
 	)
 	hint.Wrapping = fyne.TextWrapWord
 
@@ -483,15 +483,15 @@ func (ui *explorer) showAutomationCenter() {
 	totalLbl.Wrapping = fyne.TextWrapOff
 	statsLbl := widget.NewLabel("")
 	statsLbl.Wrapping = fyne.TextWrapOff
-	engineLbl := widget.NewLabel("Motor: parado")
+	engineLbl := widget.NewLabel(tr("mod_auto_engine_label_stopped"))
 	engineLbl.Wrapping = fyne.TextWrapOff
 	engineLbl.TextStyle = fyne.TextStyle{Bold: true}
-	historyTitle := widget.NewLabelWithStyle("Histórico recente", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	historyTitle := widget.NewLabelWithStyle(tr("mod_auto_recent_history"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	historyRows := ui.getAutomationHistory()
 	historyList := widget.NewList(
 		func() int { return len(historyRows) },
 		func() fyne.CanvasObject {
-			lbl := widget.NewLabel("evento")
+			lbl := widget.NewLabel(tr("mod_auto_hist_row_placeholder"))
 			lbl.Wrapping = fyne.TextWrapWord
 			return lbl
 		},
@@ -512,26 +512,26 @@ func (ui *explorer) showAutomationCenter() {
 		}
 	}
 	refreshHistory()
-	btnClearHistory := widget.NewButtonWithIcon("Limpar histórico", theme.DeleteIcon(), func() {
+	btnClearHistory := widget.NewButtonWithIcon(tr("mod_auto_btn_clear_hist"), theme.DeleteIcon(), func() {
 		dialog.ShowConfirm(
-			"Limpar histórico",
-			"Deseja remover os eventos exibidos no histórico?",
+			tr("mod_auto_hist_clear_title"),
+			tr("mod_auto_hist_clear_body"),
 			func(ok bool) {
 				if !ok {
 					return
 				}
 				ui.clearAutomationHistory()
-				ui.appendAutomationHistory("Histórico limpo manualmente.")
+				ui.appendAutomationHistory(tr("mod_auto_hist_cleared"))
 				refreshHistory()
 			},
 			ui.win,
 		)
 	})
 	btnClearHistory.Importance = widget.WarningImportance
-	btnExportHistory := widget.NewButtonWithIcon("Exportar histórico", theme.DownloadIcon(), func() {
+	btnExportHistory := widget.NewButtonWithIcon(tr("mod_auto_btn_export_hist"), theme.DownloadIcon(), func() {
 		saveDlg := dialog.NewFileSave(func(dst fyne.URIWriteCloser, err error) {
 			if err != nil {
-				dialog.ShowError(fmt.Errorf("falha ao preparar exportação: %w", err), ui.win)
+				dialog.ShowError(fmt.Errorf(tr("mod_auto_export_hist_fail"), err), ui.win)
 				return
 			}
 			if dst == nil {
@@ -540,35 +540,30 @@ func (ui *explorer) showAutomationCenter() {
 			defer dst.Close()
 			rows := ui.getAutomationHistory()
 			if len(rows) == 0 {
-				rows = []string{"(histórico vazio)"}
+				rows = []string{tr("mod_auto_hist_empty_line")}
 			}
 			text := strings.Join(rows, "\n") + "\n"
 			if _, wErr := io.WriteString(dst, text); wErr != nil {
-				dialog.ShowError(fmt.Errorf("falha ao salvar histórico: %w", wErr), ui.win)
+				dialog.ShowError(fmt.Errorf(tr("mod_auto_save_hist_fail"), wErr), ui.win)
 				return
 			}
-			dialog.ShowInformation("Histórico", "Histórico exportado com sucesso.", ui.win)
+			dialog.ShowInformation(tr("dlg_history_title"), tr("mod_auto_hist_export_ok"), ui.win)
 		}, ui.win)
 		saveDlg.SetFileName("automations-history.txt")
 		saveDlg.Show()
 	})
 	btnExportHistory.Importance = widget.MediumImportance
-	statusFilter := widget.NewSelect([]string{"Todas", "Ativas", "Desativadas"}, nil)
-	statusFilter.SetSelected("Todas")
+	filterAll := tr("mod_auto_filter_all")
+	filterActive := tr("mod_auto_filter_active")
+	filterDisabled := tr("mod_auto_filter_disabled")
+	statusFilter := widget.NewSelect([]string{filterAll, filterActive, filterDisabled}, nil)
+	statusFilter.SetSelected(filterAll)
 	search := widget.NewEntry()
-	search.SetPlaceHolder("Pesquisar automações (nome, gatilho, ação)…")
+	search.SetPlaceHolder(tr("mod_auto_search_ph"))
 	btnHelp := widget.NewButtonWithIcon("", theme.HelpIcon(), func() {
 		dialog.ShowInformation(
-			"Sobre a Central de automações",
-			"Esta tela serve para criar regras operacionais com gatilho + ação.\n\n"+
-				"Já disponível:\n"+
-				"- Visualização, pesquisa e criação rápida de automações\n"+
-				"- Persistência por host em arquivo JSON\n"+
-				"- Motor MVP para auto-restart de contêiner parado\n\n"+
-				"Pendente (próximas evoluções):\n"+
-				"- Mais tipos de gatilho e ação (disco, logs, alertas)\n"+
-				"- Histórico completo de execuções\n"+
-				"- Edição/remoção avançada das regras",
+			tr("mod_auto_help_title"),
+			tr("mod_auto_help_body"),
 			ui.win,
 		)
 	})
@@ -579,12 +574,12 @@ func (ui *explorer) showAutomationCenter() {
 	list := widget.NewList(
 		func() int { return len(filtered) },
 		func() fyne.CanvasObject {
-			title := widget.NewLabel("automação")
+			title := widget.NewLabel(tr("mod_auto_list_row_title"))
 			title.TextStyle = fyne.TextStyle{Bold: true}
 			title.Wrapping = fyne.TextWrapWord
-			desc := widget.NewLabel("descrição")
+			desc := widget.NewLabel(tr("mod_auto_list_row_desc"))
 			desc.Wrapping = fyne.TextWrapWord
-			meta := widget.NewLabel("gatilho/ação")
+			meta := widget.NewLabel(tr("mod_auto_list_row_meta"))
 			meta.Wrapping = fyne.TextWrapWord
 			body := container.NewVBox(
 				title,
@@ -606,21 +601,21 @@ func (ui *explorer) showAutomationCenter() {
 			desc := box.Objects[2].(*widget.Label)
 			meta := box.Objects[3].(*widget.Label)
 
-			status := "Desativada"
+			status := tr("mod_auto_rule_badge_disabled")
 			if row.Enabled {
-				status = "Ativa"
+				status = tr("mod_auto_rule_badge_active")
 			}
 			title.SetText(fmt.Sprintf("%s  [%s]", row.Name, status))
 			desc.SetText(row.Description)
-			meta.SetText(fmt.Sprintf("Gatilho: %s\nAção: %s\nAlvo: %s", row.Trigger, row.Action, automationTargetLabel(row)))
+			meta.SetText(fmt.Sprintf(tr("mod_auto_meta_lines_fmt"), row.Trigger, row.Action, automationTargetLabel(row)))
 		},
 	)
 	for i := 0; i < len(filtered); i++ {
 		list.SetItemHeight(widget.ListItemID(i), 156)
 	}
-	btnEdit := widget.NewButtonWithIcon("Editar selecionada", theme.DocumentCreateIcon(), nil)
-	btnToggleRule := widget.NewButtonWithIcon("Ativar/Desativar", theme.VisibilityIcon(), nil)
-	btnDelete := widget.NewButtonWithIcon("Excluir selecionada", theme.DeleteIcon(), nil)
+	btnEdit := widget.NewButtonWithIcon(tr("mod_auto_btn_edit_sel"), theme.DocumentCreateIcon(), nil)
+	btnToggleRule := widget.NewButtonWithIcon(tr("mod_auto_btn_toggle"), theme.VisibilityIcon(), nil)
+	btnDelete := widget.NewButtonWithIcon(tr("mod_auto_btn_delete_sel"), theme.DeleteIcon(), nil)
 	btnEdit.Importance = widget.MediumImportance
 	btnToggleRule.Importance = widget.MediumImportance
 	btnDelete.Importance = widget.DangerImportance
@@ -648,9 +643,9 @@ func (ui *explorer) showAutomationCenter() {
 		selectedRuleID = row.ID
 		updateRuleButtons()
 		dialog.ShowInformation(
-			"Detalhes da automação",
+			tr("mod_auto_detail_title"),
 			fmt.Sprintf(
-				"%s\n\nDescrição: %s\n\nGatilho: %s\nAção: %s\nAlvo: %s\nCooldown: %ds\nTipo: %s",
+				tr("mod_auto_detail_body_fmt"),
 				row.Name,
 				row.Description,
 				row.Trigger,
@@ -671,7 +666,7 @@ func (ui *explorer) showAutomationCenter() {
 		q = strings.ToLower(strings.TrimSpace(q))
 		mode := strings.TrimSpace(statusFilter.Selected)
 		if mode == "" {
-			mode = "Todas"
+			mode = filterAll
 		}
 		allRules := ui.getAutomationRules()
 		filtered = filtered[:0]
@@ -683,10 +678,10 @@ func (ui *explorer) showAutomationCenter() {
 			} else {
 				disabledCount++
 			}
-			if mode == "Ativas" && !p.Enabled {
+			if mode == filterActive && !p.Enabled {
 				continue
 			}
-			if mode == "Desativadas" && p.Enabled {
+			if mode == filterDisabled && p.Enabled {
 				continue
 			}
 			blob := strings.ToLower(strings.Join([]string{p.Name, p.Description, p.Trigger, p.Action, p.Target, p.Kind}, " "))
@@ -694,8 +689,8 @@ func (ui *explorer) showAutomationCenter() {
 				filtered = append(filtered, p)
 			}
 		}
-		totalLbl.SetText(fmt.Sprintf("Mostrando %d automação(ões) no host %s.", len(filtered), host))
-		statsLbl.SetText(fmt.Sprintf("Ativas: %d  |  Desativadas: %d", activeCount, disabledCount))
+		totalLbl.SetText(fmt.Sprintf(tr("mod_auto_showing_fmt"), len(filtered), host))
+		statsLbl.SetText(fmt.Sprintf(tr("mod_auto_stats_fmt"), activeCount, disabledCount))
 		list.Refresh()
 		for i := 0; i < len(filtered); i++ {
 			list.SetItemHeight(widget.ListItemID(i), 156)
@@ -710,34 +705,34 @@ func (ui *explorer) showAutomationCenter() {
 	}
 	applyFilter("")
 
-	btnNew := widget.NewButtonWithIcon("Nova automação", theme.ContentAddIcon(), nil)
+	btnNew := widget.NewButtonWithIcon(tr("mod_auto_btn_new"), theme.ContentAddIcon(), nil)
 	btnNew.Importance = widget.HighImportance
 
-	btnToggleEngine := widget.NewButtonWithIcon("Ativar motor", theme.MediaPlayIcon(), nil)
+	btnToggleEngine := widget.NewButtonWithIcon(tr("mod_auto_btn_engine_start"), theme.MediaPlayIcon(), nil)
 	btnToggleEngine.Importance = widget.HighImportance
 	updateEngineUI := func(msg string) {
 		if ui.automationEngineRunning.Load() {
-			btnToggleEngine.SetText("Parar motor")
+			btnToggleEngine.SetText(tr("mod_auto_btn_engine_stop"))
 			btnToggleEngine.SetIcon(theme.MediaStopIcon())
 		} else {
-			btnToggleEngine.SetText("Ativar motor")
+			btnToggleEngine.SetText(tr("mod_auto_btn_engine_start"))
 			btnToggleEngine.SetIcon(theme.MediaPlayIcon())
 		}
 		if strings.TrimSpace(msg) != "" {
-			engineLbl.SetText("Motor: " + msg)
+			engineLbl.SetText(msg)
 			ui.appendAutomationHistory(msg)
 			refreshHistory()
 		} else if ui.automationEngineRunning.Load() {
-			engineLbl.SetText("Motor: ativo")
+			engineLbl.SetText(tr("mod_auto_engine_label_active"))
 		} else {
-			engineLbl.SetText("Motor: parado")
+			engineLbl.SetText(tr("mod_auto_engine_label_stopped"))
 		}
 	}
 	updateEngineUI("")
 	btnToggleEngine.OnTapped = func() {
 		if ui.automationEngineRunning.Load() {
 			ui.stopAutomationEngine()
-			updateEngineUI("parado")
+			updateEngineUI("")
 			return
 		}
 		ui.startAutomationEngine(func(msg string) {
@@ -745,41 +740,41 @@ func (ui *explorer) showAutomationCenter() {
 				updateEngineUI(msg)
 			})
 		})
-		updateEngineUI("ativando...")
+		updateEngineUI(tr("mod_auto_engine_msg_starting"))
 	}
 
-	btnRunbook := widget.NewButtonWithIcon("Executar runbook", theme.MediaPlayIcon(), func() {
-		dialog.ShowInformation("Runbook", "Este botão ficará para playbooks guiados em próximas versões.", ui.win)
+	btnRunbook := widget.NewButtonWithIcon(tr("mod_auto_btn_runbook"), theme.MediaPlayIcon(), func() {
+		dialog.ShowInformation(tr("mod_auto_title_runbook"), tr("mod_auto_runbook_stub"), ui.win)
 	})
 	btnRunbook.Importance = widget.MediumImportance
 
-	btnPolicies := widget.NewButtonWithIcon("Políticas", theme.WarningIcon(), func() {
+	btnPolicies := widget.NewButtonWithIcon(tr("mod_auto_btn_policies"), theme.WarningIcon(), func() {
 		ui.showSecurityPolicyDialog()
 	})
 	btnPolicies.Importance = widget.MediumImportance
 
 	btnNew.OnTapped = func() {
 		nameEntry := widget.NewEntry()
-		nameEntry.SetPlaceHolder("Ex.: Auto-restart do nginx")
+		nameEntry.SetPlaceHolder(tr("mod_auto_ph_name_example"))
 		targetEntry := widget.NewEntry()
-		targetEntry.SetPlaceHolder("Nome do contêiner (ex.: nginx)")
+		targetEntry.SetPlaceHolder(tr("mod_auto_ph_target_container"))
 		cooldownEntry := widget.NewEntry()
 		cooldownEntry.SetPlaceHolder("20")
 		cooldownEntry.SetText("20")
 		descEntry := widget.NewEntry()
-		descEntry.SetPlaceHolder("Descrição opcional")
+		descEntry.SetPlaceHolder(tr("mod_auto_ph_desc_opt"))
 		webhookEntry := widget.NewEntry()
-		webhookEntry.SetPlaceHolder("Webhook HTTPS opcional (POST JSON após reinício)")
+		webhookEntry.SetPlaceHolder(tr("mod_auto_ph_webhook"))
 		form := dialog.NewForm(
-			"Nova automação",
-			"Criar",
-			"Cancelar",
+			tr("mod_auto_form_new_title"),
+			tr("mod_auto_form_create_btn"),
+			tr("mod_auto_form_cancel_btn"),
 			[]*widget.FormItem{
-				widget.NewFormItem("Nome", nameEntry),
-				widget.NewFormItem("Contêiner alvo", targetEntry),
-				widget.NewFormItem("Cooldown (segundos)", cooldownEntry),
-				widget.NewFormItem("Descrição", descEntry),
-				widget.NewFormItem("Webhook (opcional)", webhookEntry),
+				widget.NewFormItem(tr("mod_auto_fi_name"), nameEntry),
+				widget.NewFormItem(tr("mod_auto_fi_target"), targetEntry),
+				widget.NewFormItem(tr("mod_auto_fi_cooldown"), cooldownEntry),
+				widget.NewFormItem(tr("mod_auto_fi_desc"), descEntry),
+				widget.NewFormItem(tr("mod_auto_fi_webhook"), webhookEntry),
 			},
 			func(ok bool) {
 				if !ok {
@@ -789,16 +784,16 @@ func (ui *explorer) showAutomationCenter() {
 				target := strings.TrimSpace(targetEntry.Text)
 				cooldown, convErr := strconv.Atoi(strings.TrimSpace(cooldownEntry.Text))
 				if name == "" || target == "" {
-					dialog.ShowInformation("Nova automação", "Preencha nome e contêiner alvo.", ui.win)
+					dialog.ShowInformation(tr("mod_auto_title_new"), tr("mod_auto_new_fill"), ui.win)
 					return
 				}
 				if convErr != nil || cooldown < 10 {
-					dialog.ShowInformation("Nova automação", "Cooldown inválido. Use um número inteiro >= 10.", ui.win)
+					dialog.ShowInformation(tr("mod_auto_title_new"), tr("mod_auto_bad_cooldown"), ui.win)
 					return
 				}
 				desc := strings.TrimSpace(descEntry.Text)
 				if desc == "" {
-					desc = "Regra criada pelo usuário para auto-restart."
+					desc = tr("mod_auto_default_desc_new")
 				}
 				all := ui.getAutomationRules()
 				id := fmt.Sprintf("rule-%d", time.Now().UnixNano())
@@ -807,7 +802,7 @@ func (ui *explorer) showAutomationCenter() {
 					Kind:        automationKindDockerStoppedRestart,
 					Name:        name,
 					Description: desc,
-					Trigger:     "Container parado por mais de " + strconv.Itoa(cooldown) + "s",
+					Trigger:     fmt.Sprintf(tr("mod_auto_trigger_stopped_fmt"), cooldown),
 					Action:      "docker restart",
 					Target:      target,
 					CooldownSec: cooldown,
@@ -818,11 +813,11 @@ func (ui *explorer) showAutomationCenter() {
 					dialog.ShowError(err, ui.win)
 					return
 				}
-				appendAuditLog("automacao", "Nova regra criada: "+name+" -> "+target)
-				ui.appendAutomationHistory("Regra criada: " + name + " -> " + target)
+				appendAuditLog("automacao", fmt.Sprintf(tr("mod_auto_audit_rule_created_fmt"), name, target))
+				ui.appendAutomationHistory(fmt.Sprintf(tr("mod_auto_hist_rule_created_fmt"), name, target))
 				applyFilter(search.Text)
 				refreshHistory()
-				dialog.ShowInformation("Nova automação", "Regra criada e salva no host atual.", ui.win)
+				dialog.ShowInformation(tr("mod_auto_title_new"), tr("mod_auto_new_saved"), ui.win)
 			},
 			ui.win,
 		)
@@ -856,22 +851,29 @@ func (ui *explorer) showAutomationCenter() {
 			break
 		}
 		if changedName == "" {
-			dialog.ShowInformation("Automação", "Regra selecionada não foi encontrada.", ui.win)
+			dialog.ShowInformation(tr("mod_auto_title_main"), tr("mod_auto_rule_missing"), ui.win)
 			return
 		}
 		if err := ui.replaceAutomationRules(all); err != nil {
 			dialog.ShowError(err, ui.win)
 			return
 		}
-		status := "desativada"
+		var histMsg string
 		if nextState {
-			status = "ativada"
+			histMsg = fmt.Sprintf(tr("mod_auto_hist_rule_enabled_fmt"), changedName)
+			appendAuditLog("automacao", histMsg)
+			ui.appendAutomationHistory(histMsg)
+			applyFilter(search.Text)
+			refreshHistory()
+			dialog.ShowInformation(tr("mod_auto_title_main"), tr("mod_auto_rule_enabled_ok"), ui.win)
+			return
 		}
-		appendAuditLog("automacao", "Regra "+status+": "+changedName)
-		ui.appendAutomationHistory("Regra " + status + ": " + changedName)
+		histMsg = fmt.Sprintf(tr("mod_auto_hist_rule_disabled_fmt"), changedName)
+		appendAuditLog("automacao", histMsg)
+		ui.appendAutomationHistory(histMsg)
 		applyFilter(search.Text)
 		refreshHistory()
-		dialog.ShowInformation("Automação", "Regra "+status+" com sucesso.", ui.win)
+		dialog.ShowInformation(tr("mod_auto_title_main"), tr("mod_auto_rule_disabled_ok"), ui.win)
 	}
 
 	btnDelete.OnTapped = func() {
@@ -880,12 +882,12 @@ func (ui *explorer) showAutomationCenter() {
 		}
 		row, ok := findRuleByID(selectedRuleID)
 		if !ok {
-			dialog.ShowInformation("Automação", "Regra selecionada não foi encontrada.", ui.win)
+			dialog.ShowInformation(tr("mod_auto_title_main"), tr("mod_auto_rule_missing"), ui.win)
 			return
 		}
 		dialog.ShowConfirm(
-			"Excluir automação",
-			"Confirma excluir a regra?\n\n"+row.Name,
+			tr("mod_auto_delete_dlg_title"),
+			fmt.Sprintf(tr("mod_auto_delete_dlg_body_fmt"), row.Name),
 			func(confirm bool) {
 				if !confirm {
 					return
@@ -901,11 +903,11 @@ func (ui *explorer) showAutomationCenter() {
 					dialog.ShowError(err, ui.win)
 					return
 				}
-				appendAuditLog("automacao", "Regra excluída: "+row.Name)
-				ui.appendAutomationHistory("Regra excluída: " + row.Name)
+				appendAuditLog("automacao", fmt.Sprintf(tr("mod_auto_hist_rule_deleted_fmt"), row.Name))
+				ui.appendAutomationHistory(fmt.Sprintf(tr("mod_auto_hist_rule_deleted_fmt"), row.Name))
 				applyFilter(search.Text)
 				refreshHistory()
-				dialog.ShowInformation("Automação", "Regra excluída com sucesso.", ui.win)
+				dialog.ShowInformation(tr("mod_auto_delete_title"), tr("mod_auto_deleted"), ui.win)
 			},
 			ui.win,
 		)
@@ -917,7 +919,7 @@ func (ui *explorer) showAutomationCenter() {
 		}
 		row, ok := findRuleByID(selectedRuleID)
 		if !ok {
-			dialog.ShowInformation("Automação", "Regra selecionada não foi encontrada.", ui.win)
+			dialog.ShowInformation(tr("mod_auto_title_main"), tr("mod_auto_rule_missing"), ui.win)
 			return
 		}
 		nameEntry := widget.NewEntry()
@@ -930,17 +932,17 @@ func (ui *explorer) showAutomationCenter() {
 		descEntry.SetText(row.Description)
 		webhookEntry := widget.NewEntry()
 		webhookEntry.SetText(row.WebhookURL)
-		webhookEntry.SetPlaceHolder("https://… (POST JSON, opcional)")
+		webhookEntry.SetPlaceHolder(tr("mod_auto_ph_webhook_edit"))
 		form := dialog.NewForm(
-			"Editar automação",
-			"Salvar",
-			"Cancelar",
+			tr("mod_auto_form_edit_title"),
+			tr("mod_auto_form_save_btn"),
+			tr("mod_auto_form_cancel_btn"),
 			[]*widget.FormItem{
-				widget.NewFormItem("Nome", nameEntry),
-				widget.NewFormItem("Contêiner alvo", targetEntry),
-				widget.NewFormItem("Cooldown (segundos)", cooldownEntry),
-				widget.NewFormItem("Descrição", descEntry),
-				widget.NewFormItem("Webhook (opcional)", webhookEntry),
+				widget.NewFormItem(tr("mod_auto_fi_name"), nameEntry),
+				widget.NewFormItem(tr("mod_auto_fi_target"), targetEntry),
+				widget.NewFormItem(tr("mod_auto_fi_cooldown"), cooldownEntry),
+				widget.NewFormItem(tr("mod_auto_fi_desc"), descEntry),
+				widget.NewFormItem(tr("mod_auto_fi_webhook"), webhookEntry),
 			},
 			func(ok bool) {
 				if !ok {
@@ -952,15 +954,15 @@ func (ui *explorer) showAutomationCenter() {
 				desc := strings.TrimSpace(descEntry.Text)
 				hook := strings.TrimSpace(webhookEntry.Text)
 				if name == "" || target == "" {
-					dialog.ShowInformation("Editar automação", "Preencha nome e contêiner alvo.", ui.win)
+					dialog.ShowInformation(tr("mod_auto_title_edit"), tr("mod_auto_edit_fill"), ui.win)
 					return
 				}
 				if convErr != nil || cooldown < 10 {
-					dialog.ShowInformation("Editar automação", "Cooldown inválido. Use um número inteiro >= 10.", ui.win)
+					dialog.ShowInformation(tr("mod_auto_title_edit"), tr("mod_auto_edit_bad_cd"), ui.win)
 					return
 				}
 				if desc == "" {
-					desc = "Regra atualizada pelo usuário."
+					desc = tr("mod_auto_default_desc_edit")
 				}
 				all := ui.getAutomationRules()
 				updated := false
@@ -973,23 +975,23 @@ func (ui *explorer) showAutomationCenter() {
 					all[i].CooldownSec = cooldown
 					all[i].Description = desc
 					all[i].WebhookURL = hook
-					all[i].Trigger = "Container parado por mais de " + strconv.Itoa(cooldown) + "s"
+					all[i].Trigger = fmt.Sprintf(tr("mod_auto_trigger_stopped_fmt"), cooldown)
 					updated = true
 					break
 				}
 				if !updated {
-					dialog.ShowInformation("Editar automação", "Regra selecionada não foi encontrada.", ui.win)
+					dialog.ShowInformation(tr("mod_auto_title_edit"), tr("mod_auto_edit_missing"), ui.win)
 					return
 				}
 				if err := ui.replaceAutomationRules(all); err != nil {
 					dialog.ShowError(err, ui.win)
 					return
 				}
-				appendAuditLog("automacao", "Regra editada: "+name+" -> "+target)
-				ui.appendAutomationHistory("Regra editada: " + name + " -> " + target)
+				appendAuditLog("automacao", fmt.Sprintf(tr("mod_auto_hist_rule_edited_fmt"), name, target))
+				ui.appendAutomationHistory(fmt.Sprintf(tr("mod_auto_hist_rule_edited_fmt"), name, target))
 				applyFilter(search.Text)
 				refreshHistory()
-				dialog.ShowInformation("Editar automação", "Regra atualizada com sucesso.", ui.win)
+				dialog.ShowInformation(tr("mod_auto_title_edit"), tr("mod_auto_edit_saved"), ui.win)
 			},
 			ui.win,
 		)
@@ -1000,7 +1002,7 @@ func (ui *explorer) showAutomationCenter() {
 	filterBar := container.NewBorder(
 		nil,
 		nil,
-		container.NewHBox(widget.NewLabel("Status"), statusFilter),
+		container.NewHBox(widget.NewLabel(tr("mod_auto_status_label")), statusFilter),
 		btnHelp,
 		search,
 	)
@@ -1012,7 +1014,7 @@ func (ui *explorer) showAutomationCenter() {
 			btnHelp,
 			container.NewVBox(
 				search,
-				container.NewHBox(widget.NewLabel("Status"), statusFilter, layout.NewSpacer()),
+				container.NewHBox(widget.NewLabel(tr("mod_auto_status_label")), statusFilter, layout.NewSpacer()),
 			),
 		)
 	}
@@ -1087,5 +1089,5 @@ func (ui *explorer) showAutomationCenter() {
 		),
 	)
 
-	ui.openSettingsFullscreenWithBack("Central de automações", body, nil)
+	ui.openSettingsFullscreenWithBack(tr("mod_auto_screen_title"), body, nil)
 }

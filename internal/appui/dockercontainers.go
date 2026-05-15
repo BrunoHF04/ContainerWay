@@ -70,26 +70,26 @@ type dockerRateSample struct {
 
 var errComposeMetadataMissing = errors.New("metadados do docker compose ausentes")
 
-// dockerStateLabelPT executa parte da logica deste modulo.
-func dockerStateLabelPT(state string) string {
+// dockerStateLabel devolve o rótulo traduzido do estado do contêiner.
+func dockerStateLabel(state string) string {
 	switch strings.ToLower(strings.TrimSpace(state)) {
 	case "running":
-		return "em execução"
+		return tr("mod_docker_state_running")
 	case "exited":
-		return "encerrado"
+		return tr("mod_docker_state_exited")
 	case "paused":
-		return "pausado"
+		return tr("mod_docker_state_paused")
 	case "restarting":
-		return "reiniciando"
+		return tr("mod_docker_state_restarting")
 	case "dead":
-		return "morto"
+		return tr("mod_docker_state_dead")
 	case "created":
-		return "criado"
+		return tr("mod_docker_state_created")
 	case "removing":
-		return "removendo"
+		return tr("mod_docker_state_removing")
 	default:
 		if state == "" {
-			return "desconhecido"
+			return tr("mod_docker_state_unknown")
 		}
 		return state
 	}
@@ -109,7 +109,7 @@ func buildDockerManagerRows(list []dcontainer.Summary) []dockerManagerRow {
 		}
 		disp := containerDisplayName(c)
 		if disp == "" {
-			disp = "(sem nome)"
+			disp = tr("mod_docker_no_name")
 		}
 		st := string(c.State)
 		out = append(out, dockerManagerRow{
@@ -118,8 +118,8 @@ func buildDockerManagerRows(list []dcontainer.Summary) []dockerManagerRow {
 			ShortID:     short,
 			State:       st,
 			Image:       c.Image,
-			StatsLine:   "CPU: --  | Mem: --  | Rede: --  | Disco: --",
-			DetailsLine: fmt.Sprintf("%s  ·  ID %s", dockerStateLabelPT(st), short),
+			StatsLine:   tr("mod_docker_stats_pending"),
+			DetailsLine: fmt.Sprintf(tr("mod_docker_details_short_fmt"), dockerStateLabel(st), short),
 			ExtraLine:   "",
 			Running:     c.State == dcontainer.StateRunning,
 			Restarting:  c.State == dcontainer.StateRestarting,
@@ -239,23 +239,23 @@ func rowBgByAlert(level int) color.Color {
 // sortRows executa parte da logica deste modulo.
 func sortRows(rows []dockerManagerRow, key string) {
 	switch key {
-	case "Nome (A-Z)":
+	case tr("mod_docker_sort_name_az"):
 		sort.SliceStable(rows, func(i, j int) bool {
 			return strings.ToLower(rows[i].Name) < strings.ToLower(rows[j].Name)
 		})
-	case "Nome (Z-A)":
+	case tr("mod_docker_sort_name_za"):
 		sort.SliceStable(rows, func(i, j int) bool {
 			return strings.ToLower(rows[i].Name) > strings.ToLower(rows[j].Name)
 		})
-	case "CPU (maior)":
+	case tr("mod_docker_sort_cpu"):
 		sort.SliceStable(rows, func(i, j int) bool { return rows[i].CPUPercent > rows[j].CPUPercent })
-	case "Memória % (maior)":
+	case tr("mod_docker_sort_mem"):
 		sort.SliceStable(rows, func(i, j int) bool { return rows[i].MemPercent > rows[j].MemPercent })
-	case "Rede RX+TX (maior)":
+	case tr("mod_docker_sort_net"):
 		sort.SliceStable(rows, func(i, j int) bool { return rows[i].NetRx+rows[i].NetTx > rows[j].NetRx+rows[j].NetTx })
-	case "Disco R+W (maior)":
+	case tr("mod_docker_sort_disk"):
 		sort.SliceStable(rows, func(i, j int) bool { return rows[i].DiskRead+rows[i].DiskWrite > rows[j].DiskRead+rows[j].DiskWrite })
-	case "Reinícios (maior)":
+	case tr("mod_docker_sort_restarts"):
 		sort.SliceStable(rows, func(i, j int) bool { return rows[i].RestartCnt > rows[j].RestartCnt })
 	}
 }
@@ -322,7 +322,7 @@ func (ui *explorer) loadDockerStatsRow(containerID string, prev dockerRateSample
 	sample := dockerRateSample{At: now, NetRx: rx, NetTx: tx, DiskRead: rd, DiskWrite: wr}
 
 	main := fmt.Sprintf(
-		"CPU: %.1f%%  | Mem: %s / %s (%.1f%%)  | Rede: ↓%s ↑%s (↓%s ↑%s)  | Disco: R %s / W %s (R %s / W %s)",
+		tr("mod_docker_stats_line_fmt"),
 		math.Max(cpuPct, 0),
 		formatBytes(memUsage),
 		formatBytes(memLimit),
@@ -337,8 +337,8 @@ func (ui *explorer) loadDockerStatsRow(containerID string, prev dockerRateSample
 		formatRateBytes(wrRate),
 	)
 	uptime := calcUptimeLabel(inspect.State.StartedAt)
-	details := fmt.Sprintf("%s  ·  uptime: %s  ·  reinícios: %d  ·  PIDs: %d", dockerStateLabelPT(inspect.State.Status), uptime, inspect.RestartCount, pids)
-	extra := fmt.Sprintf("Imagem: %s", truncateRunes(inspect.Image, 84))
+	details := fmt.Sprintf(tr("mod_docker_details_line_fmt"), dockerStateLabel(inspect.State.Status), uptime, inspect.RestartCount, pids)
+	extra := fmt.Sprintf(tr("mod_docker_image_fmt"), truncateRunes(inspect.Image, 84))
 
 	return dockerManagerRow{
 		ID:          inspect.ID,
@@ -390,7 +390,7 @@ func (ui *explorer) loadDockerContainerLogs(containerID string, tail int) (strin
 		return "", err
 	}
 	if len(raw) == 0 {
-		return "Sem logs disponíveis para este contêiner.", nil
+		return tr("mod_docker_no_logs"), nil
 	}
 
 	var outBuf bytes.Buffer
@@ -399,7 +399,7 @@ func (ui *explorer) loadDockerContainerLogs(containerID string, tail int) (strin
 		// Alguns contêineres (TTY) retornam stream sem multiplexação; nesse caso usamos o bruto.
 		text := strings.TrimSpace(string(raw))
 		if text == "" {
-			return "Sem logs disponíveis para este contêiner.", nil
+			return tr("mod_docker_no_logs"), nil
 		}
 		return text, nil
 	}
@@ -413,7 +413,7 @@ func (ui *explorer) loadDockerContainerLogs(containerID string, tail int) (strin
 		text += "[stderr]\n" + stderrText
 	}
 	if strings.TrimSpace(text) == "" {
-		return "Sem logs disponíveis para este contêiner.", nil
+		return tr("mod_docker_no_logs"), nil
 	}
 	return text, nil
 }
@@ -479,7 +479,7 @@ func (ui *explorer) forceRecreateContainer(containerID string) error {
 		}
 	}
 	if lastErr == nil {
-		lastErr = fmt.Errorf("falha ao recriar serviço %s", service)
+		lastErr = fmt.Errorf(tr("mod_docker_recreate_fail_fmt"), service)
 	}
 	return lastErr
 }
@@ -487,16 +487,24 @@ func (ui *explorer) forceRecreateContainer(containerID string) error {
 // showDockerContainerManager executa parte da logica deste modulo.
 func (ui *explorer) showDockerContainerManager() {
 	if ui.s == nil || ui.s.Docker == nil {
-		dialog.ShowError(fmt.Errorf("cliente Docker indisponível"), ui.win)
+		dialog.ShowError(fmt.Errorf("%s", tr("mod_docker_client_unavail")), ui.win)
 		return
 	}
-	appendAuditLog("docker", "Gerenciador de contêineres Docker aberto")
+	appendAuditLog("docker", tr("mod_docker_mgr_audit_opened"))
+
+	skCPU := tr("mod_docker_sort_cpu")
+	skMem := tr("mod_docker_sort_mem")
+	skNet := tr("mod_docker_sort_net")
+	skDisk := tr("mod_docker_sort_disk")
+	skRestarts := tr("mod_docker_sort_restarts")
+	skNameAZ := tr("mod_docker_sort_name_az")
+	skNameZA := tr("mod_docker_sort_name_za")
 
 	rows := []dockerManagerRow{}
 	allRows := []dockerManagerRow{}
 	prevSamples := map[string]dockerRateSample{}
 	filterQuery := ""
-	sortKey := "CPU (maior)"
+	sortKey := skCPU
 	expanded := map[string]bool{}
 	listWidget := widget.NewList(
 		func() int { return len(rows) },
@@ -546,7 +554,7 @@ func (ui *explorer) showDockerContainerManager() {
 		},
 	)
 
-	hint := widget.NewLabel("Visão tipo docker stats com tempo real. Use busca/ordenação para análise e exporte snapshot CSV quando precisar.")
+	hint := widget.NewLabel(tr("mod_docker_hint"))
 	hint.Wrapping = fyne.TextWrapWord
 
 	statusLbl := widget.NewLabel("")
@@ -563,30 +571,30 @@ func (ui *explorer) showDockerContainerManager() {
 	stopAuto := make(chan struct{})
 	var stopOnce sync.Once
 
-	btnRestartSel := widget.NewButtonWithIcon("Reiniciar selecionado", theme.MediaReplayIcon(), nil)
+	btnRestartSel := widget.NewButtonWithIcon(tr("mod_docker_btn_restart_sel"), theme.MediaReplayIcon(), nil)
 	btnRestartSel.Importance = widget.HighImportance
 	btnRestartSel.Disable()
 
-	btnLogs := widget.NewButtonWithIcon("Ver logs", theme.DocumentIcon(), nil)
+	btnLogs := widget.NewButtonWithIcon(tr("mod_docker_btn_logs"), theme.DocumentIcon(), nil)
 	btnLogs.Importance = widget.MediumImportance
 	btnLogs.Disable()
 
-	btnRestartAll := widget.NewButtonWithIcon("Reiniciar todos", theme.ViewRefreshIcon(), nil)
+	btnRestartAll := widget.NewButtonWithIcon(tr("mod_docker_btn_restart_all"), theme.ViewRefreshIcon(), nil)
 	btnRestartAll.Importance = widget.WarningImportance
-	btnToggleDetails := widget.NewButtonWithIcon("Expandir detalhes", theme.VisibilityIcon(), nil)
+	btnToggleDetails := widget.NewButtonWithIcon(tr("mod_docker_btn_expand"), theme.VisibilityIcon(), nil)
 	btnToggleDetails.Importance = widget.MediumImportance
 	btnToggleDetails.Disable()
-	btnExport := widget.NewButtonWithIcon("Exportar CSV", theme.DocumentSaveIcon(), nil)
+	btnExport := widget.NewButtonWithIcon(tr("mod_docker_btn_export_csv"), theme.DocumentSaveIcon(), nil)
 	btnExport.Importance = widget.MediumImportance
 
 	sortSelect := widget.NewSelect([]string{
-		"CPU (maior)",
-		"Memória % (maior)",
-		"Rede RX+TX (maior)",
-		"Disco R+W (maior)",
-		"Reinícios (maior)",
-		"Nome (A-Z)",
-		"Nome (Z-A)",
+		skCPU,
+		skMem,
+		skNet,
+		skDisk,
+		skRestarts,
+		skNameAZ,
+		skNameZA,
 	}, func(sel string) {
 		if strings.TrimSpace(sel) == "" {
 			return
@@ -595,7 +603,7 @@ func (ui *explorer) showDockerContainerManager() {
 	})
 	sortSelect.SetSelected(sortKey)
 	filterEntry := widget.NewEntry()
-	filterEntry.SetPlaceHolder("Filtrar por nome, ID, estado, imagem…")
+	filterEntry.SetPlaceHolder(tr("mod_docker_filter_ph"))
 
 	applyView := func() {
 		filtered := make([]dockerManagerRow, 0, len(allRows))
@@ -629,7 +637,7 @@ func (ui *explorer) showDockerContainerManager() {
 			btnRestartSel.Disable()
 			btnLogs.Disable()
 			btnToggleDetails.Disable()
-			detailsPanel.SetText("Selecione um contêiner para ver detalhes completos aqui.")
+			detailsPanel.SetText(tr("mod_docker_pick_details"))
 		} else {
 			btnRestartSel.Enable()
 			btnLogs.Enable()
@@ -650,7 +658,7 @@ func (ui *explorer) showDockerContainerManager() {
 		list, err := ui.s.Docker.ContainerList(ctx, dcontainer.ListOptions{All: false})
 		if err != nil {
 			fyne.Do(func() {
-				statusLbl.SetText("Erro ao listar: " + err.Error())
+				statusLbl.SetText(fmt.Sprintf(tr("mod_docker_list_err_fmt"), err.Error()))
 				rows = nil
 				allRows = nil
 				listWidget.Refresh()
@@ -666,8 +674,8 @@ func (ui *explorer) showDockerContainerManager() {
 		for i := range next {
 			metricRow, sample, sErr := ui.loadDockerStatsRow(next[i].ID, prevSamples[next[i].ID])
 			if sErr != nil {
-				next[i].StatsLine = "CPU/Mem/Rede/Disco: indisponível"
-				next[i].DetailsLine = fmt.Sprintf("%s  ·  ID %s  ·  stats: %v", dockerStateLabelPT(next[i].State), next[i].ShortID, sErr)
+				next[i].StatsLine = tr("mod_docker_stats_unavail")
+				next[i].DetailsLine = fmt.Sprintf(tr("mod_docker_stats_err_detail_fmt"), dockerStateLabel(next[i].State), next[i].ShortID, sErr)
 				continue
 			}
 			next[i] = metricRow
@@ -675,29 +683,29 @@ func (ui *explorer) showDockerContainerManager() {
 		}
 		fyne.Do(func() {
 			allRows = next
-			mode := "tempo real: ligado"
+			mode := tr("mod_docker_realtime_on")
 			if !autoRefresh.Load() {
-				mode = "tempo real: pausado"
+				mode = tr("mod_docker_realtime_paused")
 			}
-			statusLbl.SetText(fmt.Sprintf("%d contêiner(es) em execução. Métricas atualizadas em %s (%s).", len(allRows), time.Now().Format("15:04:05"), mode))
+			statusLbl.SetText(fmt.Sprintf(tr("mod_docker_status_bar_fmt"), len(allRows), time.Now().Format("15:04:05"), mode))
 			applyView()
 		})
 	}
 
-	btnRefresh := widget.NewButtonWithIcon("Atualizar", theme.ViewRefreshIcon(), func() {
-		fyne.Do(func() { statusLbl.SetText("Atualizando lista e métricas…") })
+	btnRefresh := widget.NewButtonWithIcon(tr("mod_docker_btn_refresh"), theme.ViewRefreshIcon(), func() {
+		fyne.Do(func() { statusLbl.SetText(tr("mod_docker_updating")) })
 		go refresh()
 	})
 	var btnAuto *widget.Button
-	btnAuto = widget.NewButtonWithIcon("Pausar tempo real", theme.MediaPauseIcon(), func() {
+	btnAuto = widget.NewButtonWithIcon(tr("mod_docker_pause_rt"), theme.MediaPauseIcon(), func() {
 		if autoRefresh.Load() {
 			autoRefresh.Store(false)
-			btnAuto.SetText("Iniciar tempo real")
+			btnAuto.SetText(tr("mod_docker_start_rt"))
 			btnAuto.SetIcon(theme.MediaPlayIcon())
 			return
 		}
 		autoRefresh.Store(true)
-		btnAuto.SetText("Pausar tempo real")
+		btnAuto.SetText(tr("mod_docker_pause_rt"))
 		btnAuto.SetIcon(theme.MediaPauseIcon())
 		go refresh()
 	})
@@ -716,14 +724,14 @@ func (ui *explorer) showDockerContainerManager() {
 		btnRestartSel.Enable()
 		btnLogs.Enable()
 		btnToggleDetails.Enable()
-		btnToggleDetails.SetText("Expandir detalhes")
+		btnToggleDetails.SetText(tr("mod_docker_btn_expand"))
 		if expanded[selectedContainerID] {
-			btnToggleDetails.SetText("Recolher detalhes")
+			btnToggleDetails.SetText(tr("mod_docker_btn_collapse"))
 		}
 		r := rows[id]
 		detailsPanel.SetText(fmt.Sprintf(
-			"Nome: %s\nID: %s\nEstado: %s\nImagem: %s\n\nCPU: %.2f%%\nMemória: %s / %s (%.1f%%)\nRede: RX %s, TX %s (RX %s/s, TX %s/s)\nDisco: Read %s, Write %s (R %s/s, W %s/s)\nPIDs: %d\nUptime: %s\nReinícios: %d",
-			r.Name, r.ShortID, dockerStateLabelPT(r.State), r.Image,
+			tr("mod_docker_detail_panel_fmt"),
+			r.Name, r.ShortID, dockerStateLabel(r.State), r.Image,
 			r.CPUPercent,
 			formatBytes(r.MemUsage), formatBytes(r.MemLimit), r.MemPercent,
 			formatBytes(r.NetRx), formatBytes(r.NetTx), formatBytes(r.NetRxRate), formatBytes(r.NetTxRate),
@@ -737,7 +745,7 @@ func (ui *explorer) showDockerContainerManager() {
 		btnRestartSel.Disable()
 		btnLogs.Disable()
 		btnToggleDetails.Disable()
-		detailsPanel.SetText("Selecione um contêiner para ver detalhes completos aqui.")
+		detailsPanel.SetText(tr("mod_docker_pick_details"))
 	}
 
 	btnToggleDetails.OnTapped = func() {
@@ -747,9 +755,9 @@ func (ui *explorer) showDockerContainerManager() {
 		id := rows[selectedID].ID
 		expanded[id] = !expanded[id]
 		if expanded[id] {
-			btnToggleDetails.SetText("Recolher detalhes")
+			btnToggleDetails.SetText(tr("mod_docker_btn_collapse"))
 		} else {
-			btnToggleDetails.SetText("Expandir detalhes")
+			btnToggleDetails.SetText(tr("mod_docker_btn_expand"))
 		}
 		applyView()
 	}
@@ -762,7 +770,7 @@ func (ui *explorer) showDockerContainerManager() {
 	btnExport.OnTapped = func() {
 		saveDlg := dialog.NewFileSave(func(dst fyne.URIWriteCloser, err error) {
 			if err != nil {
-				dialog.ShowError(fmt.Errorf("falha ao preparar exportação: %w", err), ui.win)
+				dialog.ShowError(fmt.Errorf(tr("mod_export_prep_fail"), err), ui.win)
 				return
 			}
 			if dst == nil {
@@ -796,10 +804,10 @@ func (ui *explorer) showDockerContainerManager() {
 			}
 			w.Flush()
 			if wErr := w.Error(); wErr != nil {
-				dialog.ShowError(fmt.Errorf("falha ao gravar CSV: %w", wErr), ui.win)
+				dialog.ShowError(fmt.Errorf(tr("mod_export_write_fail"), wErr), ui.win)
 				return
 			}
-			dialog.ShowInformation("Exportação", "Snapshot CSV exportado com sucesso.", ui.win)
+			dialog.ShowInformation(tr("mod_export_ok_title"), tr("mod_export_ok_body"), ui.win)
 		}, ui.win)
 		saveDlg.SetFileName("docker-stats-snapshot.csv")
 		saveDlg.Show()
@@ -807,14 +815,14 @@ func (ui *explorer) showDockerContainerManager() {
 
 	btnLogs.OnTapped = func() {
 		if selectedID < 0 || int(selectedID) >= len(rows) {
-			dialog.ShowInformation("Logs", "Selecione um contêiner para visualizar os logs.", ui.win)
+			dialog.ShowInformation(tr("mod_logs_save_ok_title"), tr("mod_logs_pick"), ui.win)
 			return
 		}
 		row := rows[selectedID]
 		logText := widget.NewTextGrid()
 		logText.ShowLineNumbers = false
 		logScroll := fynecontainer.NewScroll(logText)
-		logStatus := widget.NewLabel("Carregando logs…")
+		logStatus := widget.NewLabel(tr("mod_docker_logs_loading"))
 		logStatus.Wrapping = fyne.TextWrapWord
 		currentLogText := ""
 		logAuto := atomic.Bool{}
@@ -832,45 +840,45 @@ func (ui *explorer) showDockerContainerManager() {
 				text, err := ui.loadDockerContainerLogs(row.ID, 500)
 				fyne.Do(func() {
 					if err != nil {
-						logStatus.SetText("Falha ao carregar logs: " + err.Error())
+						logStatus.SetText(fmt.Sprintf(tr("mod_docker_logs_load_fail_fmt"), err.Error()))
 						return
 					}
 					currentLogText = text
 					logText.SetText(text)
-					mode := "tempo real: ligado"
+					mode := tr("mod_docker_realtime_on")
 					if !logAuto.Load() {
-						mode = "tempo real: pausado"
+						mode = tr("mod_docker_realtime_paused")
 					}
-					logStatus.SetText(fmt.Sprintf("Exibindo últimos logs de %s (%s) — %s (%s).", row.Name, row.ShortID, time.Now().Format("15:04:05"), mode))
+					logStatus.SetText(fmt.Sprintf(tr("mod_docker_logs_status_fmt"), row.Name, row.ShortID, time.Now().Format("15:04:05"), mode))
 				})
 			}()
 		}
 
-		btnRefreshLogs := widget.NewButtonWithIcon("Atualizar logs", theme.ViewRefreshIcon(), func() {
-			logStatus.SetText("Atualizando logs…")
+		btnRefreshLogs := widget.NewButtonWithIcon(tr("mod_docker_logs_refresh"), theme.ViewRefreshIcon(), func() {
+			logStatus.SetText(tr("mod_docker_logs_updating"))
 			loadLogs()
 		})
 		btnRefreshLogs.Importance = widget.MediumImportance
 		var btnAutoLogs *widget.Button
-		btnAutoLogs = widget.NewButtonWithIcon("Pausar tempo real", theme.MediaPauseIcon(), func() {
+		btnAutoLogs = widget.NewButtonWithIcon(tr("mod_docker_pause_rt"), theme.MediaPauseIcon(), func() {
 			if logAuto.Load() {
 				logAuto.Store(false)
-				btnAutoLogs.SetText("Iniciar tempo real")
+				btnAutoLogs.SetText(tr("mod_docker_start_rt"))
 				btnAutoLogs.SetIcon(theme.MediaPlayIcon())
-				logStatus.SetText("Tempo real dos logs pausado.")
+				logStatus.SetText(tr("mod_docker_logs_rt_paused"))
 				return
 			}
 			logAuto.Store(true)
-			btnAutoLogs.SetText("Pausar tempo real")
+			btnAutoLogs.SetText(tr("mod_docker_pause_rt"))
 			btnAutoLogs.SetIcon(theme.MediaPauseIcon())
-			logStatus.SetText("Tempo real dos logs ligado. Atualizando…")
+			logStatus.SetText(tr("mod_docker_logs_rt_on_updating"))
 			loadLogs()
 		})
 		btnAutoLogs.Importance = widget.MediumImportance
-		btnDownloadLogs := widget.NewButtonWithIcon("Baixar logs", theme.DownloadIcon(), func() {
+		btnDownloadLogs := widget.NewButtonWithIcon(tr("mod_docker_logs_download"), theme.DownloadIcon(), func() {
 			saveDlg := dialog.NewFileSave(func(dst fyne.URIWriteCloser, err error) {
 				if err != nil {
-					dialog.ShowError(fmt.Errorf("falha ao preparar salvamento: %w", err), ui.win)
+					dialog.ShowError(fmt.Errorf(tr("mod_logs_save_prep"), err), ui.win)
 					return
 				}
 				if dst == nil {
@@ -878,10 +886,10 @@ func (ui *explorer) showDockerContainerManager() {
 				}
 				defer dst.Close()
 				if _, wErr := io.WriteString(dst, currentLogText); wErr != nil {
-					dialog.ShowError(fmt.Errorf("falha ao salvar logs: %w", wErr), ui.win)
+					dialog.ShowError(fmt.Errorf(tr("mod_logs_save_write"), wErr), ui.win)
 					return
 				}
-				dialog.ShowInformation("Logs", "Arquivo de log salvo com sucesso.", ui.win)
+				dialog.ShowInformation(tr("mod_logs_save_ok_title"), tr("mod_logs_save_ok_body"), ui.win)
 			}, ui.win)
 			saveDlg.SetFileName(fmt.Sprintf("container-%s-logs.txt", row.ShortID))
 			saveDlg.Show()
@@ -896,8 +904,8 @@ func (ui *explorer) showDockerContainerManager() {
 			logScroll,
 		)
 		dlg := dialog.NewCustom(
-			fmt.Sprintf("Logs: %s (%s)", row.Name, row.ShortID),
-			"Fechar",
+			fmt.Sprintf(tr("mod_docker_logs_dlg_title_fmt"), row.Name, row.ShortID),
+			tr("compare_close"),
 			fynecontainer.NewPadded(body),
 			ui.win,
 		)
@@ -926,7 +934,7 @@ func (ui *explorer) showDockerContainerManager() {
 	doRestartOne := func(containerID, humanName string, onDone func(err error)) {
 		go func() {
 			if ui.s == nil || ui.s.Docker == nil {
-				fyne.Do(func() { onDone(fmt.Errorf("sessão indisponível")) })
+				fyne.Do(func() { onDone(fmt.Errorf("%s", tr("mod_docker_session_unavail"))) })
 				return
 			}
 			err := ui.forceRecreateContainer(containerID)
@@ -937,7 +945,7 @@ func (ui *explorer) showDockerContainerManager() {
 			}
 			fyne.Do(func() { onDone(err) })
 			if err == nil {
-				appendAuditLog("docker", "Contêiner reiniciado: "+humanName)
+				appendAuditLog("docker", fmt.Sprintf(tr("mod_docker_audit_restarted_fmt"), humanName))
 			}
 		}()
 	}
@@ -948,18 +956,18 @@ func (ui *explorer) showDockerContainerManager() {
 		}
 		r := rows[selectedID]
 		dialog.ShowConfirm(
-			"Reiniciar contêiner",
-			fmt.Sprintf("Reiniciar o contêiner?\n\n%s (%s)", r.Name, r.ShortID),
+			tr("mod_docker_confirm_one_title"),
+			fmt.Sprintf(tr("mod_docker_confirm_one_body_fmt"), r.Name, r.ShortID),
 			func(ok bool) {
 				if !ok {
 					return
 				}
-				fyne.Do(func() { statusLbl.SetText("Reiniciando contêiner selecionado…") })
+				fyne.Do(func() { statusLbl.SetText(tr("mod_docker_restarting_sel")) })
 				doRestartOne(r.ID, r.Name, func(err error) {
 					if err != nil {
-						dialog.ShowError(fmt.Errorf("falha ao reiniciar: %w", err), ui.win)
+						dialog.ShowError(fmt.Errorf(tr("mod_docker_restart_fail"), err), ui.win)
 					} else {
-						dialog.ShowInformation("Docker", "Contêiner reiniciado com sucesso.", ui.win)
+						dialog.ShowInformation(tr("mod_docker_restart_title"), tr("mod_docker_restart_ok"), ui.win)
 					}
 					go refresh()
 				})
@@ -971,12 +979,12 @@ func (ui *explorer) showDockerContainerManager() {
 	btnRestartAll.OnTapped = func() {
 		targets := append([]dockerManagerRow(nil), rows...)
 		if len(targets) == 0 {
-			dialog.ShowInformation("Docker", "Nenhum contêiner em execução na lista.", ui.win)
+			dialog.ShowInformation(tr("mod_docker_batch_title"), tr("mod_docker_none_running"), ui.win)
 			return
 		}
 		dialog.ShowConfirm(
-			"Reiniciar vários contêineres",
-			fmt.Sprintf("Isso vai reiniciar os %d contêiner(es) da lista, um após o outro.\n\nContinuar?", len(targets)),
+			tr("mod_docker_confirm_batch_title"),
+			fmt.Sprintf(tr("mod_docker_confirm_batch_body_fmt"), len(targets)),
 			func(ok bool) {
 				if !ok {
 					return
@@ -985,10 +993,10 @@ func (ui *explorer) showDockerContainerManager() {
 					var errs []string
 					for i, t := range targets {
 						fyne.Do(func() {
-							statusLbl.SetText(fmt.Sprintf("Reiniciando %d de %d…", i+1, len(targets)))
+							statusLbl.SetText(fmt.Sprintf(tr("mod_docker_restarting_batch_fmt"), i+1, len(targets)))
 						})
 						if ui.s == nil || ui.s.Docker == nil {
-							errs = append(errs, "sessão indisponível")
+							errs = append(errs, tr("mod_docker_session_unavail"))
 							break
 						}
 						err := ui.forceRecreateContainer(t.ID)
@@ -1000,14 +1008,14 @@ func (ui *explorer) showDockerContainerManager() {
 						if err != nil {
 							errs = append(errs, fmt.Sprintf("%s: %v", truncateRunes(t.Name, 48), err))
 						} else {
-							appendAuditLog("docker", "Contêiner reiniciado (lote): "+t.Name)
+							appendAuditLog("docker", fmt.Sprintf(tr("mod_docker_audit_restarted_batch_fmt"), t.Name))
 						}
 					}
 					fyne.Do(func() {
 						if len(errs) == 0 {
-							dialog.ShowInformation("Docker", fmt.Sprintf("Concluído: %d contêiner(es) reiniciados.", len(targets)), ui.win)
+							dialog.ShowInformation(tr("mod_docker_batch_title"), fmt.Sprintf(tr("mod_docker_batch_done_fmt"), len(targets)), ui.win)
 						} else {
-							dialog.ShowError(fmt.Errorf("alguns reinícios falharam:\n%s", strings.Join(errs, "\n")), ui.win)
+							dialog.ShowError(fmt.Errorf(tr("mod_docker_batch_err_fmt"), strings.Join(errs, "\n")), ui.win)
 						}
 						go refresh()
 					})
@@ -1021,7 +1029,7 @@ func (ui *explorer) showDockerContainerManager() {
 	topControls := fynecontainer.NewBorder(
 		nil,
 		nil,
-		widget.NewLabel("Filtro"),
+		widget.NewLabel(tr("mod_docker_filter_label")),
 		fynecontainer.NewHBox(sortWrap, btnExport),
 		filterEntry,
 	)
@@ -1044,7 +1052,7 @@ func (ui *explorer) showDockerContainerManager() {
 		mainSplit,
 	)
 
-	ui.openSettingsFullscreenWithBack("Contêineres Docker no servidor", content, func() {
+	ui.openSettingsFullscreenWithBack(tr("mod_docker_mgr_screen_title"), content, func() {
 		stopOnce.Do(func() { close(stopAuto) })
 	})
 
@@ -1063,5 +1071,5 @@ func (ui *explorer) showDockerContainerManager() {
 			}
 		}
 	}()
-	detailsPanel.SetText("Selecione um contêiner para ver detalhes completos aqui.")
+	detailsPanel.SetText(tr("mod_docker_mgr_select_details"))
 }

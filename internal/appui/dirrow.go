@@ -48,9 +48,9 @@ func newDirListRow(ui *explorer, left bool) *dirListRow {
 		left: left,
 		box: fynecontainer.NewHBox(
 			widget.NewIcon(nil),
-			widget.NewLabel("Nome"),
+			widget.NewLabel(tr("list_col_name")),
 			layout.NewSpacer(),
-			widget.NewLabel("Tamanho"),
+			widget.NewLabel(tr("list_col_size")),
 		),
 	}
 	r.ExtendBaseWidget(r)

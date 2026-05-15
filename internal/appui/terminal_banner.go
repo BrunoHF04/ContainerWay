@@ -1,6 +1,7 @@
 package appui
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -31,9 +32,31 @@ func shellStartWithTerminalBanner(currentDir, sshHost string) string {
 	return "/bin/sh -lc " + shellQuote(b.String())
 }
 
-// remoteColorWelcomeShell: POSIX /bin/sh; printf com formatos válidos (%s, sem %b ilegal).
+// remoteColorWelcomeShell: POSIX /bin/sh; rótulos traduzidos via variáveis injetadas em tempo de execução.
 func remoteColorWelcomeShell() string {
-	return `N=$(printf '\033[0m')
+	prefix := fmt.Sprintf(`CW_LBL_TITLE=%s
+CW_LBL_SYSTEM=%s
+CW_LBL_NOW=%s
+CW_FMT_LINE_A=%s
+CW_FMT_LINE_B_DISK=%s
+CW_FMT_LINE_B_DISK_PCT=%s
+CW_FMT_LINE_B_TEMP=%s
+CW_FMT_LINE_B_IP=%s
+CW_FMT_BOOT_UPTIME=%s
+CW_LBL_PROMPT=%s
+`,
+		shellQuote(tr("ui_term_banner_title")),
+		shellQuote(tr("ui_term_banner_system")),
+		shellQuote(tr("ui_term_banner_now")),
+		shellQuote(tr("ui_term_banner_line_a_fmt")),
+		shellQuote(tr("ui_term_banner_line_b_disk_fmt")),
+		shellQuote(tr("ui_term_banner_line_b_disk_pct_fmt")),
+		shellQuote(tr("ui_term_banner_line_b_temp_fmt")),
+		shellQuote(tr("ui_term_banner_line_b_ip_fmt")),
+		shellQuote(tr("ui_term_banner_boot_uptime_fmt")),
+		shellQuote(tr("ui_term_banner_prompt")),
+	)
+	const shellBody = `N=$(printf '\033[0m')
 B=$(printf '\033[1m')
 D=$(printf '\033[2m')
 g=$(printf '\033[92m')
@@ -101,29 +124,30 @@ CW_SHOW=$(pwd 2>/dev/null || echo /)
 [ "${#CW_SHOW}" -gt 56 ] && CW_SHOW="$(printf "%s" "$CW_SHOW" | cut -c1-53)..."
 CW_LINE1=$(printf "%s" "$CW_SHOW" | tr -d "\r\n" | cut -c1-70)
 
-printf "%b%s%b\n" "$g" " ─── ContainerWay · Terminal SSH ─── " "$N"
+printf "%b%s%b\n" "$g" "$CW_LBL_TITLE" "$N"
 printf "%b%s%b@%b%s%b  %b%s%b\n" "$B" "$CW_USER" "$N" "$m" "$CW_SSH_HOST" "$N" "$c" "$CW_LINE1" "$N"
 if [ -n "$CW_KERN" ]; then printf "%b%s%b\n" "$D" "$CW_KERN" "$N"; fi
-printf "%b%s%b %s\n" "$W" "Sistema:" "$N" "$CW_PRETTY"
-printf "%b%s%b %s\n" "$c" "Agora:" "$N" "$CW_NOW"
+printf "%b%s%b %s\n" "$W" "$CW_LBL_SYSTEM" "$N" "$CW_PRETTY"
+printf "%b%s%b %s\n" "$c" "$CW_LBL_NOW" "$N" "$CW_NOW"
 printf "%b\n" "${D}────────────────────────────────────────${N}"
 
-LINE_A=$(printf "Carga %s %s %s | RAM %s%% | Swap %s%% | Proc %s | who %s" "$L1" "$L2" "$L3" "$MEM_PCT" "$SWAP_PCT" "$CW_P" "$CW_W")
+LINE_A=$(printf "$CW_FMT_LINE_A" "$L1" "$L2" "$L3" "$MEM_PCT" "$SWAP_PCT" "$CW_P" "$CW_W")
 printf "%s\n" "$LINE_A"
 
 if [ -n "$DF_HT" ]; then
-  LINE_B=$(printf "Disco / %s%% (%s/%s)" "$DF_PCT" "$DF_UH" "$DF_HT")
+  LINE_B=$(printf "$CW_FMT_LINE_B_DISK" "$DF_PCT" "$DF_UH" "$DF_HT")
 else
-  LINE_B=$(printf "Disco / %s%%" "$DF_PCT")
+  LINE_B=$(printf "$CW_FMT_LINE_B_DISK_PCT" "$DF_PCT")
 fi
 if [ -n "$TW" ]; then
-  LINE_B="$LINE_B | Temp ${TW}°C"
+  LINE_B="$LINE_B$(printf "$CW_FMT_LINE_B_TEMP" "$TW")"
 fi
-LINE_B="$LINE_B | IPv4 $CW_IP"
+LINE_B="$LINE_B$(printf "$CW_FMT_LINE_B_IP" "$CW_IP")"
 printf "%s\n" "$LINE_B"
-printf "Boot %s | Uptime %s\n" "$BOOT" "$UPS"
+printf "$CW_FMT_BOOT_UPTIME\n" "$BOOT" "$UPS"
 printf "%b\n" "${D}────────────────────────────────────────${N}"
-printf "%b %s %b\n" "$y" ">>> ContainerWay" "$N"
+printf "%b %s %b\n" "$y" "$CW_LBL_PROMPT" "$N"
 printf "\n"
 `
+	return prefix + shellBody
 }

@@ -42,21 +42,25 @@ func buildFolderCompareReport(leftTitle, rightTitle, leftPath, rightPath string,
 		}
 	}
 	var b strings.Builder
-	b.WriteString("Comparar pastas\n")
+	b.WriteString(tr("compare_report_title"))
+	b.WriteString("\n")
 	b.WriteString(time.Now().Format("2006-01-02 15:04:05"))
 	b.WriteString("\n\n")
-	b.WriteString("Esquerda: ")
+	b.WriteString(tr("compare_left_label"))
 	b.WriteString(leftTitle)
 	b.WriteString(" — ")
 	b.WriteString(filepath.ToSlash(leftPath))
-	b.WriteString("\nDireita:  ")
+	b.WriteString("\n")
+	b.WriteString(tr("compare_right_label"))
 	b.WriteString(rightTitle)
 	b.WriteString(" — ")
 	b.WriteString(filepath.ToSlash(rightPath))
 	b.WriteString("\n\n")
-	b.WriteString(fmt.Sprintf("Só à esquerda (%d)\n", len(onlyLeft)))
+	b.WriteString(fmt.Sprintf(tr("compare_only_left_fmt"), len(onlyLeft)))
+	b.WriteString("\n")
 	if len(onlyLeft) == 0 {
-		b.WriteString("  (nenhum)\n")
+		b.WriteString(tr("compare_none"))
+		b.WriteString("\n")
 	} else {
 		for _, line := range onlyLeft {
 			b.WriteString("  • ")
@@ -64,9 +68,11 @@ func buildFolderCompareReport(leftTitle, rightTitle, leftPath, rightPath string,
 			b.WriteString("\n")
 		}
 	}
-	b.WriteString(fmt.Sprintf("\nSó à direita (%d)\n", len(onlyRight)))
+	b.WriteString(fmt.Sprintf("\n"+tr("compare_only_right_fmt"), len(onlyRight)))
+	b.WriteString("\n")
 	if len(onlyRight) == 0 {
-		b.WriteString("  (nenhum)\n")
+		b.WriteString(tr("compare_none"))
+		b.WriteString("\n")
 	} else {
 		for _, line := range onlyRight {
 			b.WriteString("  • ")
@@ -74,9 +80,11 @@ func buildFolderCompareReport(leftTitle, rightTitle, leftPath, rightPath string,
 			b.WriteString("\n")
 		}
 	}
-	b.WriteString(fmt.Sprintf("\nDiferentes (nome igual, metadados distintos) (%d)\n", len(mismatch)))
+	b.WriteString(fmt.Sprintf("\n"+tr("compare_mismatch_fmt"), len(mismatch)))
+	b.WriteString("\n")
 	if len(mismatch) == 0 {
-		b.WriteString("  (nenhum)\n")
+		b.WriteString(tr("compare_none"))
+		b.WriteString("\n")
 	} else {
 		for _, line := range mismatch {
 			b.WriteString("  • ")
@@ -84,24 +92,26 @@ func buildFolderCompareReport(leftTitle, rightTitle, leftPath, rightPath string,
 			b.WriteString("\n")
 		}
 	}
-	b.WriteString("\nNota: comparação por nome (sem distinção de maiúsculas), tipo, tamanho e data de modificação.\n")
+	b.WriteString("\n")
+	b.WriteString(tr("compare_note"))
+	b.WriteString("\n")
 	return b.String()
 }
 
 func formatCompareLine(e fsutil.DirEntry, left bool) string {
-	side := "local"
+	side := tr("compare_side_local")
 	if !left {
-		side = "remoto"
+		side = tr("compare_side_remote")
 	}
-	kind := "arquivo"
+	kind := tr("compare_kind_file")
 	if e.IsDir {
-		kind = "pasta"
+		kind = tr("compare_kind_folder")
 	}
 	return fmt.Sprintf("%s (%s) %s %s", e.Name, side, kind, e.ModTime.Format("2006-01-02 15:04"))
 }
 
 func fmtCompareMismatch(le, re fsutil.DirEntry) string {
-	return fmt.Sprintf("%s | esq: %s %d B @ %s | dir: %s %d B @ %s",
+	return fmt.Sprintf(tr("compare_mismatch_line_fmt"),
 		le.Name,
 		dirTypeLabel(le.IsDir), le.Size, le.ModTime.Format("02/01 15:04"),
 		dirTypeLabel(re.IsDir), re.Size, re.ModTime.Format("02/01 15:04"),
@@ -110,7 +120,7 @@ func fmtCompareMismatch(le, re fsutil.DirEntry) string {
 
 func dirTypeLabel(isDir bool) string {
 	if isDir {
-		return "pasta"
+		return tr("compare_type_dir")
 	}
-	return "arq"
+	return tr("compare_type_file")
 }

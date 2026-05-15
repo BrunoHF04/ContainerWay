@@ -22,13 +22,8 @@ func maybeShowFirstRunTips(w fyne.Window) {
 		return
 	}
 	dialog.ShowInformation(
-		"Primeiros passos",
-		"Bem-vindo ao ContainerWay.\n\n"+
-			"• Altere a senha do utilizador admin em Usuários (sessão de admin).\n"+
-			"• Configure alertas por e-mail se precisar de registo de acessos.\n"+
-			"• Em ligações SSH use known_hosts em ambientes sensíveis.\n"+
-			"• Política opcional: ficheiro policy.json na pasta ContainerWay das preferências, ou variável CONTAINERWAY_FORBID_INSECURE_HOSTKEY=1.\n\n"+
-			"Consulte também o manual (? no explorador).",
+		tr("sec_first_run_title"),
+		tr("sec_first_run_body"),
 		w,
 	)
 	app.Preferences().SetBool(firstRunTipsPreferenceKey, true)
@@ -38,37 +33,37 @@ func maybeShowFirstRunTips(w fyne.Window) {
 func (ui *explorer) showSecurityPolicyDialog() {
 	cfgDir, err := os.UserConfigDir()
 	var b strings.Builder
-	b.WriteString("Política local (não depende do servidor SSH):\n\n")
+	b.WriteString(tr("sec_policy_head"))
 	if err != nil {
-		b.WriteString("Não foi possível localizar a pasta de configuração.\n\n")
+		b.WriteString(tr("sec_policy_cfg_err"))
 	} else {
 		p := filepath.Join(cfgDir, "ContainerWay", "policy.json")
-		b.WriteString("Ficheiro JSON opcional:\n")
+		b.WriteString(tr("sec_policy_file_intro"))
 		b.WriteString(p)
-		b.WriteString("\nExemplo: {\"forbidInsecureHostKey\":true}\n\n")
+		b.WriteString(tr("sec_policy_file_example"))
 	}
-	b.WriteString("Variável de ambiente:\nCONTAINERWAY_FORBID_INSECURE_HOSTKEY=1\n\n")
+	b.WriteString(tr("sec_policy_env"))
 	if policy.ForbidInsecureHostKey() {
-		b.WriteString("Estado atual: ignorar chave de host está bloqueado.")
+		b.WriteString(tr("sec_policy_state_block"))
 	} else {
-		b.WriteString("Estado atual: sem bloqueio explícito da opção insegura na ligação.")
+		b.WriteString(tr("sec_policy_state_allow"))
 	}
-	dialog.ShowInformation("Política e segurança", b.String(), ui.win)
+	dialog.ShowInformation(tr("sec_policy_dlg_title"), b.String(), ui.win)
 }
 
 // showCompareFoldersExplorer abre relatório de diferenças entre as pastas dos dois painéis.
 func (ui *explorer) showCompareFoldersExplorer() {
-	leftTitle := "Computador local"
-	rightTitle := "Servidor"
+	leftTitle := tr("ex_pane_local")
+	rightTitle := tr("ex_compare_server")
 	if !ui.hostMode {
-		rightTitle = "Contêiner"
+		rightTitle = tr("ex_compare_container")
 	}
 	text := buildFolderCompareReport(leftTitle, rightTitle, ui.leftPath, ui.rightPath, ui.leftRows, ui.rightRows)
 	lbl := widget.NewLabel(text)
 	lbl.Wrapping = fyne.TextWrapWord
 	scroll := fynecontainer.NewScroll(lbl)
 	scroll.SetMinSize(fyne.NewSize(720, 420))
-	dialog.NewCustom("Comparar pastas atuais", "Fechar", scroll, ui.win).Show()
+	dialog.NewCustom(tr("compare_dlg_title"), tr("compare_close"), scroll, ui.win).Show()
 	appendAuditLog("explorador", fmt.Sprintf("Comparação de pastas: %s vs %s", ui.leftPath, ui.rightPath))
 }
 

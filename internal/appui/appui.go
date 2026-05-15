@@ -173,9 +173,9 @@ func goToLogin(w fyne.Window) {
 // buildAccessLogin executa parte da logica deste modulo.
 func buildAccessLogin(w fyne.Window) fyne.CanvasObject {
 	username := widget.NewEntry()
-	username.SetPlaceHolder("Usuário")
+	username.SetPlaceHolder(tr("acc_ph_user"))
 	password := widget.NewPasswordEntry()
-	password.SetPlaceHolder("Senha")
+	password.SetPlaceHolder(tr("acc_ph_pass"))
 	status := widget.NewLabel("")
 	status.Wrapping = fyne.TextWrapWord
 	accounts := loadAccessAccounts()
@@ -184,7 +184,7 @@ func buildAccessLogin(w fyne.Window) fyne.CanvasObject {
 		u := normalizeAccessUsername(username.Text)
 		p := strings.TrimSpace(password.Text)
 		if u == "" || p == "" {
-			status.SetText("Informe usuário e senha.")
+			status.SetText(tr("acc_need_both"))
 			return
 		}
 		acc, ok := findAccessAccount(accounts, u)
@@ -204,43 +204,43 @@ func buildAccessLogin(w fyne.Window) fyne.CanvasObject {
 			return
 		}
 		appendAuditLog("acesso", "Tentativa de login de acesso inválida")
-		status.SetText("Usuário ou senha inválidos.")
+		status.SetText(tr("acc_bad_creds"))
 	}
 
-	enterBtn := widget.NewButtonWithIcon("Entrar", theme.LoginIcon(), tryLogin)
+	enterBtn := widget.NewButtonWithIcon(tr("acc_btn_enter"), theme.LoginIcon(), tryLogin)
 	enterBtn.Importance = widget.HighImportance
 	password.OnSubmitted = func(string) { tryLogin() }
 
 	content := fynecontainer.NewVBox(
-		widget.NewLabelWithStyle("Acesso ao sistema", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		widget.NewLabel("Entre com seu usuário e senha. O admin pode cadastrar outros usuários."),
+		widget.NewLabelWithStyle(tr("acc_title"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewLabel(tr("acc_desc")),
 		widget.NewSeparator(),
 		widget.NewForm(
-			widget.NewFormItem("Usuário", username),
-			widget.NewFormItem("Senha", password),
+			widget.NewFormItem(tr("acc_form_user"), username),
+			widget.NewFormItem(tr("acc_form_pass"), password),
 		),
 		status,
 		enterBtn,
 	)
-	card := widget.NewCard("ContainerWay", "Login de acesso", content)
+	card := widget.NewCard(tr("app_name"), tr("acc_card_sub"), content)
 	return fynecontainer.NewCenter(card)
 }
 
 // buildLogin executa parte da logica deste modulo.
 func buildLogin(w fyne.Window) fyne.CanvasObject {
 	host := widget.NewEntry()
-	host.SetPlaceHolder("ex.: 192.168.1.10 ou servidor:22")
+	host.SetPlaceHolder(tr("conn_ph_host"))
 	user := widget.NewEntry()
-	user.SetPlaceHolder("usuário no servidor (SSH)")
+	user.SetPlaceHolder(tr("conn_ph_user"))
 	pass := widget.NewPasswordEntry()
-	pass.SetPlaceHolder("senha (opcional se usar chave)")
+	pass.SetPlaceHolder(tr("conn_ph_pass"))
 	keyPath := widget.NewEntry()
-	keyPath.SetPlaceHolder("caminho da chave .pem / id_rsa")
+	keyPath.SetPlaceHolder(tr("conn_ph_key"))
 	keyPass := widget.NewPasswordEntry()
-	keyPass.SetPlaceHolder("senha da chave (se houver)")
+	keyPass.SetPlaceHolder(tr("conn_ph_keypass"))
 	knownHosts := widget.NewEntry()
-	knownHosts.SetPlaceHolder("known_hosts: caminho1|caminho2")
-	themeSelect := widget.NewSelect([]string{"Padrão do sistema", "Claro", "Escuro"}, nil)
+	knownHosts.SetPlaceHolder(tr("conn_ph_knownhosts"))
+	themeSelect := widget.NewSelect([]string{tr("theme_system"), tr("theme_light"), tr("theme_dark")}, nil)
 	themeSelect.SetSelected(themeLabelForMode(loadThemeMode(fyne.CurrentApp())))
 	themeSelect.OnChanged = func(selected string) {
 		mode := themeModeFromLabel(selected)
@@ -250,25 +250,25 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 			applyThemeMode(app, mode)
 		})
 	}
-	insecureHost := widget.NewCheck("Ignorar chave de host SSH (inseguro)", nil)
+	insecureHost := widget.NewCheck(tr("chk_insecure"), nil)
 	insecureHost.SetChecked(true)
 	if policy.ForbidInsecureHostKey() {
 		insecureHost.SetChecked(false)
 		insecureHost.Disable()
 	}
 	dockerSocketEntry := widget.NewEntry()
-	dockerSocketEntry.SetPlaceHolder("/var/run/docker.sock — Podman: /run/user/…/podman/podman.sock")
+	dockerSocketEntry.SetPlaceHolder(tr("conn_ph_docker"))
 	parallelJobsEntry := widget.NewEntry()
 	parallelJobsEntry.SetText("3")
-	parallelJobsEntry.SetPlaceHolder("transferências em paralelo (1–16)")
+	parallelJobsEntry.SetPlaceHolder(tr("conn_ph_parallel"))
 	status := widget.NewLabel("")
 	status.Wrapping = fyne.TextWrapWord
-	saveSecrets := widget.NewCheck("Salvar senha/chave nesta conexão (uso local)", nil)
-	rememberSession := widget.NewCheck("Lembrar senha/chave só nesta sessão", nil)
+	saveSecrets := widget.NewCheck(tr("save_secrets"), nil)
+	rememberSession := widget.NewCheck(tr("remember_sess"), nil)
 	connName := widget.NewEntry()
-	connName.SetPlaceHolder("Nome da conexão (ex.: Produção)")
-	profileSelect := widget.NewSelect([]string{"Nova conexão…"}, nil)
-	profileSelect.SetSelected("Nova conexão…")
+	connName.SetPlaceHolder(tr("conn_ph_name"))
+	profileSelect := widget.NewSelect([]string{tr("profile_new")}, nil)
+	profileSelect.SetSelected(tr("profile_new"))
 
 	profiles, loadErr := loadSavedConnections()
 	if loadErr != nil {
@@ -276,7 +276,7 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 	}
 
 	rebuildProfileOptions := func(selected string) {
-		opts := []string{"Nova conexão…"}
+		opts := []string{tr("profile_new")}
 		for _, p := range profiles {
 			opts = append(opts, p.Name)
 		}
@@ -285,7 +285,7 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 		if selected != "" {
 			profileSelect.SetSelected(selected)
 		} else {
-			profileSelect.SetSelected("Nova conexão…")
+			profileSelect.SetSelected(tr("profile_new"))
 		}
 	}
 
@@ -336,25 +336,25 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 	}
 
 	profileSelect.OnChanged = func(sel string) {
-		if sel == "Nova conexão…" {
+		if sel == tr("profile_new") {
 			clearProfileInputs()
 			appendAuditLog("login", "Formulário de nova conexão selecionado")
 			return
 		}
 		c, ok := findConnectionByName(profiles, sel)
 		if !ok {
-			status.SetText("Conexão selecionada não encontrada.")
+			status.SetText(tr("conn_not_found"))
 			return
 		}
 		applyProfile(c)
-		status.SetText("Conexão carregada: " + c.Name)
+		status.SetText(fmt.Sprintf(tr("conn_loaded_fmt"), c.Name))
 		appendAuditLog("login", "Conexão carregada: "+c.Name)
 	}
 
-	saveProfile := widget.NewButtonWithIcon("Salvar", theme.DocumentSaveIcon(), func() {
+	saveProfile := widget.NewButtonWithIcon(tr("btn_save"), theme.DocumentSaveIcon(), func() {
 		name := strings.TrimSpace(connName.Text)
 		if name == "" {
-			dialog.ShowInformation("ContainerWay", "Informe um nome para salvar a conexão.", w)
+			dialog.ShowInformation(tr("app_name"), tr("dlg_conn_need_name"), w)
 			return
 		}
 		saved := savedConnection{
@@ -380,17 +380,17 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 			return
 		}
 		rebuildProfileOptions(name)
-		status.SetText("Conexão salva: " + name)
+		status.SetText(fmt.Sprintf(tr("conn_saved_fmt"), name))
 		appendAuditLog("login", "Conexão salva: "+name)
 	})
 
-	deleteProfile := widget.NewButtonWithIcon("Excluir", theme.DeleteIcon(), func() {
+	deleteProfile := widget.NewButtonWithIcon(tr("btn_delete"), theme.DeleteIcon(), func() {
 		target := strings.TrimSpace(profileSelect.Selected)
-		if target == "" || target == "Nova conexão…" {
-			dialog.ShowInformation("ContainerWay", "Selecione uma conexão salva para excluir.", w)
+		if target == "" || target == tr("profile_new") {
+			dialog.ShowInformation(tr("app_name"), tr("dlg_conn_pick_delete"), w)
 			return
 		}
-		dialog.ShowConfirm("Excluir conexão", fmt.Sprintf("Deseja excluir a conexão \"%s\"?", target), func(ok bool) {
+		dialog.ShowConfirm(tr("dlg_conn_delete_title"), fmt.Sprintf(tr("dlg_conn_delete_fmt"), target), func(ok bool) {
 			if !ok {
 				return
 			}
@@ -400,7 +400,7 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 				return
 			}
 			rebuildProfileOptions("")
-			status.SetText("Conexão excluída: " + target)
+			status.SetText(fmt.Sprintf(tr("conn_deleted_fmt"), target))
 			appendAuditLog("login", "Conexão excluída: "+target)
 		}, w)
 	})
@@ -421,22 +421,22 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 		canConnect := true
 		switch {
 		case hostVal == "":
-			msg = "Informe o host para conectar."
+			msg = tr("val_host")
 			canConnect = false
 		case userVal == "":
-			msg = "Informe o usuário SSH."
+			msg = tr("val_user")
 			canConnect = false
 		case strings.TrimSpace(pass.Text) == "" && keyVal == "":
-			msg = "Informe senha ou chave PEM/PPK."
+			msg = tr("val_auth")
 			canConnect = false
 		default:
 			v, err := strconv.Atoi(parVal)
 			if err != nil || v < 1 || v > 16 {
-				msg = "Paralelismo deve ser entre 1 e 16."
+				msg = tr("val_parallel")
 				canConnect = false
 			} else if keyVal != "" {
 				if _, err := os.Stat(keyVal); err != nil {
-					msg = "Arquivo de chave não encontrado no caminho informado."
+					msg = tr("val_key_missing")
 					canConnect = false
 				}
 			}
@@ -460,19 +460,19 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 
 	formConn := &widget.Form{
 		Items: []*widget.FormItem{
-			{Text: "Host", Widget: host},
-			{Text: "Usuário", Widget: user},
-			{Text: "Senha", Widget: pass},
+			{Text: tr("form_host"), Widget: host},
+			{Text: tr("form_user"), Widget: user},
+			{Text: tr("form_pass"), Widget: pass},
 		},
 	}
 	formAdv := &widget.Form{
 		Items: []*widget.FormItem{
-			{Text: "Chave PEM / PPK", Widget: keyPath},
-			{Text: "Senha da chave", Widget: keyPass},
-			{Text: "known_hosts", Widget: knownHosts},
+			{Text: tr("form_key"), Widget: keyPath},
+			{Text: tr("form_keypass"), Widget: keyPass},
+			{Text: tr("form_knownhosts"), Widget: knownHosts},
 			{Text: "", Widget: insecureHost},
-			{Text: "Socket Docker/Podman (remoto)", Widget: dockerSocketEntry},
-			{Text: "Paralelismo", Widget: parallelJobsEntry},
+			{Text: tr("form_docker"), Widget: dockerSocketEntry},
+			{Text: tr("form_parallel"), Widget: parallelJobsEntry},
 		},
 	}
 
@@ -491,24 +491,24 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 	)
 
 	tabs := fynecontainer.NewAppTabs(
-		fynecontainer.NewTabItem("Conexões SSH/SFTP", fynecontainer.NewVBox(
+		fynecontainer.NewTabItem(tr("tab_conn"), fynecontainer.NewVBox(
 			savedConnRow,
 			connName,
 			saveSecrets,
 			widget.NewSeparator(),
 			formConn,
 		)),
-		fynecontainer.NewTabItem("Chave e segurança", formAdv),
+		fynecontainer.NewTabItem(tr("tab_keysec"), formAdv),
 	)
 	tabs.SetTabLocation(fynecontainer.TabLocationTop)
-	themeRow := fynecontainer.NewBorder(nil, nil, widget.NewLabel("Tema"), nil, themeSelect)
+	themeRow := fynecontainer.NewBorder(nil, nil, widget.NewLabel(tr("conn_theme_label")), nil, themeSelect)
 
-	connect = widget.NewButtonWithIcon("Conectar", theme.LoginIcon(), func() {
-		status.SetText("Conectando…")
+	connect = widget.NewButtonWithIcon(tr("btn_connect"), theme.LoginIcon(), func() {
+		status.SetText(tr("st_connecting"))
 		appendAuditLog("login", "Tentativa de conexão para "+strings.TrimSpace(host.Text))
 		if policy.ForbidInsecureHostKey() && insecureHost.Checked {
-			status.SetText("Política local: não é permitido ignorar a chave de host.")
-			dialog.ShowInformation("Política de segurança", "A ligação com \"Ignorar chave de host\" não é permitida por política (CONTAINERWAY_FORBID_INSECURE_HOSTKEY ou policy.json).", w)
+			status.SetText(tr("st_policy_hostkey"))
+			dialog.ShowInformation(tr("dlg_policy_title"), tr("dlg_policy_insecure_body"), w)
 			return
 		}
 		creds := session.Credentials{
@@ -550,12 +550,12 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 		}()
 	})
 	connect.Importance = widget.HighImportance
-	testConn = widget.NewButtonWithIcon("Testar conexão", theme.ConfirmIcon(), func() {
-		status.SetText("Testando conexão…")
+	testConn = widget.NewButtonWithIcon(tr("btn_test"), theme.ConfirmIcon(), func() {
+		status.SetText(tr("st_testing"))
 		appendAuditLog("login", "Teste de conexão iniciado para "+strings.TrimSpace(host.Text))
 		if policy.ForbidInsecureHostKey() && insecureHost.Checked {
-			status.SetText("Política local: não é permitido ignorar a chave de host.")
-			dialog.ShowInformation("Política de segurança", "A ligação com \"Ignorar chave de host\" não é permitida por política (CONTAINERWAY_FORBID_INSECURE_HOSTKEY ou policy.json).", w)
+			status.SetText(tr("st_policy_hostkey"))
+			dialog.ShowInformation(tr("dlg_policy_title"), tr("dlg_policy_insecure_body"), w)
 			return
 		}
 		creds := session.Credentials{
@@ -583,7 +583,7 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 			}
 			sess.Close()
 			fyne.Do(func() {
-				status.SetText("Teste de conexão:\nSSH: OK\nSFTP: OK\nDocker/Podman: OK")
+				status.SetText(tr("st_test_ok"))
 			})
 			appendAuditLog("login", "Teste de conexão concluído com sucesso para "+strings.TrimSpace(host.Text))
 		}()
@@ -606,8 +606,8 @@ func buildLogin(w fyne.Window) fyne.CanvasObject {
 	parallelJobsEntry.OnChanged = func(string) { updateLoginValidation() }
 	updateLoginValidation()
 	card := widget.NewCard(
-		"ContainerWay",
-		"SSH · SFTP · Docker remoto sem expor a API em TCP",
+		tr("app_name"),
+		tr("login_card_subtitle"),
 		cardInner,
 	)
 
@@ -654,20 +654,30 @@ func applyThemeMode(a fyne.App, mode string) {
 func themeLabelForMode(mode string) string {
 	switch mode {
 	case themeModeLight:
-		return "Claro"
+		return tr("theme_light")
 	case themeModeDark:
-		return "Escuro"
+		return tr("theme_dark")
 	default:
-		return "Padrão do sistema"
+		return tr("theme_system")
 	}
 }
 
 // themeModeFromLabel executa parte da logica deste modulo.
 func themeModeFromLabel(label string) string {
-	switch strings.TrimSpace(label) {
-	case "Claro":
+	label = strings.TrimSpace(label)
+	if label == tr("theme_light") {
 		return themeModeLight
-	case "Escuro":
+	}
+	if label == tr("theme_dark") {
+		return themeModeDark
+	}
+	if label == tr("theme_system") {
+		return themeModeSystem
+	}
+	switch label {
+	case "Claro", "Light":
+		return themeModeLight
+	case "Escuro", "Dark", "Oscuro":
 		return themeModeDark
 	default:
 		return themeModeSystem
@@ -727,6 +737,19 @@ type explorer struct {
 	btnRightRecv   *widget.Button
 	lblSudoState   *widget.Label
 	btnDisableSudo *widget.Button
+
+	btnBackToHub     *widget.Button
+	btnHistory       *widget.Button
+	btnCompare       *widget.Button
+	btnDisconnect    *widget.Button
+	btnLeftSendBatch *widget.Button
+	btnRightRecvBatch *widget.Button
+	lblPaneLocal     *widget.Label
+	lblPaneRemote    *widget.Label
+	hintAddLeft      *hintIconButton
+	hintRemoveLeft   *hintIconButton
+	hintAddRight     *hintIconButton
+	hintRemoveRight  *hintIconButton
 
 	// Evita aplicar listagens antigas se o usuário mudar de pasta/contexto a meio.
 	rightRefreshSeq atomic.Uint64
@@ -794,6 +817,13 @@ type hintIconButton struct {
 	status  *widget.Label
 	prevMsg string
 	hover   bool
+}
+
+func (b *hintIconButton) setHintText(s string) {
+	if b == nil {
+		return
+	}
+	b.hint = strings.TrimSpace(s)
 }
 
 type terminalEntry struct {
@@ -1040,7 +1070,7 @@ func buildTerminalHostInfoText(stats remoteTerminalHostStats) string {
 	if uptime == "" {
 		uptime = "n/d"
 	}
-	return fmt.Sprintf("%s | %s | RAM: %s | Disco /: %s | Uptime: %s | Boot: %s | Usuário: %s",
+	return fmt.Sprintf(tr("ui_term_host_summary_fmt"),
 		osName, kernel, ram, disk, uptime, boot, user)
 }
 
@@ -1135,17 +1165,17 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 	status.Wrapping = fyne.TextWrapWord
 	statusRow := fynecontainer.NewVBox(status)
 	statusRow.Hide()
-	hostOSValue := widget.NewLabel("Coletando...")
-	hostResValue := widget.NewLabel("Coletando...")
-	hostTimeValue := widget.NewLabel("Coletando...")
-	hostUserValue := widget.NewLabel("Coletando...")
-	hostCompact := widget.NewLabel("Coletando informações do host...")
+	hostOSValue := widget.NewLabel(tr("ui_host_collecting"))
+	hostResValue := widget.NewLabel(tr("ui_host_collecting"))
+	hostTimeValue := widget.NewLabel(tr("ui_host_collecting"))
+	hostUserValue := widget.NewLabel(tr("ui_host_collecting"))
+	hostCompact := widget.NewLabel(tr("ui_host_collecting_info"))
 	hostCompact.Wrapping = fyne.TextWrapOff
-	clearBtn := widget.NewButton("Limpar", nil)
+	clearBtn := widget.NewButton(tr("ui_term_clear"), nil)
 	clearBtn.Importance = widget.MediumImportance
-	ctrlCBtn := widget.NewButton("Voltar", nil)
+	ctrlCBtn := widget.NewButton(tr("ex_back"), nil)
 	ctrlCBtn.Importance = widget.MediumImportance
-	btnCopyOutput := widget.NewButton("Copiar saída", nil)
+	btnCopyOutput := widget.NewButton(tr("ui_term_copy_output"), nil)
 	btnCopyOutput.Importance = widget.MediumImportance
 	var footer *fyne.Container
 	var body *fyne.Container
@@ -1293,7 +1323,7 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 					rerr := renderVTToTextGridANSI(vt, grid, cursorBlink.Load())
 					vtMu.Unlock()
 					if rerr != nil {
-						showStatus("Render ANSI instável; use modo compatibilidade.")
+						showStatus(tr("ui_term_ansi_unstable"))
 					}
 				})
 			}
@@ -1366,28 +1396,30 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 		stats, ferr := ui.fetchRemoteTerminalHostStats(ctx)
 		if ferr != nil {
 			if unavailableMsg == "" {
-				unavailableMsg = "Informações do host indisponíveis."
+				unavailableMsg = tr("ui_host_unavailable")
 			}
 			showStatus(unavailableMsg)
 			return
 		}
 		fyne.Do(func() {
 			hostOSValue.SetText(strings.TrimSpace(stats.osName) + " | " + strings.TrimSpace(stats.kernel))
-			hostResValue.SetText("RAM: " + fmt.Sprintf("%s / %s", formatBytesIEC(stats.memUsedB), formatBytesIEC(stats.memTotalB)) +
-				" | Disco /: " + fmt.Sprintf("%s / %s", formatBytesIEC(stats.diskUsedB), formatBytesIEC(stats.diskTotalB)))
-			hostTimeValue.SetText("Uptime: " + strings.TrimSpace(stats.uptimeShort) + " | Boot: " + strings.TrimSpace(stats.bootTime))
-			hostUserValue.SetText("Usuário: " + strings.TrimSpace(stats.user))
-			hostCompact.SetText(
-				strings.TrimSpace(stats.osName) + " | " +
-					"RAM: " + fmt.Sprintf("%s/%s", formatBytesIEC(stats.memUsedB), formatBytesIEC(stats.memTotalB)) + " | " +
-					"Disco: " + fmt.Sprintf("%s/%s", formatBytesIEC(stats.diskUsedB), formatBytesIEC(stats.diskTotalB)) + " | " +
-					"Uptime: " + strings.TrimSpace(stats.uptimeShort) + " | " +
-					"Usuário: " + strings.TrimSpace(stats.user),
-			)
+			hostResValue.SetText(fmt.Sprintf(tr("ui_term_host_ram_disk_fmt"),
+				formatBytesIEC(stats.memUsedB), formatBytesIEC(stats.memTotalB),
+				formatBytesIEC(stats.diskUsedB), formatBytesIEC(stats.diskTotalB)))
+			hostTimeValue.SetText(fmt.Sprintf(tr("ui_term_host_uptime_boot_fmt"),
+				strings.TrimSpace(stats.uptimeShort), strings.TrimSpace(stats.bootTime)))
+			hostUserValue.SetText(fmt.Sprintf(tr("ui_host_user_fmt"), strings.TrimSpace(stats.user)))
+			hostCompact.SetText(fmt.Sprintf(tr("ui_term_host_compact_fmt"),
+				strings.TrimSpace(stats.osName),
+				formatBytesIEC(stats.memUsedB), formatBytesIEC(stats.memTotalB),
+				formatBytesIEC(stats.diskUsedB), formatBytesIEC(stats.diskTotalB),
+				strings.TrimSpace(stats.uptimeShort),
+				strings.TrimSpace(stats.user),
+			))
 		})
 	}
 	go func() {
-		updateHostInfo("Não foi possível carregar as informações do host.")
+		updateHostInfo(tr("ui_host_load_fail"))
 		ticker := time.NewTicker(12 * time.Second)
 		defer ticker.Stop()
 		for {
@@ -1403,9 +1435,9 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 		waitErr := sess.Wait()
 		fyne.Do(func() {
 			if waitErr != nil && !closed.Load() {
-				showStatus("Sessão encerrada: " + strings.TrimSpace(waitErr.Error()))
+				showStatus(fmt.Sprintf(tr("ui_term_session_closed_fmt"), strings.TrimSpace(waitErr.Error())))
 			} else if !closed.Load() {
-				showStatus("Sessão encerrada.")
+				showStatus(tr("ui_term_session_closed"))
 			}
 			shouldAutoBack := !closed.Load()
 			if shouldAutoBack {
@@ -1425,7 +1457,7 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 			return
 		}
 		if _, werr := io.WriteString(stdin, seq); werr != nil {
-			showStatus("Falha ao enviar tecla.")
+			showStatus(tr("ui_term_send_key_fail"))
 		}
 	}
 	runTerminalCommand := func(cmd string) {
@@ -1444,8 +1476,8 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 			return
 		}
 		sendKey("\u0003")
-		showStatus("Sinal Ctrl+C enviado (teclado).")
-		clearStatusAfter("Sinal Ctrl+C enviado (teclado).", 2500*time.Millisecond)
+		showStatus(tr("ui_term_ctrl_c_keyboard"))
+		clearStatusAfter(tr("ui_term_ctrl_c_keyboard"), 2500*time.Millisecond)
 	})
 	clearBtn.OnTapped = func() { sendKey("clear\r") }
 	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyUp}, func(fyne.Shortcut) { sendKey("\x1bOA") })
@@ -1454,32 +1486,32 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyLeft}, func(fyne.Shortcut) { sendKey("\x1bOD") })
 	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyPageUp}, func(fyne.Shortcut) { sendKey("\x1b[5~") })
 	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyPageDown}, func(fyne.Shortcut) { sendKey("\x1b[6~") })
-	btnHtop := widget.NewButtonWithIcon("Gen. de Tarefas", theme.ComputerIcon(), func() {
+	btnHtop := widget.NewButtonWithIcon(tr("ui_term_btn_htop"), theme.ComputerIcon(), func() {
 		cmd := `command -v htop >/dev/null 2>&1 || { echo '[ContainerWay] htop não encontrado. Instalando...'; if command -v apt-get >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y htop; elif command -v dnf >/dev/null 2>&1; then sudo dnf install -y htop; elif command -v yum >/dev/null 2>&1; then sudo yum install -y htop; elif command -v pacman >/dev/null 2>&1; then sudo pacman -Sy --noconfirm htop; else echo '[ContainerWay] Gerenciador de pacotes não suportado para instalação automática.'; fi; }; command -v htop >/dev/null 2>&1 && htop`
 		runTerminalCommand(cmd)
-		showStatus("Abrindo gerenciador de tarefas (htop)...")
-		clearStatusAfter("Abrindo gerenciador de tarefas (htop)...", 2200*time.Millisecond)
+		showStatus(tr("ui_term_htop_opening"))
+		clearStatusAfter(tr("ui_term_htop_opening"), 2200*time.Millisecond)
 	})
 	btnHtop.Importance = widget.MediumImportance
-	btnNcdu := widget.NewButtonWithIcon("Ver. Armazenamento", theme.StorageIcon(), func() {
+	btnNcdu := widget.NewButtonWithIcon(tr("ui_term_btn_ncdu"), theme.StorageIcon(), func() {
 		cmd := `command -v ncdu >/dev/null 2>&1 || { echo '[ContainerWay] ncdu não encontrado. Instalando...'; if command -v apt-get >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y ncdu; elif command -v dnf >/dev/null 2>&1; then sudo dnf install -y ncdu; elif command -v yum >/dev/null 2>&1; then sudo yum install -y ncdu; elif command -v pacman >/dev/null 2>&1; then sudo pacman -Sy --noconfirm ncdu; else echo '[ContainerWay] Gerenciador de pacotes não suportado para instalação automática.'; fi; }; command -v ncdu >/dev/null 2>&1 && cd / && ncdu`
 		runTerminalCommand(cmd)
-		showStatus("Abrindo análise de armazenamento (ncdu)...")
-		clearStatusAfter("Abrindo análise de armazenamento (ncdu)...", 2200*time.Millisecond)
+		showStatus(tr("ui_term_ncdu_opening"))
+		clearStatusAfter(tr("ui_term_ncdu_opening"), 2200*time.Millisecond)
 	})
 	btnNcdu.Importance = widget.MediumImportance
 	btnCopyOutput.OnTapped = func() {
 		content := getTerminalLog()
 		if content == "" {
-			showStatus("Sem saída disponível para copiar.")
-			clearStatusAfter("Sem saída disponível para copiar.", 2200*time.Millisecond)
+			showStatus(tr("ui_term_no_output_copy"))
+			clearStatusAfter(tr("ui_term_no_output_copy"), 2200*time.Millisecond)
 			return
 		}
 		ui.win.Clipboard().SetContent(content)
-		showStatus("Saída do terminal copiada para a área de transferência.")
-		clearStatusAfter("Saída do terminal copiada para a área de transferência.", 2500*time.Millisecond)
+		showStatus(tr("ui_term_output_copied"))
+		clearStatusAfter(tr("ui_term_output_copied"), 2500*time.Millisecond)
 	}
-	btnCmdList := widget.NewButtonWithIcon("Lista de comandos", theme.InfoIcon(), func() {
+	btnCmdList := widget.NewButtonWithIcon(tr("ui_term_btn_cmd_list"), theme.InfoIcon(), func() {
 		type commandItem struct {
 			label   string
 			cmd     string
@@ -1611,8 +1643,8 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 			}
 			if isDangerousCommand(cmd) {
 				dialog.ShowConfirm(
-					"Confirmar execução",
-					"Este comando pode ser destrutivo. Deseja realmente executar?\n\n"+cmd,
+					tr("dlg_term_danger_title"),
+					fmt.Sprintf(tr("dlg_term_danger_body_fmt"), cmd),
 					func(ok bool) {
 						if ok {
 							runNow()
@@ -1625,16 +1657,13 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 			runNow()
 		}
 		confirmTerminalAction := func(actionLabel, cmd string, willExecute bool, onConfirm func()) {
-			modeText := "Inserir no terminal (sem executar)"
+			modeText := tr("dlg_term_mode_insert")
 			if willExecute {
-				modeText = "Executar no terminal"
+				modeText = tr("dlg_term_mode_exec")
 			}
-			message := "Ação: " + actionLabel + "\n" +
-				"Modo: " + modeText + "\n\n" +
-				"Comando:\n" + cmd + "\n\n" +
-				"Deseja continuar?"
+			message := fmt.Sprintf(tr("dlg_term_action_intro_fmt"), actionLabel, modeText, cmd)
 			dialog.ShowConfirm(
-				"Confirmar ação no terminal",
+				tr("dlg_term_action_title"),
 				message,
 				func(ok bool) {
 					if ok && onConfirm != nil {
@@ -1797,7 +1826,7 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 				healthBtn,
 			)
 			return fynecontainer.NewVBox(
-				widget.NewLabel("Defina variáveis e gere/executa comandos sem editar na mão."),
+				widget.NewLabel(tr("ui_linux_cmd_hint_vars")),
 				composeFields,
 				actionGrid,
 			)
@@ -1823,13 +1852,13 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 		buildCommandRow := func(item commandItem) fyne.CanvasObject {
 			descLabel := widget.NewLabel(item.label)
 			cmdLabel := widget.NewLabelWithStyle(item.cmd, fyne.TextAlignLeading, fyne.TextStyle{Monospace: true})
-			insertBtn := widget.NewButtonWithIcon("Inserir", theme.ContentAddIcon(), func(cmd string) func() {
+			insertBtn := widget.NewButtonWithIcon(tr("ui_linux_cmd_insert"), theme.ContentAddIcon(), func(cmd string) func() {
 				return func() {
 					confirmTerminalAction("Inserir comando", cmd, false, func() { insertCommand(cmd) })
 				}
 			}(item.cmd))
 			insertBtn.Importance = widget.MediumImportance
-			runBtn := widget.NewButtonWithIcon("Inserir e executar", theme.MediaPlayIcon(), func(cmd string) func() {
+			runBtn := widget.NewButtonWithIcon(tr("ui_linux_cmd_insert_run"), theme.MediaPlayIcon(), func(cmd string) func() {
 				return func() {
 					confirmTerminalAction("Inserir e executar comando", cmd, true, func() { insertAndRunCommand(cmd) })
 				}
@@ -1862,7 +1891,7 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 		rebuildResults = func(filter string) {
 			filter = strings.ToLower(strings.TrimSpace(filter))
 			rows := []fyne.CanvasObject{
-				widget.NewLabel("Descrição primeiro, comando abaixo. Use Inserir (sem executar) ou Inserir e executar."),
+				widget.NewLabel(tr("ui_linux_cmd_hint_insert")),
 				widget.NewSeparator(),
 			}
 			matchCount := 0
@@ -1904,7 +1933,7 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 				}
 			}
 			if quickCount > 0 {
-				rows = append(rows, widget.NewLabelWithStyle("Mais usados", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
+				rows = append(rows, widget.NewLabelWithStyle(tr("ui_linux_most_used"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
 				rows = append(rows, quickRows...)
 				rows = append(rows, widget.NewSeparator())
 			}
@@ -1912,13 +1941,13 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 				rows = append(rows, sectionBlocks...)
 			}
 			if matchCount == 0 {
-				rows = append(rows, widget.NewLabel("Nenhum comando encontrado para a pesquisa."))
+				rows = append(rows, widget.NewLabel(tr("ui_linux_cmd_none")))
 			}
 			results.Objects = rows
 			results.Refresh()
 		}
 		searchEntry := widget.NewEntry()
-		searchEntry.SetPlaceHolder("Pesquisar comando (ex.: pasta, chmod, rede, memória...)")
+		searchEntry.SetPlaceHolder(tr("ui_linux_cmd_search_ph"))
 		searchEntry.OnChanged = func(s string) {
 			activeFilter = s
 			rebuildResults(activeFilter)
@@ -1931,17 +1960,17 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 			rebuildResults(activeFilter)
 		})
 		profileSelect.SetSelected("Todos")
-		quickToggle := widget.NewCheck("Mostrar só mais usados", func(v bool) {
+		quickToggle := widget.NewCheck(tr("ui_linux_cmd_quick_only"), func(v bool) {
 			onlyQuick = v
 			rebuildResults(activeFilter)
 		})
-		favToggle := widget.NewCheck("Mostrar só favoritos", func(v bool) {
+		favToggle := widget.NewCheck(tr("ui_linux_cmd_fav_only"), func(v bool) {
 			onlyFavorites = v
 			rebuildResults(activeFilter)
 		})
 		rebuildResults("")
 		dockerComposeSection := widget.NewAccordion(
-			widget.NewAccordionItem("Docker Compose rápido", composeToolsCard()),
+			widget.NewAccordionItem(tr("ui_linux_cmd_compose_acc"), composeToolsCard()),
 		)
 		dockerComposeSection.CloseAll()
 		commandsSectionBody := fynecontainer.NewVBox(
@@ -1956,19 +1985,19 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 			results,
 		)
 		commandsSection := widget.NewAccordion(
-			widget.NewAccordionItem("Comandos Linux", commandsSectionBody),
+			widget.NewAccordionItem(tr("ui_linux_cmd_accordion"), commandsSectionBody),
 		)
 		commandsSection.Open(0)
 		content := fynecontainer.NewVBox(
-			widget.NewLabelWithStyle("Lista de comandos Linux", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+			widget.NewLabelWithStyle(tr("ui_linux_cmd_dlg_title"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 			dockerComposeSection,
 			commandsSection,
 		)
 		contentScroller := fynecontainer.NewVScroll(content)
 		contentScroller.SetMinSize(fyne.NewSize(820, 480))
-		dialog.ShowCustom("Lista de comandos Linux", "Fechar", contentScroller, ui.win)
-		showStatus("Exibindo lista de comandos Linux.")
-		clearStatusAfter("Exibindo lista de comandos Linux.", 1800*time.Millisecond)
+		dialog.ShowCustom(tr("ui_linux_cmd_dlg_title"), tr("compare_close"), contentScroller, ui.win)
+		showStatus(tr("ui_term_cmd_list_showing"))
+		clearStatusAfter(tr("ui_term_cmd_list_showing"), 1800*time.Millisecond)
 	})
 	btnCmdList.Importance = widget.MediumImportance
 	ui.win.Canvas().SetOnTypedRune(func(r rune) { sendKey(string(r)) })
@@ -2020,14 +2049,14 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 			fynecontainer.NewHBox(ctrlCWrap, copyWrap, clearWrap, layout.NewSpacer()),
 		)
 	}
-	toggleHostBtn := widget.NewButtonWithIcon("Detalhes", theme.InfoIcon(), func() {
+	toggleHostBtn := widget.NewButtonWithIcon(tr("ui_term_details"), theme.InfoIcon(), func() {
 		detailsText := strings.Join([]string{
 			hostOSValue.Text,
 			hostResValue.Text,
 			hostTimeValue.Text,
 			hostUserValue.Text,
 		}, "\n")
-		dialog.ShowInformation("Detalhes do host", detailsText, ui.win)
+		dialog.ShowInformation(tr("dlg_host_details"), detailsText, ui.win)
 	})
 	toggleHostBtn.Importance = widget.LowImportance
 	hostCompactBar := fynecontainer.NewBorder(nil, nil, nil, toggleHostBtn, hostCompact)
@@ -2040,9 +2069,10 @@ func (ui *explorer) showTerminalConsoleVT(currentDir, host string) error {
 		nil,
 		terminalViewport,
 	)
-	ui.openSettingsFullscreenWithBack("Terminal SSH", body, closeTerminal)
-	showStatus("TTY ANSI ativo. Host: " + host)
-	clearStatusAfter("TTY ANSI ativo. Host: "+host, 2200*time.Millisecond)
+	ui.openSettingsFullscreenWithBack(tr("ui_term_title"), body, closeTerminal)
+	ttyActiveMsg := fmt.Sprintf(tr("ui_term_tty_active_fmt"), host)
+	showStatus(ttyActiveMsg)
+	clearStatusAfter(ttyActiveMsg, 2200*time.Millisecond)
 	lastCanvas = terminalViewport.Size()
 	if lastCanvas.Width > 0 && lastCanvas.Height > 0 {
 		applyResize(lastCanvas)
@@ -2205,9 +2235,9 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	defer cancel()
 	list, err := s.Docker.ContainerList(ctx, dcontainer.ListOptions{All: false})
 	if err != nil {
-		errLabel := widget.NewLabel(fmt.Sprintf("Não foi possível usar o Docker neste servidor: %v", err))
+		errLabel := widget.NewLabel(fmt.Sprintf(tr("ex_docker_err_fmt"), err))
 		errLabel.Wrapping = fyne.TextWrapWord
-		closeBtn := widget.NewButtonWithIcon("Encerrar sessão", theme.LogoutIcon(), func() {
+		closeBtn := widget.NewButtonWithIcon(tr("ex_docker_close"), theme.LogoutIcon(), func() {
 			finalizeLocalAccessSession(w, s, "Sessão encerrada após erro ao acessar o Docker")
 		})
 		closeBtn.Importance = widget.DangerImportance
@@ -2216,7 +2246,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 			finalizeLocalAccessSession(w, s, "Sessão encerrada (fechamento da janela após erro no Docker)")
 		})
 		inner := fynecontainer.NewVBox(errLabel, widget.NewSeparator(), closeBtn)
-		return fynecontainer.NewPadded(widget.NewCard("Docker / Podman", "Verifique o socket Unix nas preferências da ligação e permissões no servidor.", inner))
+		return fynecontainer.NewPadded(widget.NewCard(tr("ex_docker_card_title"), tr("ex_docker_card_sub"), inner))
 	}
 
 	ui := &explorer{
@@ -2227,7 +2257,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 		leftPath:           homeOrRoot(),
 		rightPath:          "/",
 		hostMode:           true,
-		containerOpts:      []string{"Pastas do servidor (fora dos contêineres)"},
+		containerOpts:      []string{tr("ex_ctx_host_folders")},
 		containerIDs:       []string{""},
 		leftSel:            -1,
 		rightSel:           -1,
@@ -2272,20 +2302,20 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	ui.progress.Hide()
 	ui.lastJobText = widget.NewLabel("")
 	ui.leftSearch = widget.NewEntry()
-	ui.leftSearch.SetPlaceHolder("Pesquisar no computador local (nome, ext:log, tipo:pasta)")
-	ui.leftTypeFilter = widget.NewSelect([]string{"Tudo", "Pastas", "Arquivos"}, func(_ string) {
+	ui.leftSearch.SetPlaceHolder(tr("ex_placeholder_left"))
+	ui.leftTypeFilter = widget.NewSelect([]string{tr("ex_filter_all"), tr("ex_filter_dirs"), tr("ex_filter_files")}, func(_ string) {
 		ui.applyLeftFilter()
 	})
-	ui.leftTypeFilter.SetSelected("Tudo")
+	ui.leftTypeFilter.SetSelected(tr("ex_filter_all"))
 	ui.rightSearch = widget.NewEntry()
-	ui.rightSearch.SetPlaceHolder("Pesquisar no lado do servidor (nome, ext:log, tipo:pasta)")
-	ui.rightTypeFilter = widget.NewSelect([]string{"Tudo", "Pastas", "Arquivos"}, func(_ string) {
+	ui.rightSearch.SetPlaceHolder(tr("ex_placeholder_right"))
+	ui.rightTypeFilter = widget.NewSelect([]string{tr("ex_filter_all"), tr("ex_filter_dirs"), tr("ex_filter_files")}, func(_ string) {
 		ui.applyRightFilter()
 	})
-	ui.rightTypeFilter.SetSelected("Tudo")
-	ui.leftFooterInfo = widget.NewLabel("Local: selecione um item.")
+	ui.rightTypeFilter.SetSelected(tr("ex_filter_all"))
+	ui.leftFooterInfo = widget.NewLabel(tr("ui_footer_local_pick"))
 	ui.leftFooterInfo.Wrapping = fyne.TextWrapWord
-	ui.rightFooterInfo = widget.NewLabel("Servidor: selecione um item.")
+	ui.rightFooterInfo = widget.NewLabel(tr("ui_footer_server_pick"))
 	ui.rightFooterInfo.Wrapping = fyne.TextWrapWord
 
 	ui.leftList = widget.NewList(
@@ -2385,22 +2415,22 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	})
 	ui.ctxSelect.SetSelectedIndex(0)
 
-	ui.btnOpenLocal = widget.NewButtonWithIcon("Abrir", theme.FolderOpenIcon(), func() { ui.onLeftActivate() })
-	ui.btnOpenRemote = widget.NewButtonWithIcon("Abrir", theme.FolderOpenIcon(), func() { ui.onRightActivate() })
-	ui.btnLeftSend = widget.NewButtonWithIcon("Enviar", theme.UploadIcon(), func() { ui.upload() })
-	ui.btnRightRecv = widget.NewButtonWithIcon("Receber", theme.DownloadIcon(), func() { ui.download() })
-	btnLeftSendBatch := widget.NewButtonWithIcon("Enviar visíveis", theme.ContentAddIcon(), func() { ui.uploadVisibleBatch() })
-	btnRightRecvBatch := widget.NewButtonWithIcon("Receber visíveis", theme.ContentAddIcon(), func() { ui.downloadVisibleBatch() })
+	ui.btnOpenLocal = widget.NewButtonWithIcon(tr("ex_open"), theme.FolderOpenIcon(), func() { ui.onLeftActivate() })
+	ui.btnOpenRemote = widget.NewButtonWithIcon(tr("ex_open"), theme.FolderOpenIcon(), func() { ui.onRightActivate() })
+	ui.btnLeftSend = widget.NewButtonWithIcon(tr("ex_send"), theme.UploadIcon(), func() { ui.upload() })
+	ui.btnRightRecv = widget.NewButtonWithIcon(tr("ex_receive"), theme.DownloadIcon(), func() { ui.download() })
+	ui.btnLeftSendBatch = widget.NewButtonWithIcon(tr("ex_send_visible"), theme.ContentAddIcon(), func() { ui.uploadVisibleBatch() })
+	ui.btnRightRecvBatch = widget.NewButtonWithIcon(tr("ex_recv_visible"), theme.ContentAddIcon(), func() { ui.downloadVisibleBatch() })
 	ui.btnOpenLocal.Importance = widget.MediumImportance
 	ui.btnOpenRemote.Importance = widget.MediumImportance
 	ui.btnLeftSend.Importance = widget.HighImportance
 	ui.btnRightRecv.Importance = widget.HighImportance
-	btnLeftSendBatch.Importance = widget.MediumImportance
-	btnRightRecvBatch.Importance = widget.MediumImportance
-	btnAddLeftFavorite := newHintIconButton(theme.ContentAddIcon(), "Salvar pasta atual nos atalhos do computador local", ui.status, func() { ui.addLeftFavoriteCurrentPath() })
-	btnRemoveLeftFavorite := newHintIconButton(theme.ContentRemoveIcon(), "Remover pasta atual dos atalhos do computador local", ui.status, func() { ui.removeLeftFavoriteCurrentPath() })
-	btnAddRightFavorite := newHintIconButton(theme.ContentAddIcon(), "Salvar pasta atual nos atalhos do servidor", ui.status, func() { ui.addRightFavoriteCurrentPath() })
-	btnRemoveRightFavorite := newHintIconButton(theme.ContentRemoveIcon(), "Remover pasta atual dos atalhos do servidor", ui.status, func() { ui.removeRightFavoriteCurrentPath() })
+	ui.btnLeftSendBatch.Importance = widget.MediumImportance
+	ui.btnRightRecvBatch.Importance = widget.MediumImportance
+	ui.hintAddLeft = newHintIconButton(theme.ContentAddIcon(), tr("hint_add_left"), ui.status, func() { ui.addLeftFavoriteCurrentPath() })
+	ui.hintRemoveLeft = newHintIconButton(theme.ContentRemoveIcon(), tr("hint_remove_left"), ui.status, func() { ui.removeLeftFavoriteCurrentPath() })
+	ui.hintAddRight = newHintIconButton(theme.ContentAddIcon(), tr("hint_add_right"), ui.status, func() { ui.addRightFavoriteCurrentPath() })
+	ui.hintRemoveRight = newHintIconButton(theme.ContentRemoveIcon(), tr("hint_remove_right"), ui.status, func() { ui.removeRightFavoriteCurrentPath() })
 	btnBackLocal := widget.NewButtonWithIcon("", theme.NavigateBackIcon(), func() { ui.goLeftBack() })
 	btnUpLocal := widget.NewButtonWithIcon("", theme.MoveUpIcon(), func() { ui.goLeftUp() })
 	btnHomeLocal := widget.NewButtonWithIcon("", theme.HomeIcon(), func() { ui.goLeftHome() })
@@ -2410,50 +2440,50 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	btnHomeRemote := widget.NewButtonWithIcon("", theme.HomeIcon(), func() { ui.goRightHome() })
 	btnReloadRemote := widget.NewButtonWithIcon("", theme.ViewRefreshIcon(), func() { ui.refreshRight() })
 
-	ui.btnUp = widget.NewButtonWithIcon("Enviar", theme.UploadIcon(), func() { ui.upload() })
+	ui.btnUp = widget.NewButtonWithIcon(tr("ex_send"), theme.UploadIcon(), func() { ui.upload() })
 	ui.btnUp.Importance = widget.HighImportance
-	ui.btnDown = widget.NewButtonWithIcon("Receber", theme.DownloadIcon(), func() { ui.download() })
+	ui.btnDown = widget.NewButtonWithIcon(tr("ex_receive"), theme.DownloadIcon(), func() { ui.download() })
 	ui.btnDown.Importance = widget.HighImportance
-	btnHistory := widget.NewButtonWithIcon("Histórico", theme.HistoryIcon(), func() { ui.showOperationHistory() })
-	btnCompare := widget.NewButtonWithIcon("Comparar", theme.SearchIcon(), func() { ui.showCompareFoldersExplorer() })
-	btnCompare.Importance = widget.MediumImportance
-	btnDisconnect := widget.NewButtonWithIcon("Sair", theme.LogoutIcon(), func() {
+	ui.btnHistory = widget.NewButtonWithIcon(tr("ex_history"), theme.HistoryIcon(), func() { ui.showOperationHistory() })
+	ui.btnCompare = widget.NewButtonWithIcon(tr("ex_compare"), theme.SearchIcon(), func() { ui.showCompareFoldersExplorer() })
+	ui.btnCompare.Importance = widget.MediumImportance
+	ui.btnDisconnect = widget.NewButtonWithIcon(tr("ex_logout"), theme.LogoutIcon(), func() {
 		finalizeLocalAccessSession(w, s, "Sessão encerrada pelo usuário")
 	})
-	btnDisconnect.Importance = widget.DangerImportance
-	ui.lblSudoState = widget.NewLabel("Sudo: inativo")
-	ui.btnDisableSudo = widget.NewButtonWithIcon("Desativar sudo", theme.CancelIcon(), func() { ui.disableSudoMode() })
+	ui.btnDisconnect.Importance = widget.DangerImportance
+	ui.lblSudoState = widget.NewLabel(tr("ex_sudo_inactive"))
+	ui.btnDisableSudo = widget.NewButtonWithIcon(tr("ex_disable_sudo"), theme.CancelIcon(), func() { ui.disableSudoMode() })
 
-	btnBackToHub := widget.NewButtonWithIcon("Voltar", theme.NavigateBackIcon(), func() { ui.showSessionHub() })
-	btnBackToHub.Importance = widget.MediumImportance
+	ui.btnBackToHub = widget.NewButtonWithIcon(tr("ex_back"), theme.NavigateBackIcon(), func() { ui.showSessionHub() })
+	ui.btnBackToHub.Importance = widget.MediumImportance
 	toolbarItems := []fyne.CanvasObject{
-		btnBackToHub,
+		ui.btnBackToHub,
 		ui.btnUp,
 		ui.btnDown,
-		btnHistory,
-		btnCompare,
+		ui.btnHistory,
+		ui.btnCompare,
 	}
 	toolbarItems = append(toolbarItems,
 		layout.NewSpacer(),
 		ui.lblSudoState,
 		ui.btnDisableSudo,
 		layout.NewSpacer(),
-		btnDisconnect,
+		ui.btnDisconnect,
 	)
 	toolbar := fynecontainer.NewHBox(toolbarItems...)
 	if ui.useCompactLayout() {
 		primaryRow := []fyne.CanvasObject{
-			btnBackToHub,
+			ui.btnBackToHub,
 			ui.btnUp,
 			ui.btnDown,
-			btnHistory,
-			btnCompare,
+			ui.btnHistory,
+			ui.btnCompare,
 		}
 		secondaryRow := []fyne.CanvasObject{
 			ui.lblSudoState,
 			ui.btnDisableSudo,
 			layout.NewSpacer(),
-			btnDisconnect,
+			ui.btnDisconnect,
 		}
 		toolbar = fynecontainer.NewVBox(
 			fynecontainer.NewHScroll(fynecontainer.NewHBox(primaryRow...)),
@@ -2476,7 +2506,7 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 		ui.resetLeftSearch()
 		ui.refreshLeft()
 	})
-	ui.leftQuick.SetSelected("Diretório inicial")
+	ui.leftQuick.SetSelected(tr("sc_home"))
 
 	rightFavs := ui.remoteShortcutOptions()
 	ui.rightQuick = widget.NewSelect(rightFavs, func(sel string) {
@@ -2511,10 +2541,11 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	rightHomeWrap := fynecontainer.NewGridWrap(fyne.NewSize(navBtnWidth, btnHomeRemote.MinSize().Height), btnHomeRemote)
 	rightReloadWrap := fynecontainer.NewGridWrap(fyne.NewSize(navBtnWidth, btnReloadRemote.MinSize().Height), btnReloadRemote)
 
+	ui.lblPaneLocal = widget.NewLabelWithStyle(tr("ex_pane_local"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	leftHead := fynecontainer.NewVBox(
 		fynecontainer.NewHBox(
 			widget.NewIcon(theme.HomeIcon()),
-			widget.NewLabelWithStyle("Computador local", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+			ui.lblPaneLocal,
 			layout.NewSpacer(),
 		),
 		fynecontainer.NewHBox(
@@ -2524,14 +2555,14 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 			leftReloadWrap,
 			layout.NewSpacer(),
 			leftQuickWrap,
-			btnAddLeftFavorite,
-			btnRemoveLeftFavorite,
+			ui.hintAddLeft,
+			ui.hintRemoveLeft,
 		),
 		fynecontainer.NewBorder(nil, nil, nil, leftTypeFilterWrap, ui.leftSearch),
 		fynecontainer.NewHBox(
 			ui.btnOpenLocal,
 			ui.btnLeftSend,
-			btnLeftSendBatch,
+			ui.btnLeftSendBatch,
 		),
 	)
 	leftPaneBase := fynecontainer.NewBorder(
@@ -2541,10 +2572,11 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 	)
 	leftPane := panelCard(leftPaneBase)
 
+	ui.lblPaneRemote = widget.NewLabelWithStyle(tr("ex_pane_remote"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	rightHead := fynecontainer.NewVBox(
 		fynecontainer.NewHBox(
 			widget.NewIcon(theme.StorageIcon()),
-			widget.NewLabelWithStyle("Lado do servidor", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+			ui.lblPaneRemote,
 			layout.NewSpacer(),
 		),
 		fynecontainer.NewHBox(
@@ -2554,15 +2586,15 @@ func buildExplorer(w fyne.Window, s *session.Session, parallelJobs int, creds se
 			rightReloadWrap,
 			layout.NewSpacer(),
 			rightQuickWrap,
-			btnAddRightFavorite,
-			btnRemoveRightFavorite,
+			ui.hintAddRight,
+			ui.hintRemoveRight,
 			ctxSelectWrap,
 		),
 		fynecontainer.NewBorder(nil, nil, nil, rightTypeFilterWrap, ui.rightSearch),
 		fynecontainer.NewHBox(
 			ui.btnOpenRemote,
 			ui.btnRightRecv,
-			btnRightRecvBatch,
+			ui.btnRightRecvBatch,
 		),
 	)
 	rightPaneBase := fynecontainer.NewBorder(
@@ -2623,36 +2655,36 @@ func hubSessionCard(title, description string, footer fyne.CanvasObject) fyne.Ca
 
 // buildSessionHub executa parte da logica deste modulo.
 func buildSessionHub(ui *explorer) fyne.CanvasObject {
-	host := strings.TrimSpace(ui.connCreds.Host)
-	if host == "" {
-		host = "(host não informado)"
+	hostDisp := strings.TrimSpace(ui.connCreds.Host)
+	if hostDisp == "" {
+		hostDisp = tr("hostUnknown")
 	}
-	sub := widget.NewLabel("Conectado a: " + host)
+	sub := widget.NewLabel(fmt.Sprintf(tr("connectedToFmt"), hostDisp))
 	sub.Alignment = fyne.TextAlignCenter
 	sub.Wrapping = fyne.TextWrapWord
 
 	search := widget.NewEntry()
-	search.SetPlaceHolder("Pesquisar módulos (ex.: arquivos, docker, discos, e-mail, usuários)…")
+	search.SetPlaceHolder(tr("searchPlaceholder"))
 
-	openFiles := widget.NewButtonWithIcon("Abrir", explorerListIconFolder, func() {
+	openFiles := widget.NewButtonWithIcon(tr("open"), explorerListIconFolder, func() {
 		ui.win.SetContent(ui.explorerMain)
 		ui.explorerOnTop.Store(true)
 		setExplorerWindow(ui.win)
 	})
 	openFiles.Importance = widget.MediumImportance
 	cardFiles := hubSessionCard(
-		"Gerenciador de arquivos",
-		"Pastas no computador local, no servidor e nos contêineres. Envio e recebimento de arquivos.",
+		tr("cardFilesTitle"),
+		tr("cardFilesDesc"),
 		fynecontainer.NewPadded(openFiles),
 	)
 
-	openDocker := widget.NewButtonWithIcon("Abrir", hubIconDocker, func() {
+	openDocker := widget.NewButtonWithIcon(tr("open"), hubIconDocker, func() {
 		ui.showDockerContainerManager()
 	})
 	openDocker.Importance = widget.MediumImportance
 	cardDocker := hubSessionCard(
-		"Contêineres Docker",
-		"Lista do que está em execução no host, com opção de reinício unitário ou em lote.",
+		tr("cardDockerTitle"),
+		tr("cardDockerDesc"),
 		fynecontainer.NewPadded(openDocker),
 	)
 
@@ -2663,58 +2695,58 @@ func buildSessionHub(ui *explorer) fyne.CanvasObject {
 	var mods []hubModule
 	mods = append(mods, hubModule{
 		wrap: fynecontainer.NewPadded(cardFiles),
-		blob: "gerenciador arquivos arquivo pasta servidor sftp transferência local remoto explorador receber enviar",
+		blob: hubSearchBlob("srchFiles"),
 	})
 	mods = append(mods, hubModule{
 		wrap: fynecontainer.NewPadded(cardDocker),
-		blob: "docker contêiner container rodando reiniciar host imagem compose",
+		blob: hubSearchBlob("srchDocker"),
 	})
 
-	openDisks := widget.NewButtonWithIcon("Abrir", hubIconDisks, func() {
+	openDisks := widget.NewButtonWithIcon(tr("open"), hubIconDisks, func() {
 		ui.showDiskStorageManager()
 	})
 	openDisks.Importance = widget.MediumImportance
 	cardDisks := hubSessionCard(
-		"Discos e armazenamento",
-		"Tabela a partir de lsblk, abas (assistente LVM, resumo, df/LVM) e filtro opcional de dispositivos loop (Snap).",
+		tr("cardDisksTitle"),
+		tr("cardDisksDesc"),
 		fynecontainer.NewPadded(openDisks),
 	)
 	mods = append(mods, hubModule{
 		wrap: fynecontainer.NewPadded(cardDisks),
-		blob: "disco discos armazenamento lsblk lvm volume partição df montagem snap loop",
+		blob: hubSearchBlob("srchDisks"),
 	})
 
-	openTerminal := widget.NewButtonWithIcon("Abrir", hubIconTerminal, func() {
+	openTerminal := widget.NewButtonWithIcon(tr("open"), hubIconTerminal, func() {
 		ui.showTerminalConsole()
 	})
 	openTerminal.Importance = widget.MediumImportance
 	cardTerminal := hubSessionCard(
-		"Terminal SSH",
-		"Console remoto básico para executar comandos no host conectado.",
+		tr("cardTerminalTitle"),
+		tr("cardTerminalDesc"),
 		fynecontainer.NewPadded(openTerminal),
 	)
 	mods = append(mods, hubModule{
 		wrap: fynecontainer.NewPadded(cardTerminal),
-		blob: "terminal ssh shell console comando host remoto bash sh",
+		blob: hubSearchBlob("srchTerminal"),
 	})
 
-	openAutomations := widget.NewButtonWithIcon("Abrir", hubIconAutomations, func() {
+	openAutomations := widget.NewButtonWithIcon(tr("open"), hubIconAutomations, func() {
 		ui.showAutomationCenter()
 	})
 	openAutomations.Importance = widget.MediumImportance
 	cardAutomations := hubSessionCard(
-		"Central de automações",
-		"Regras operacionais com gatilho e ação para executar tarefas automáticas no host conectado.",
+		tr("cardAutoTitle"),
+		tr("cardAutoDesc"),
 		fynecontainer.NewPadded(openAutomations),
 	)
 	mods = append(mods, hubModule{
 		wrap: fynecontainer.NewPadded(cardAutomations),
-		blob: "automação automacoes gatilho ação acao tarefa rotina runbook operação incidente alerta",
+		blob: hubSearchBlob("srchAuto"),
 	})
 
 	if isCurrentAccessAdmin() {
-		btnUsers := widget.NewButtonWithIcon("Usuários", hubIconUsers, func() { ui.showAccessUserManager() })
-		btnMail := widget.NewButtonWithIcon("Alertas por e-mail", hubIconMail, func() { ui.showMailNotifySettings() })
+		btnUsers := widget.NewButtonWithIcon(tr("btnUsers"), hubIconUsers, func() { ui.showAccessUserManager() })
+		btnMail := widget.NewButtonWithIcon(tr("btnMail"), hubIconMail, func() { ui.showMailNotifySettings() })
 		btnUsers.Importance = widget.MediumImportance
 		btnMail.Importance = widget.MediumImportance
 		settingsBody := fynecontainer.NewVBox(
@@ -2722,13 +2754,13 @@ func buildSessionHub(ui *explorer) fyne.CanvasObject {
 			fynecontainer.NewPadded(btnMail),
 		)
 		cardSettings := hubSessionCard(
-			"Configurações",
-			"Contas de acesso ao aplicativo e alertas por SMTP.",
+			tr("cardSettingsTitle"),
+			tr("cardSettingsDesc"),
 			settingsBody,
 		)
 		mods = append(mods, hubModule{
 			wrap: fynecontainer.NewPadded(cardSettings),
-			blob: "configurações configuração usuário usuários admin e-mail email smtp alerta notificação destinatário",
+			blob: hubSearchBlob("srchSettings"),
 		})
 	}
 
@@ -2766,7 +2798,7 @@ func buildSessionHub(ui *explorer) fyne.CanvasObject {
 			}
 		}
 		if nShown == 0 {
-			hint.SetText("Nenhum módulo corresponde à pesquisa. Limpe o campo ou tente outras palavras.")
+			hint.SetText(tr("hintNoModules"))
 		} else {
 			hint.SetText("")
 		}
@@ -2815,20 +2847,36 @@ func buildSessionHub(ui *explorer) fyne.CanvasObject {
 	btnThemeDark.OnTapped = func() { applyHubThemeFromHub(themeModeDark) }
 	syncHubThemeButtons()
 
-	btnHubManual := widget.NewButtonWithIcon("Manual do sistema", theme.HelpIcon(), func() {
+	btnHubManual := widget.NewButtonWithIcon(tr("manualBtn"), theme.HelpIcon(), func() {
 		ui.showUserManual()
 	})
 	btnHubManual.Importance = widget.MediumImportance
+	langSelect := widget.NewSelect([]string{
+		langLabelForCode(langPTBR),
+		langLabelForCode(langEN),
+		langLabelForCode(langES),
+	}, nil)
+	langSelect.SetSelected(langLabelForCode(loadUILanguage(fyne.CurrentApp())))
+	langSelect.OnChanged = func(sel string) {
+		next := langCodeFromLabel(sel)
+		if next == loadUILanguage(fyne.CurrentApp()) {
+			return
+		}
+		saveUILanguage(fyne.CurrentApp(), next)
+		ui.refreshSessionHubLanguage()
+	}
 	themeBar := fynecontainer.NewHBox(
 		btnHubManual,
+		widget.NewLabel(tr("langLabel")),
+		langSelect,
 		layout.NewSpacer(),
-		widget.NewLabel("Tema"),
+		widget.NewLabel(tr("themeLabel")),
 		btnThemeSys,
 		btnThemeLight,
 		btnThemeDark,
 	)
 
-	head := widget.NewLabelWithStyle("Início da sessão", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+	head := widget.NewLabelWithStyle(tr("sessionStart"), fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 
 	top := fynecontainer.NewVBox(
 		themeBar,
@@ -2866,6 +2914,139 @@ func (ui *explorer) showSessionHub() {
 	ui.explorerOnTop.Store(false)
 	ui.win.SetContent(ui.sessionHub)
 	setSessionHubWindow(ui.win)
+}
+
+// applyExplorerLocale atualiza rótulos do explorador quando o idioma muda.
+func (ui *explorer) applyExplorerLocale() {
+	if ui == nil {
+		return
+	}
+	if len(ui.containerOpts) > 0 {
+		ui.containerOpts[0] = tr("ex_ctx_host_folders")
+		if ui.ctxSelect != nil {
+			idx := ui.ctxSelect.SelectedIndex()
+			if idx < 0 || idx >= len(ui.containerOpts) {
+				idx = 0
+			}
+			ui.ctxSelect.Options = ui.containerOpts
+			ui.ctxSelect.SetSelectedIndex(idx)
+		}
+	}
+	if ui.lblPaneLocal != nil {
+		ui.lblPaneLocal.SetText(tr("ex_pane_local"))
+	}
+	if ui.lblPaneRemote != nil {
+		ui.lblPaneRemote.SetText(tr("ex_pane_remote"))
+	}
+	optsFilter := []string{tr("ex_filter_all"), tr("ex_filter_dirs"), tr("ex_filter_files")}
+	if ui.leftTypeFilter != nil {
+		cur := normalizeExplorerTypeFilter(ui.leftTypeFilter.Selected)
+		ui.leftTypeFilter.Options = optsFilter
+		switch cur {
+		case "dirs":
+			ui.leftTypeFilter.SetSelected(tr("ex_filter_dirs"))
+		case "files":
+			ui.leftTypeFilter.SetSelected(tr("ex_filter_files"))
+		default:
+			ui.leftTypeFilter.SetSelected(tr("ex_filter_all"))
+		}
+	}
+	if ui.rightTypeFilter != nil {
+		cur := normalizeExplorerTypeFilter(ui.rightTypeFilter.Selected)
+		ui.rightTypeFilter.Options = optsFilter
+		switch cur {
+		case "dirs":
+			ui.rightTypeFilter.SetSelected(tr("ex_filter_dirs"))
+		case "files":
+			ui.rightTypeFilter.SetSelected(tr("ex_filter_files"))
+		default:
+			ui.rightTypeFilter.SetSelected(tr("ex_filter_all"))
+		}
+	}
+	if ui.leftSearch != nil {
+		ui.leftSearch.SetPlaceHolder(tr("ex_placeholder_left"))
+	}
+	if ui.rightSearch != nil {
+		ui.rightSearch.SetPlaceHolder(tr("ex_placeholder_right"))
+	}
+	if ui.btnOpenLocal != nil {
+		ui.btnOpenLocal.SetText(tr("ex_open"))
+	}
+	if ui.btnOpenRemote != nil {
+		ui.btnOpenRemote.SetText(tr("ex_open"))
+	}
+	if ui.btnLeftSend != nil {
+		ui.btnLeftSend.SetText(tr("ex_send"))
+	}
+	if ui.btnRightRecv != nil {
+		ui.btnRightRecv.SetText(tr("ex_receive"))
+	}
+	if ui.btnLeftSendBatch != nil {
+		ui.btnLeftSendBatch.SetText(tr("ex_send_visible"))
+	}
+	if ui.btnRightRecvBatch != nil {
+		ui.btnRightRecvBatch.SetText(tr("ex_recv_visible"))
+	}
+	if ui.btnUp != nil {
+		ui.btnUp.SetText(tr("ex_send"))
+	}
+	if ui.btnDown != nil {
+		ui.btnDown.SetText(tr("ex_receive"))
+	}
+	if ui.btnBackToHub != nil {
+		ui.btnBackToHub.SetText(tr("ex_back"))
+	}
+	if ui.btnHistory != nil {
+		ui.btnHistory.SetText(tr("ex_history"))
+	}
+	if ui.btnCompare != nil {
+		ui.btnCompare.SetText(tr("ex_compare"))
+	}
+	if ui.btnDisconnect != nil {
+		ui.btnDisconnect.SetText(tr("ex_logout"))
+	}
+	if ui.btnDisableSudo != nil {
+		ui.btnDisableSudo.SetText(tr("ex_disable_sudo"))
+	}
+	if ui.hintAddLeft != nil {
+		ui.hintAddLeft.setHintText(tr("hint_add_left"))
+	}
+	if ui.hintRemoveLeft != nil {
+		ui.hintRemoveLeft.setHintText(tr("hint_remove_left"))
+	}
+	if ui.hintAddRight != nil {
+		ui.hintAddRight.setHintText(tr("hint_add_right"))
+	}
+	if ui.hintRemoveRight != nil {
+		ui.hintRemoveRight.setHintText(tr("hint_remove_right"))
+	}
+
+	ui.refreshLeftShortcutOptions(leftQuickSelectLabelForPath(ui.leftPath))
+	ui.refreshRightShortcutOptions(ui.rightPath)
+	ui.updateBreadcrumb()
+	ui.updateSudoUIState()
+	ui.updateFooterPanels()
+	if ui.leftList != nil {
+		ui.leftList.Refresh()
+	}
+	if ui.rightList != nil {
+		ui.rightList.Refresh()
+	}
+}
+
+// refreshSessionHubLanguage reconstrói o hub quando o idioma muda (mantém a janela no hub se já estiver lá).
+func (ui *explorer) refreshSessionHubLanguage() {
+	if ui.win == nil || ui.sessionHub == nil || ui.explorerMain == nil {
+		return
+	}
+	oldHub := ui.sessionHub
+	wasHub := ui.win.Content() == oldHub
+	ui.sessionHub = buildSessionHub(ui)
+	ui.applyExplorerLocale()
+	if wasHub {
+		ui.win.SetContent(ui.sessionHub)
+		setSessionHubWindow(ui.win)
+	}
 }
 
 // useCompactLayout indica quando a janela exige layout compacto.
@@ -3001,11 +3182,11 @@ func (ui *explorer) copySelectedEntry(left bool, id widget.ListItemID) {
 // pasteCopiedTo executa parte da logica deste modulo.
 func (ui *explorer) pasteCopiedTo(leftTarget bool, targetDir string) {
 	if ui.copiedEntry == nil {
-		dialog.ShowInformation("Colar", "Copie um arquivo ou pasta antes de colar.", ui.win)
+		dialog.ShowInformation(tr("dlg_paste_title"), tr("dlg_paste_need_copy"), ui.win)
 		return
 	}
 	if leftTarget && localfs.IsWindowsDrivesVirtual(strings.TrimSpace(targetDir)) {
-		dialog.ShowInformation("Colar", "Abra uma pasta dentro de uma unidade (por exemplo D:\\Projetos) antes de colar ou receber aqui.", ui.win)
+		dialog.ShowInformation(tr("dlg_paste_title"), tr("dlg_paste_drive_folder"), ui.win)
 		return
 	}
 	src := *ui.copiedEntry
@@ -3043,7 +3224,7 @@ func (ui *explorer) pasteCopiedTo(leftTarget bool, targetDir string) {
 	}
 	// Remoto -> Remoto (mesmo contexto)
 	if src.hostMode != ui.hostMode || (!src.hostMode && src.containerID != "" && ui.cfs != nil && src.containerID != ui.cfs.ID) {
-		dialog.ShowInformation("Colar", "Para colar no remoto, mantenha o mesmo contexto (host ou contêiner).", ui.win)
+		dialog.ShowInformation(tr("dlg_paste_title"), tr("dlg_paste_same_ctx"), ui.win)
 		return
 	}
 	ui.enqueueRemoteToRemote(src, targetDir)
@@ -3099,18 +3280,18 @@ func copyLocalDir(ctx context.Context, srcDir, dstDir string) error {
 // leftPathFooterLabel executa parte da logica deste modulo.
 func leftPathFooterLabel(p string) string {
 	if localfs.IsWindowsDrivesVirtual(p) {
-		return "Unidades de disco (Windows)"
+		return tr("ex_path_drives_virtual")
 	}
 	return p
 }
 
 // updateBreadcrumb executa parte da logica deste modulo.
 func (ui *explorer) updateBreadcrumb() {
-	ui.leftPathLbl.SetText(fmt.Sprintf("Pasta local: %s", leftPathFooterLabel(ui.leftPath)))
+	ui.leftPathLbl.SetText(fmt.Sprintf(tr("ex_foot_path_local"), leftPathFooterLabel(ui.leftPath)))
 	ui.leftCrumbs.Objects = ui.makePathButtons(ui.leftPath, true)
 	ui.leftCrumbs.Refresh()
 	if ui.hostMode {
-		ui.breadcrumb.SetText(fmt.Sprintf("Pasta no servidor: %s", ui.rightPath))
+		ui.breadcrumb.SetText(fmt.Sprintf(tr("ex_breadcrumb_server"), ui.rightPath))
 		ui.rightCrumbs.Objects = ui.makePathButtons(ui.rightPath, false)
 		ui.rightCrumbs.Refresh()
 		return
@@ -3119,7 +3300,7 @@ func (ui *explorer) updateBreadcrumb() {
 	if len(short) > 12 {
 		short = short[:12]
 	}
-	ui.breadcrumb.SetText(fmt.Sprintf("Dentro do contêiner (ID %s): %s", short, ui.rightPath))
+	ui.breadcrumb.SetText(fmt.Sprintf(tr("ex_breadcrumb_container"), short, ui.rightPath))
 	ui.rightCrumbs.Objects = ui.makePathButtons(ui.rightPath, false)
 	ui.rightCrumbs.Refresh()
 }
@@ -3145,16 +3326,16 @@ func (ui *explorer) applyLeftFilter() {
 		selectedPath = ui.leftRows[ui.leftSel].Path
 	}
 	criteria := parseRightFilterCriteria(ui.leftSearch.Text)
-	typeChoice := "Tudo"
+	typeNorm := "all"
 	if ui.leftTypeFilter != nil {
-		typeChoice = strings.TrimSpace(ui.leftTypeFilter.Selected)
+		typeNorm = normalizeExplorerTypeFilter(ui.leftTypeFilter.Selected)
 	}
-	if criteria.term == "" && criteria.ext == "" && typeChoice == "Tudo" {
+	if criteria.term == "" && criteria.ext == "" && typeNorm == "all" {
 		ui.leftRows = append([]fsutil.DirEntry(nil), ui.leftAll...)
 	} else {
 		filtered := make([]fsutil.DirEntry, 0, len(ui.leftAll))
 		for _, e := range ui.leftAll {
-			if e.Name == ".." || rightEntryMatches(e, criteria, typeChoice) {
+			if e.Name == ".." || rightEntryMatches(e, criteria, typeNorm) {
 				filtered = append(filtered, e)
 			}
 		}
@@ -3173,7 +3354,7 @@ func (ui *explorer) applyLeftFilter() {
 	}
 	ui.leftList.Refresh()
 	ui.leftList.ScrollToTop()
-	if criteria.term != "" || criteria.ext != "" || typeChoice != "Tudo" {
+	if criteria.term != "" || criteria.ext != "" || typeNorm != "all" {
 		matches := 0
 		for _, e := range ui.leftRows {
 			if e.Name != ".." {
@@ -3289,7 +3470,7 @@ func (ui *explorer) showSudoCredentialsDialog(windowTitle string) {
 	userEntry := widget.NewEntry()
 	userEntry.SetText(ui.connCreds.User)
 	passEntry := widget.NewPasswordEntry()
-	passEntry.SetPlaceHolder("senha do usuário da sessão com sudo")
+	passEntry.SetPlaceHolder(tr("ui_sudo_pass_ph"))
 	userEntry.Resize(fyne.NewSize(260, userEntry.MinSize().Height))
 	passEntry.Resize(fyne.NewSize(260, passEntry.MinSize().Height))
 
@@ -3299,18 +3480,18 @@ func (ui *explorer) showSudoCredentialsDialog(windowTitle string) {
 		"Cancelar",
 		fyne.NewSize(460, 240),
 		[]*widget.FormItem{
-			widget.NewFormItem("Usuário", userEntry),
+			widget.NewFormItem(tr("ui_sudo_fi_user"), userEntry),
 			widget.NewFormItem("Senha", passEntry),
 		},
 		func() {
 			defer ui.rootPromptOpen.Store(false)
 			if strings.TrimSpace(passEntry.Text) == "" {
-				dialog.ShowInformation("Credenciais obrigatórias", "Informe a senha para tentar acesso elevado via sudo.", ui.win)
+				dialog.ShowInformation(tr("dlg_sudo_need_pass"), tr("dlg_sudo_body_pass"), ui.win)
 				return
 			}
 			user := strings.TrimSpace(userEntry.Text)
 			if user == "" {
-				dialog.ShowInformation("Credenciais obrigatórias", "Informe o usuário para sudo.", ui.win)
+				dialog.ShowInformation(tr("dlg_sudo_need_pass"), tr("dlg_sudo_body_user"), ui.win)
 				return
 			}
 			ui.enableSudoMode(user, passEntry.Text)
@@ -3343,7 +3524,7 @@ func (ui *explorer) enableSudoMode(user, password string) {
 				ui.status.SetText("Falha ao validar sudo.")
 				dialog.ShowError(
 					fmt.Errorf(
-						"não foi possível elevar com sudo: %s\n\nLog de diagnóstico: %s",
+						tr("ui_sudo_elevate_fail_fmt"),
 						formatSudoErrorMessage(err),
 						filepath.Join(os.TempDir(), "containerway-sudo-debug.log"),
 					),
@@ -3371,7 +3552,7 @@ func (ui *explorer) disableSudoMode() {
 	ui.sudoPass = ""
 	ui.sudoValidatedAt = time.Time{}
 	ui.updateSudoUIState()
-	ui.status.SetText("Sudo desativado.")
+	ui.status.SetText(tr("ex_sudo_off_msg"))
 }
 
 // updateSudoUIState executa parte da logica deste modulo.
@@ -3380,11 +3561,11 @@ func (ui *explorer) updateSudoUIState() {
 		return
 	}
 	if ui.sudoEnabled && strings.TrimSpace(ui.sudoUser) != "" {
-		ui.lblSudoState.SetText("Sudo: ativo (" + ui.sudoUser + ")")
+		ui.lblSudoState.SetText(fmt.Sprintf(tr("ex_sudo_active"), ui.sudoUser))
 		ui.btnDisableSudo.Enable()
 		return
 	}
-	ui.lblSudoState.SetText("Sudo: inativo")
+	ui.lblSudoState.SetText(tr("ex_sudo_inactive"))
 	ui.btnDisableSudo.Disable()
 }
 
@@ -3967,16 +4148,16 @@ func (ui *explorer) applyRightFilter() {
 		selectedPath = ui.rightRows[ui.rightSel].Path
 	}
 	criteria := parseRightFilterCriteria(ui.rightSearch.Text)
-	typeChoice := "Tudo"
+	typeNorm := "all"
 	if ui.rightTypeFilter != nil {
-		typeChoice = strings.TrimSpace(ui.rightTypeFilter.Selected)
+		typeNorm = normalizeExplorerTypeFilter(ui.rightTypeFilter.Selected)
 	}
-	if criteria.term == "" && criteria.ext == "" && typeChoice == "Tudo" {
+	if criteria.term == "" && criteria.ext == "" && typeNorm == "all" {
 		ui.rightRows = append([]fsutil.DirEntry(nil), ui.rightAll...)
 	} else {
 		filtered := make([]fsutil.DirEntry, 0, len(ui.rightAll))
 		for _, e := range ui.rightAll {
-			if e.Name == ".." || rightEntryMatches(e, criteria, typeChoice) {
+			if e.Name == ".." || rightEntryMatches(e, criteria, typeNorm) {
 				filtered = append(filtered, e)
 			}
 		}
@@ -3995,7 +4176,7 @@ func (ui *explorer) applyRightFilter() {
 	}
 	ui.rightList.Refresh()
 	ui.rightList.ScrollToTop()
-	if criteria.term != "" || criteria.ext != "" || typeChoice != "Tudo" {
+	if criteria.term != "" || criteria.ext != "" || typeNorm != "all" {
 		matches := 0
 		for _, e := range ui.rightRows {
 			if e.Name != ".." {
@@ -4049,19 +4230,36 @@ func parseRightFilterCriteria(raw string) rightFilterCriteria {
 	return out
 }
 
+// normalizeExplorerTypeFilter converte o rótulo do select (qualquer idioma) para all|dirs|files.
+func normalizeExplorerTypeFilter(sel string) string {
+	s := strings.ToLower(strings.TrimSpace(sel))
+	for _, lang := range []string{langPTBR, langEN, langES} {
+		m := explorerStrings[lang]
+		if s == strings.ToLower(strings.TrimSpace(m["ex_filter_all"])) {
+			return "all"
+		}
+		if s == strings.ToLower(strings.TrimSpace(m["ex_filter_dirs"])) {
+			return "dirs"
+		}
+		if s == strings.ToLower(strings.TrimSpace(m["ex_filter_files"])) {
+			return "files"
+		}
+	}
+	return "all"
+}
+
 // rightEntryMatches executa parte da logica deste modulo.
-func rightEntryMatches(e fsutil.DirEntry, c rightFilterCriteria, typeChoice string) bool {
+func rightEntryMatches(e fsutil.DirEntry, c rightFilterCriteria, typeNorm string) bool {
 	name := strings.ToLower(e.Name)
 	if c.term != "" && !strings.Contains(name, c.term) {
 		return false
 	}
-	requiredKind := strings.ToLower(strings.TrimSpace(typeChoice))
-	switch requiredKind {
-	case "pastas":
+	switch strings.TrimSpace(typeNorm) {
+	case "dirs":
 		if !e.IsDir {
 			return false
 		}
-	case "arquivos":
+	case "files":
 		if e.IsDir {
 			return false
 		}
@@ -4120,7 +4318,7 @@ func (ui *explorer) goLeftUp() {
 			ui.resetLeftSearch()
 			ui.refreshLeft()
 			if ui.leftQuick != nil {
-				ui.leftQuick.SetSelected("Unidades de disco")
+				ui.leftQuick.SetSelected(tr("sc_disk_drives"))
 			}
 			return
 		}
@@ -4189,7 +4387,7 @@ func (ui *explorer) pushRightHistory(next string) {
 // onLeftActivate executa parte da logica deste modulo.
 func (ui *explorer) onLeftActivate() {
 	if ui.leftSel < 0 || ui.leftSel >= len(ui.leftRows) {
-		dialog.ShowInformation("ContainerWay", "Selecione uma pasta no painel local para abrir.", ui.win)
+		dialog.ShowInformation(tr("app_name"), tr("dlg_pick_local_dir"), ui.win)
 		return
 	}
 	e := ui.leftRows[ui.leftSel]
@@ -4217,7 +4415,7 @@ func (ui *explorer) onLeftDoubleAction() {
 		return
 	}
 	if err := openWithDefaultApp(e.Path); err != nil {
-		dialog.ShowError(fmt.Errorf("não foi possível abrir o arquivo: %w", err), ui.win)
+		dialog.ShowError(fmt.Errorf(tr("ui_err_open_file"), err), ui.win)
 		return
 	}
 	ui.status.SetText("Arquivo local aberto: " + e.Name)
@@ -4226,7 +4424,7 @@ func (ui *explorer) onLeftDoubleAction() {
 // onRightActivate executa parte da logica deste modulo.
 func (ui *explorer) onRightActivate() {
 	if ui.rightSel < 0 || ui.rightSel >= len(ui.rightRows) {
-		dialog.ShowInformation("ContainerWay", "Selecione uma pasta no painel do servidor para abrir.", ui.win)
+		dialog.ShowInformation(tr("app_name"), tr("dlg_pick_remote_dir"), ui.win)
 		return
 	}
 	e := ui.rightRows[ui.rightSel]
@@ -4255,8 +4453,8 @@ func (ui *explorer) onRightDoubleAction() {
 		return
 	}
 	dialog.ShowConfirm(
-		"Editar arquivo remoto",
-		fmt.Sprintf("Deseja abrir \"%s\" para edição remota? O arquivo será sincronizado de volta quando você salvar.", e.Name),
+		tr("dlg_remote_edit_title"),
+		fmt.Sprintf(tr("dlg_remote_edit_fmt"), e.Name),
 		func(open bool) {
 			if !open {
 				return
@@ -4270,16 +4468,16 @@ func (ui *explorer) onRightDoubleAction() {
 // upload executa parte da logica deste modulo.
 func (ui *explorer) upload() {
 	if ui.leftSel < 0 || ui.leftSel >= len(ui.leftRows) {
-		dialog.ShowInformation("ContainerWay", "Selecione um arquivo ou pasta na lista à esquerda (seu computador).", ui.win)
+		dialog.ShowInformation(tr("app_name"), tr("dlg_pick_left_item"), ui.win)
 		return
 	}
 	if localfs.IsWindowsDrivesVirtual(ui.leftPath) {
-		dialog.ShowInformation("ContainerWay", "Abra uma pasta dentro de uma unidade antes de enviar arquivos.", ui.win)
+		dialog.ShowInformation(tr("app_name"), tr("dlg_open_drive_send"), ui.win)
 		return
 	}
 	src := ui.leftRows[ui.leftSel]
 	if src.Name == ".." {
-		dialog.ShowInformation("ContainerWay", "Selecione um arquivo ou pasta válidos.", ui.win)
+		dialog.ShowInformation(tr("app_name"), tr("dlg_pick_valid_item"), ui.win)
 		return
 	}
 	dstName := filepath.Base(src.Path)
@@ -4433,16 +4631,16 @@ func (ui *explorer) upload() {
 // download executa parte da logica deste modulo.
 func (ui *explorer) download() {
 	if localfs.IsWindowsDrivesVirtual(ui.leftPath) {
-		dialog.ShowInformation("ContainerWay", "Abra uma pasta dentro de uma unidade (por exemplo D:\\Projetos) antes de receber arquivos no computador local.", ui.win)
+		dialog.ShowInformation(tr("app_name"), tr("dlg_open_drive_recv"), ui.win)
 		return
 	}
 	if ui.rightSel < 0 || ui.rightSel >= len(ui.rightRows) {
-		dialog.ShowInformation("ContainerWay", "Selecione um arquivo ou pasta na lista à direita (servidor ou contêiner).", ui.win)
+		dialog.ShowInformation(tr("app_name"), tr("dlg_pick_right_item"), ui.win)
 		return
 	}
 	src := ui.rightRows[ui.rightSel]
 	if src.Name == ".." {
-		dialog.ShowInformation("ContainerWay", "Selecione um arquivo ou pasta válidos.", ui.win)
+		dialog.ShowInformation(tr("app_name"), tr("dlg_pick_valid_item"), ui.win)
 		return
 	}
 	dstPath := filepath.Join(ui.leftPath, src.Name)
@@ -4596,16 +4794,16 @@ func transferableEntries(rows []fsutil.DirEntry) []fsutil.DirEntry {
 // uploadVisibleBatch executa parte da logica deste modulo.
 func (ui *explorer) uploadVisibleBatch() {
 	if localfs.IsWindowsDrivesVirtual(ui.leftPath) {
-		dialog.ShowInformation("ContainerWay", "Abra uma pasta dentro de uma unidade antes de enviar em lote.", ui.win)
+		dialog.ShowInformation(tr("app_name"), tr("dlg_batch_send_drive"), ui.win)
 		return
 	}
 	items := transferableEntries(ui.leftRows)
 	if len(items) == 0 {
-		dialog.ShowInformation("ContainerWay", "Não há itens visíveis no painel local para enviar.", ui.win)
+		dialog.ShowInformation(tr("app_name"), tr("dlg_batch_no_local"), ui.win)
 		return
 	}
 	msg := fmt.Sprintf("Enviar %d item(ns) visível(is) para %s?", len(items), ui.rightPath)
-	dialog.ShowConfirm("Enviar em lote", msg, func(ok bool) {
+	dialog.ShowConfirm(tr("dlg_batch_send_title"), msg, func(ok bool) {
 		if !ok {
 			return
 		}
@@ -4621,16 +4819,16 @@ func (ui *explorer) uploadVisibleBatch() {
 // downloadVisibleBatch executa parte da logica deste modulo.
 func (ui *explorer) downloadVisibleBatch() {
 	if localfs.IsWindowsDrivesVirtual(ui.leftPath) {
-		dialog.ShowInformation("ContainerWay", "Abra uma pasta dentro de uma unidade antes de receber em lote no computador local.", ui.win)
+		dialog.ShowInformation(tr("app_name"), tr("dlg_batch_recv_drive"), ui.win)
 		return
 	}
 	items := transferableEntries(ui.rightRows)
 	if len(items) == 0 {
-		dialog.ShowInformation("ContainerWay", "Não há itens visíveis no painel do servidor para receber.", ui.win)
+		dialog.ShowInformation(tr("app_name"), tr("dlg_batch_no_remote"), ui.win)
 		return
 	}
 	msg := fmt.Sprintf("Receber %d item(ns) visível(is) em %s?", len(items), ui.leftPath)
-	dialog.ShowConfirm("Receber em lote", msg, func(ok bool) {
+	dialog.ShowConfirm(tr("dlg_batch_recv_title"), msg, func(ok bool) {
 		if !ok {
 			return
 		}
@@ -4783,7 +4981,7 @@ func (ui *explorer) enqueueLocalToRemote(src fsutil.DirEntry, dstDir string) {
 // enqueueRemoteToLocal executa parte da logica deste modulo.
 func (ui *explorer) enqueueRemoteToLocal(src copiedItem, dstDir string) {
 	if localfs.IsWindowsDrivesVirtual(strings.TrimSpace(dstDir)) {
-		dialog.ShowInformation("ContainerWay", "Abra uma pasta em uma unidade (ex.: D:\\Projetos) antes de receber arquivos aqui.", ui.win)
+		dialog.ShowInformation(tr("app_name"), tr("dlg_recv_here_drive"), ui.win)
 		return
 	}
 	dstPath := filepath.Join(dstDir, path.Base(src.entry.Path))
@@ -4979,7 +5177,7 @@ func (ui *explorer) startDrain() {
 							ui.status.SetText(batchSummary)
 							ui.appendOperationHistory(batchSummary)
 							appendAuditLog("transfer", "Concluído | "+batchSummary)
-							dialog.ShowInformation("Transferência em lote concluída", batchSummary, ui.win)
+							dialog.ShowInformation(tr("dlg_transfer_batch_done"), batchSummary, ui.win)
 						}
 					} else {
 						ui.status.SetText(batchProgress)
@@ -5000,7 +5198,7 @@ func (ui *explorer) startDrain() {
 					appendAuditLog("transfer", "Concluído | "+j.Name)
 					ui.status.SetText("Concluído: " + j.Name)
 					ui.appendOperationHistory("Concluído: " + j.Name)
-					dialog.ShowInformation("Transferência concluída", j.Name, ui.win)
+					dialog.ShowInformation(tr("dlg_transfer_done"), j.Name, ui.win)
 				}
 				ui.refreshLeft()
 				ui.refreshRightQuiet()
@@ -5093,9 +5291,9 @@ func (ui *explorer) updateActionState() {
 // entryTypeLabel executa parte da logica deste modulo.
 func entryTypeLabel(e fsutil.DirEntry) string {
 	if e.IsDir {
-		return "pasta"
+		return tr("ex_type_dir")
 	}
-	return "arquivo"
+	return tr("ex_type_file")
 }
 
 // summarizeEntries executa parte da logica deste modulo.
@@ -5126,43 +5324,49 @@ func (ui *explorer) updateFooterPanels() {
 	leftDirs, leftFiles := summarizeEntries(ui.leftRows)
 	rightDirs, rightFiles := summarizeEntries(ui.rightRows)
 
-	leftSelText := "nenhum item selecionado"
+	leftSelText := tr("ex_foot_sel_none")
 	if left, ok := ui.selectedLeftEntry(); ok {
-		leftActionHint := "ações: abrir/enviar disponíveis"
+		leftActionHint := tr("ex_foot_act_open_send")
 		if left.Name == ".." {
-			leftActionHint = "ações: usar voltar/subir; enviar indisponível"
+			leftActionHint = tr("ex_foot_act_parent_send")
 		}
-		leftSelText = fmt.Sprintf("selecionado: %s (%s) | %s", left.Name, entryTypeLabel(left), leftActionHint)
+		leftSelText = fmt.Sprintf(tr("ex_foot_sel_fmt"), left.Name, entryTypeLabel(left), leftActionHint)
 	} else {
-		leftSelText = "nenhum item selecionado | ações: selecione um item para abrir/enviar"
+		leftSelText = tr("ex_foot_sel_none_left")
 	}
-	rightSelText := "nenhum item selecionado"
+	rightSelText := tr("ex_foot_sel_none")
 	if right, ok := ui.selectedRightEntry(); ok {
-		rightActionHint := "ações: abrir/receber disponíveis"
+		rightActionHint := tr("ex_foot_act_open_recv")
 		if right.Name == ".." {
-			rightActionHint = "ações: usar voltar/subir; receber indisponível"
+			rightActionHint = tr("ex_foot_act_parent_recv")
 		}
-		rightSelText = fmt.Sprintf("selecionado: %s (%s) | %s", right.Name, entryTypeLabel(right), rightActionHint)
+		rightSelText = fmt.Sprintf(tr("ex_foot_sel_fmt"), right.Name, entryTypeLabel(right), rightActionHint)
 	} else {
-		rightSelText = "nenhum item selecionado | ações: selecione um item para abrir/receber"
+		rightSelText = tr("ex_foot_sel_none_right")
 	}
 
-	rightPathLabel := fmt.Sprintf("Pasta servidor: %s", ui.rightPath)
+	rightPathLabel := fmt.Sprintf(tr("ex_foot_path_server"), ui.rightPath)
 	if !ui.hostMode && ui.cfs != nil {
 		short := strings.TrimPrefix(ui.cfs.ID, "sha256:")
 		if len(short) > 12 {
 			short = short[:12]
 		}
-		rightPathLabel = fmt.Sprintf("Pasta contêiner (%s): %s", short, ui.rightPath)
+		rightPathLabel = fmt.Sprintf(tr("ex_foot_path_container"), short, ui.rightPath)
 	}
 
+	countsLeft := fmt.Sprintf(tr("ex_foot_items"), leftDirs, leftFiles)
+	countsRight := fmt.Sprintf(tr("ex_foot_items"), rightDirs, rightFiles)
 	ui.leftFooterInfo.SetText(fmt.Sprintf(
-		"Pasta local: %s | Itens: %d pastas, %d arquivos | %s",
-		leftPathFooterLabel(ui.leftPath), leftDirs, leftFiles, leftSelText,
+		tr("ex_foot_local_full_fmt"),
+		leftPathFooterLabel(ui.leftPath),
+		countsLeft,
+		leftSelText,
 	))
 	ui.rightFooterInfo.SetText(fmt.Sprintf(
-		"%s | Itens: %d pastas, %d arquivos | %s",
-		rightPathLabel, rightDirs, rightFiles, rightSelText,
+		tr("ex_foot_remote_full_fmt"),
+		rightPathLabel,
+		countsRight,
+		rightSelText,
 	))
 }
 
@@ -5363,8 +5567,8 @@ func (ui *explorer) resetLeftSearch() {
 	if ui.leftSearch != nil && strings.TrimSpace(ui.leftSearch.Text) != "" {
 		ui.leftSearch.SetText("")
 	}
-	if ui.leftTypeFilter != nil && strings.TrimSpace(ui.leftTypeFilter.Selected) != "Tudo" {
-		ui.leftTypeFilter.SetSelected("Tudo")
+	if ui.leftTypeFilter != nil && normalizeExplorerTypeFilter(ui.leftTypeFilter.Selected) != "all" {
+		ui.leftTypeFilter.SetSelected(tr("ex_filter_all"))
 	}
 }
 
@@ -5373,8 +5577,8 @@ func (ui *explorer) resetRightSearch() {
 	if ui.rightSearch != nil && strings.TrimSpace(ui.rightSearch.Text) != "" {
 		ui.rightSearch.SetText("")
 	}
-	if ui.rightTypeFilter != nil && strings.TrimSpace(ui.rightTypeFilter.Selected) != "Tudo" {
-		ui.rightTypeFilter.SetSelected("Tudo")
+	if ui.rightTypeFilter != nil && normalizeExplorerTypeFilter(ui.rightTypeFilter.Selected) != "all" {
+		ui.rightTypeFilter.SetSelected(tr("ex_filter_all"))
 	}
 }
 
@@ -5383,11 +5587,11 @@ func (ui *explorer) renameActive() {
 	if ui.activePane == "left" {
 		e, ok := ui.selectedLeftEntry()
 		if !ok || e.Name == ".." {
-			dialog.ShowInformation("Renomear", "Selecione um item válido no painel local.", ui.win)
+		dialog.ShowInformation(tr("dlg_rename_title"), tr("dlg_rename_pick_local"), ui.win)
 			return
 		}
 		if localfs.IsWindowsDrivesVirtual(ui.leftPath) {
-			dialog.ShowInformation("Renomear", "Não é possível renomear letras de unidade nesta lista.", ui.win)
+			dialog.ShowInformation(tr("dlg_rename_title"), tr("dlg_rename_drive_letter"), ui.win)
 			return
 		}
 		name := widget.NewEntry()
@@ -5407,7 +5611,7 @@ func (ui *explorer) renameActive() {
 				}
 				target := filepath.Join(filepath.Dir(e.Path), newName)
 				if err := localfs.Rename(e.Path, target); err != nil {
-					dialog.ShowError(fmt.Errorf("não foi possível renomear item local: %w", err), ui.win)
+					dialog.ShowError(fmt.Errorf(tr("ui_err_rename_local"), err), ui.win)
 					return
 				}
 				ui.status.SetText("Item local renomeado com sucesso.")
@@ -5419,7 +5623,7 @@ func (ui *explorer) renameActive() {
 	}
 	e, ok := ui.selectedRightEntry()
 	if !ok || e.Name == ".." {
-		dialog.ShowInformation("Renomear", "Selecione um item válido no painel do servidor.", ui.win)
+		dialog.ShowInformation(tr("dlg_rename_title"), tr("dlg_rename_pick_remote"), ui.win)
 		return
 	}
 	name := widget.NewEntry()
@@ -5447,7 +5651,7 @@ func (ui *explorer) renameActive() {
 				err = ui.cfs.Rename(ctx, e.Path, target)
 			}
 			if err != nil {
-				dialog.ShowError(fmt.Errorf("não foi possível renomear item remoto: %w", err), ui.win)
+				dialog.ShowError(fmt.Errorf(tr("ui_err_rename_remote"), err), ui.win)
 				return
 			}
 			ui.status.SetText("Item remoto renomeado com sucesso.")
@@ -5462,21 +5666,21 @@ func (ui *explorer) deleteActive() {
 	if ui.activePane == "left" {
 		e, ok := ui.selectedLeftEntry()
 		if !ok || e.Name == ".." {
-			dialog.ShowInformation("Excluir", "Selecione um item válido no painel local.", ui.win)
+			dialog.ShowInformation(tr("dlg_delete_title"), tr("dlg_rename_pick_local"), ui.win)
 			return
 		}
 		if localfs.IsWindowsDrivesVirtual(ui.leftPath) {
-			dialog.ShowInformation("Excluir", "Não é possível excluir unidades de disco nesta lista. Abra a unidade e apague pastas ou arquivos dentro dela.", ui.win)
+			dialog.ShowInformation(tr("dlg_delete_title"), tr("dlg_delete_drive"), ui.win)
 			return
 		}
 		msg := fmt.Sprintf("Deseja excluir \"%s\" do computador local?", e.Name)
-		dialog.ShowConfirm("Confirmar exclusão", msg, func(confirm bool) {
+		dialog.ShowConfirm(tr("dlg_confirm_delete"), msg, func(confirm bool) {
 			if !confirm {
 				ui.status.SetText("Exclusão cancelada.")
 				return
 			}
 			if err := localfs.Remove(e.Path, e.IsDir); err != nil {
-				dialog.ShowError(fmt.Errorf("não foi possível excluir item local: %w", err), ui.win)
+				dialog.ShowError(fmt.Errorf(tr("ui_err_delete_local"), err), ui.win)
 				return
 			}
 			ui.status.SetText("Item local excluído com sucesso.")
@@ -5486,11 +5690,11 @@ func (ui *explorer) deleteActive() {
 	}
 	e, ok := ui.selectedRightEntry()
 	if !ok || e.Name == ".." {
-		dialog.ShowInformation("Excluir", "Selecione um item válido no painel do servidor.", ui.win)
+		dialog.ShowInformation(tr("dlg_delete_title"), tr("dlg_rename_pick_remote"), ui.win)
 		return
 	}
 	msg := fmt.Sprintf("Deseja excluir \"%s\" do servidor?", e.Name)
-	dialog.ShowConfirm("Confirmar exclusão", msg, func(confirm bool) {
+	dialog.ShowConfirm(tr("dlg_confirm_delete"), msg, func(confirm bool) {
 		if !confirm {
 			ui.status.SetText("Exclusão cancelada.")
 			return
@@ -5504,7 +5708,7 @@ func (ui *explorer) deleteActive() {
 			err = ui.cfs.Remove(ctx, e.Path, e.IsDir)
 		}
 		if err != nil {
-			dialog.ShowError(fmt.Errorf("não foi possível excluir item remoto: %w", err), ui.win)
+			dialog.ShowError(fmt.Errorf(tr("ui_err_delete_remote"), err), ui.win)
 			return
 		}
 		ui.status.SetText("Item remoto excluído com sucesso.")
@@ -5536,12 +5740,12 @@ func (ui *explorer) createFolderActive() {
 			}
 			if ui.activePane == "left" {
 				if localfs.IsWindowsDrivesVirtual(ui.leftPath) {
-					dialog.ShowInformation("Nova pasta (local)", "Abra uma pasta em uma unidade antes de criar uma nova pasta aqui.", ui.win)
+					dialog.ShowInformation(tr("dlg_newfolder_title"), tr("dlg_newfolder_drive"), ui.win)
 					return
 				}
 				target := filepath.Join(ui.leftPath, folderName)
 				if err := localfs.Mkdir(target); err != nil {
-					dialog.ShowError(fmt.Errorf("não foi possível criar pasta local: %w", err), ui.win)
+					dialog.ShowError(fmt.Errorf(tr("ui_err_mkdir_local"), err), ui.win)
 					return
 				}
 				ui.status.SetText("Pasta local criada com sucesso.")
@@ -5558,7 +5762,7 @@ func (ui *explorer) createFolderActive() {
 				err = ui.cfs.Mkdir(ctx, target)
 			}
 			if err != nil {
-				dialog.ShowError(fmt.Errorf("não foi possível criar pasta remota: %w", err), ui.win)
+				dialog.ShowError(fmt.Errorf(tr("ui_err_mkdir_remote"), err), ui.win)
 				return
 			}
 			ui.status.SetText("Pasta remota criada com sucesso.")
@@ -5655,9 +5859,9 @@ func (ui *explorer) makePathButtons(p string, left bool) []fyne.CanvasObject {
 
 // defaultLocalShortcuts executa parte da logica deste modulo.
 func (ui *explorer) defaultLocalShortcuts() []string {
-	base := []string{"Diretório inicial", "Desktop", "Documentos", "Downloads"}
+	base := []string{tr("sc_home"), tr("sc_desktop"), tr("sc_documents"), tr("sc_downloads")}
 	if runtime.GOOS == "windows" {
-		base = append(base, "Unidades de disco")
+		base = append(base, tr("sc_disk_drives"))
 	}
 	return base
 }
@@ -6210,6 +6414,30 @@ func (ui *explorer) remoteShortcutOptions() []string {
 	return uniqueNonEmpty(append(base, saved...))
 }
 
+// leftQuickSelectLabelForPath devolve o texto que corresponde ao caminho no select de atalhos locais.
+func leftQuickSelectLabelForPath(p string) string {
+	p = strings.TrimSpace(p)
+	if p == "" {
+		return ""
+	}
+	if runtime.GOOS == "windows" && localfs.IsWindowsDrivesVirtual(p) {
+		return tr("sc_disk_drives")
+	}
+	home := homeOrRoot()
+	switch p {
+	case home:
+		return tr("sc_home")
+	case filepath.Join(home, "Desktop"):
+		return tr("sc_desktop")
+	case filepath.Join(home, "Documents"):
+		return tr("sc_documents")
+	case filepath.Join(home, "Downloads"):
+		return tr("sc_downloads")
+	default:
+		return p
+	}
+}
+
 // refreshLeftShortcutOptions executa parte da logica deste modulo.
 func (ui *explorer) refreshLeftShortcutOptions(selectPath string) {
 	if ui.leftQuick == nil {
@@ -6332,31 +6560,46 @@ func (ui *explorer) removeRightFavoriteCurrentPath() {
 	appendAuditLog("favoritos", "Atalho remoto removido: "+p)
 }
 
+// localeExplorerShortcutMatch reconhece rótulos de atalho local em qualquer idioma suportado.
+func localeExplorerShortcutMatch(sel, key string) bool {
+	sel = strings.TrimSpace(sel)
+	if sel == tr(key) {
+		return true
+	}
+	for _, lang := range []string{langPTBR, langEN, langES} {
+		if m := explorerStrings[lang]; m != nil && sel == m[key] {
+			return true
+		}
+	}
+	return false
+}
+
 // resolveLocalShortcut executa parte da logica deste modulo.
 func (ui *explorer) resolveLocalShortcut(sel string) (string, bool) {
 	sel = strings.TrimSpace(sel)
-	if sel == "Unidades de disco" && runtime.GOOS == "windows" {
+	if localeExplorerShortcutMatch(sel, "sc_disk_drives") && runtime.GOOS == "windows" {
 		return localfs.WindowsDrivesVirtualPath, true
 	}
 	home := homeOrRoot()
-	switch sel {
-	case "Diretório inicial":
+	if localeExplorerShortcutMatch(sel, "sc_home") {
 		return home, true
-	case "Desktop":
-		return filepath.Join(home, "Desktop"), true
-	case "Documentos":
-		return filepath.Join(home, "Documents"), true
-	case "Downloads":
-		return filepath.Join(home, "Downloads"), true
-	default:
-		if sel != "" && localfs.IsWindowsDrivesVirtual(sel) {
-			return localfs.WindowsDrivesVirtualPath, true
-		}
-		if sel != "" {
-			return sel, true
-		}
-		return "", false
 	}
+	if localeExplorerShortcutMatch(sel, "sc_desktop") {
+		return filepath.Join(home, "Desktop"), true
+	}
+	if localeExplorerShortcutMatch(sel, "sc_documents") {
+		return filepath.Join(home, "Documents"), true
+	}
+	if localeExplorerShortcutMatch(sel, "sc_downloads") {
+		return filepath.Join(home, "Downloads"), true
+	}
+	if sel != "" && localfs.IsWindowsDrivesVirtual(sel) {
+		return localfs.WindowsDrivesVirtualPath, true
+	}
+	if sel != "" {
+		return sel, true
+	}
+	return "", false
 }
 
 // showRowContextMenu executa parte da logica deste modulo.
@@ -6375,16 +6618,16 @@ func (ui *explorer) showRowContextMenu(left bool, id widget.ListItemID, pos fyne
 			targetDir = e.Path
 		}
 		items := []*fyne.MenuItem{
-			fyne.NewMenuItem("Abrir pasta", func() { ui.onLeftActivate() }),
-			fyne.NewMenuItem("Enviar para o servidor", func() { ui.upload() }),
-			fyne.NewMenuItem("Enviar itens visíveis", func() { ui.uploadVisibleBatch() }),
-			fyne.NewMenuItem("Copiar", func() { ui.copySelectedEntry(true, id) }),
-			fyne.NewMenuItem("Colar aqui", func() { ui.pasteCopiedTo(true, targetDir) }),
-			fyne.NewMenuItem("Renomear", func() { ui.renameActive() }),
-			fyne.NewMenuItem("Excluir", func() { ui.deleteActive() }),
-			fyne.NewMenuItem("Nova pasta aqui", func() { ui.createFolderActive() }),
+			fyne.NewMenuItem(tr("ctx_left_open"), func() { ui.onLeftActivate() }),
+			fyne.NewMenuItem(tr("ctx_left_send_srv"), func() { ui.upload() }),
+			fyne.NewMenuItem(tr("ctx_left_send_vis"), func() { ui.uploadVisibleBatch() }),
+			fyne.NewMenuItem(tr("ctx_copy"), func() { ui.copySelectedEntry(true, id) }),
+			fyne.NewMenuItem(tr("ctx_paste"), func() { ui.pasteCopiedTo(true, targetDir) }),
+			fyne.NewMenuItem(tr("ctx_rename"), func() { ui.renameActive() }),
+			fyne.NewMenuItem(tr("ctx_delete"), func() { ui.deleteActive() }),
+			fyne.NewMenuItem(tr("ctx_new_folder"), func() { ui.createFolderActive() }),
 			fyne.NewMenuItemSeparator(),
-			fyne.NewMenuItem("Atualizar lista local", func() { ui.refreshLeft() }),
+			fyne.NewMenuItem(tr("ctx_refresh_local"), func() { ui.refreshLeft() }),
 		}
 		if !e.IsDir {
 			items[0].Disabled = true
@@ -6411,16 +6654,16 @@ func (ui *explorer) showRowContextMenu(left bool, id widget.ListItemID, pos fyne
 		targetDir = e.Path
 	}
 	items := []*fyne.MenuItem{
-		fyne.NewMenuItem("Abrir pasta", func() { ui.onRightActivate() }),
-		fyne.NewMenuItem("Receber no computador local", func() { ui.download() }),
-		fyne.NewMenuItem("Receber itens visíveis", func() { ui.downloadVisibleBatch() }),
-		fyne.NewMenuItem("Copiar", func() { ui.copySelectedEntry(false, id) }),
-		fyne.NewMenuItem("Colar aqui", func() { ui.pasteCopiedTo(false, targetDir) }),
-		fyne.NewMenuItem("Renomear", func() { ui.renameActive() }),
-		fyne.NewMenuItem("Excluir", func() { ui.deleteActive() }),
-		fyne.NewMenuItem("Nova pasta aqui", func() { ui.createFolderActive() }),
+		fyne.NewMenuItem(tr("ctx_right_open"), func() { ui.onRightActivate() }),
+		fyne.NewMenuItem(tr("ctx_right_recv"), func() { ui.download() }),
+		fyne.NewMenuItem(tr("ctx_right_recv_vis"), func() { ui.downloadVisibleBatch() }),
+		fyne.NewMenuItem(tr("ctx_copy"), func() { ui.copySelectedEntry(false, id) }),
+		fyne.NewMenuItem(tr("ctx_paste"), func() { ui.pasteCopiedTo(false, targetDir) }),
+		fyne.NewMenuItem(tr("ctx_rename"), func() { ui.renameActive() }),
+		fyne.NewMenuItem(tr("ctx_delete"), func() { ui.deleteActive() }),
+		fyne.NewMenuItem(tr("ctx_new_folder"), func() { ui.createFolderActive() }),
 		fyne.NewMenuItemSeparator(),
-		fyne.NewMenuItem("Atualizar lista remota", func() { ui.refreshRight() }),
+		fyne.NewMenuItem(tr("ctx_refresh_remote"), func() { ui.refreshRight() }),
 	}
 	if !e.IsDir {
 		items[0].Disabled = true
@@ -6465,7 +6708,7 @@ func (ui *explorer) rememberFailedJob(job transfer.Job) {
 // retryLastFailedOperation executa parte da logica deste modulo.
 func (ui *explorer) retryLastFailedOperation() {
 	if len(ui.failedJobs) == 0 {
-		dialog.ShowInformation("Histórico", "Não há falhas recentes para tentar novamente.", ui.win)
+		dialog.ShowInformation(tr("dlg_history_title"), tr("dlg_history_no_fail"), ui.win)
 		return
 	}
 	job := ui.failedJobs[len(ui.failedJobs)-1]
@@ -6478,12 +6721,12 @@ func (ui *explorer) retryLastFailedOperation() {
 // retryAllFailedOperations executa parte da logica deste modulo.
 func (ui *explorer) retryAllFailedOperations() {
 	if len(ui.failedJobs) == 0 {
-		dialog.ShowInformation("Histórico", "Não há falhas recentes para tentar novamente.", ui.win)
+		dialog.ShowInformation(tr("dlg_history_title"), tr("dlg_history_no_fail"), ui.win)
 		return
 	}
 	dialog.ShowConfirm(
-		"Reexecutar todas as falhas",
-		fmt.Sprintf("Deseja reexecutar %d falha(s) registradas?", len(ui.failedJobs)),
+		tr("dlg_history_retry_all_title"),
+		fmt.Sprintf(tr("dlg_history_retry_all_fmt"), len(ui.failedJobs)),
 		func(ok bool) {
 			if !ok {
 				return
@@ -6648,11 +6891,11 @@ func (ui *explorer) showOperationHistory() {
 func (ui *explorer) showTerminalConsole() {
 	defer func() {
 		if r := recover(); r != nil {
-			dialog.ShowError(fmt.Errorf("falha ao abrir terminal: %v", r), ui.win)
+			dialog.ShowError(fmt.Errorf(tr("ui_term_open_fail_fmt"), r), ui.win)
 		}
 	}()
 	if ui.s == nil || ui.s.SSH == nil {
-		dialog.ShowError(fmt.Errorf("sessão SSH indisponível"), ui.win)
+		dialog.ShowError(fmt.Errorf("%s", tr("ui_term_ssh_unavail")), ui.win)
 		return
 	}
 
@@ -6678,7 +6921,7 @@ func (ui *explorer) showTerminalConsoleCompat(currentDir, host string) {
 
 	status := widget.NewLabel("")
 	status.Wrapping = fyne.TextWrapWord
-	status.SetText("Conectando TTY interativo (modo compatibilidade)... Host: " + host + " | CWD inicial: " + currentDir)
+	status.SetText(fmt.Sprintf(tr("ui_term_compat_connecting_fmt"), host, currentDir))
 
 	var (
 		textMu      sync.Mutex
@@ -6698,9 +6941,9 @@ func (ui *explorer) showTerminalConsoleCompat(currentDir, host string) {
 	}
 	setTerminalText(baseText)
 
-	clearBtn := widget.NewButton("Limpar", nil)
+	clearBtn := widget.NewButton(tr("ui_term_clear"), nil)
 	clearBtn.Importance = widget.MediumImportance
-	ctrlCBtn := widget.NewButton("Voltar", nil)
+	ctrlCBtn := widget.NewButton(tr("ex_back"), nil)
 	ctrlCBtn.Importance = widget.MediumImportance
 
 	sess, err := ui.s.SSH.NewSession()
@@ -6802,9 +7045,9 @@ func (ui *explorer) showTerminalConsoleCompat(currentDir, host string) {
 		waitErr := sess.Wait()
 		fyne.Do(func() {
 			if waitErr != nil && !closed.Load() {
-				status.SetText("Sessão de terminal encerrada: " + strings.TrimSpace(waitErr.Error()))
+				status.SetText(fmt.Sprintf(tr("ui_term_session_closed_fmt"), strings.TrimSpace(waitErr.Error())))
 			} else if !closed.Load() {
-				status.SetText("Sessão de terminal encerrada.")
+				status.SetText(tr("ui_term_session_closed"))
 			}
 			shouldAutoBack := !closed.Load()
 			if shouldAutoBack {
@@ -6825,7 +7068,7 @@ func (ui *explorer) showTerminalConsoleCompat(currentDir, host string) {
 			return
 		}
 		if _, err := io.WriteString(stdin, seq); err != nil {
-			status.SetText("Falha ao enviar tecla: " + strings.TrimSpace(err.Error()))
+			status.SetText(fmt.Sprintf(tr("ui_term_send_key_fail_fmt"), strings.TrimSpace(err.Error())))
 		}
 	}
 	runTerminalCommand := func(cmd string) {
@@ -6836,7 +7079,7 @@ func (ui *explorer) showTerminalConsoleCompat(currentDir, host string) {
 	}
 	ctrlCBtn.OnTapped = func() {
 		sendKey("\u0003")
-		status.SetText("Sinal Ctrl+C enviado.")
+		status.SetText(tr("ui_term_ctrl_c_keyboard"))
 	}
 	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{
 		KeyName:  fyne.KeyC,
@@ -6846,7 +7089,7 @@ func (ui *explorer) showTerminalConsoleCompat(currentDir, host string) {
 			return
 		}
 		sendKey("\u0003")
-		status.SetText("Sinal Ctrl+C enviado (teclado).")
+		status.SetText(tr("ui_term_ctrl_c_keyboard"))
 	})
 	clearBtn.OnTapped = func() {
 		sendKey("clear\r")
@@ -6858,16 +7101,16 @@ func (ui *explorer) showTerminalConsoleCompat(currentDir, host string) {
 	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyLeft}, func(fyne.Shortcut) { sendKey("\x1bOD") })
 	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyPageUp}, func(fyne.Shortcut) { sendKey("\x1b[5~") })
 	ui.win.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyPageDown}, func(fyne.Shortcut) { sendKey("\x1b[6~") })
-	btnHtop := widget.NewButtonWithIcon("Gen. de Tarefas", theme.ComputerIcon(), func() {
+	btnHtop := widget.NewButtonWithIcon(tr("ui_term_btn_htop"), theme.ComputerIcon(), func() {
 		cmd := `command -v htop >/dev/null 2>&1 || { echo '[ContainerWay] htop não encontrado. Instalando...'; if command -v apt-get >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y htop; elif command -v dnf >/dev/null 2>&1; then sudo dnf install -y htop; elif command -v yum >/dev/null 2>&1; then sudo yum install -y htop; elif command -v pacman >/dev/null 2>&1; then sudo pacman -Sy --noconfirm htop; else echo '[ContainerWay] Gerenciador de pacotes não suportado para instalação automática.'; fi; }; command -v htop >/dev/null 2>&1 && htop`
 		runTerminalCommand(cmd)
-		status.SetText("Abrindo gerenciador de tarefas (htop)...")
+		status.SetText(tr("ui_term_htop_opening"))
 	})
 	btnHtop.Importance = widget.MediumImportance
-	btnNcdu := widget.NewButtonWithIcon("Ver. Armazenamento", theme.StorageIcon(), func() {
+	btnNcdu := widget.NewButtonWithIcon(tr("ui_term_btn_ncdu"), theme.StorageIcon(), func() {
 		cmd := `command -v ncdu >/dev/null 2>&1 || { echo '[ContainerWay] ncdu não encontrado. Instalando...'; if command -v apt-get >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y ncdu; elif command -v dnf >/dev/null 2>&1; then sudo dnf install -y ncdu; elif command -v yum >/dev/null 2>&1; then sudo yum install -y ncdu; elif command -v pacman >/dev/null 2>&1; then sudo pacman -Sy --noconfirm ncdu; else echo '[ContainerWay] Gerenciador de pacotes não suportado para instalação automática.'; fi; }; command -v ncdu >/dev/null 2>&1 && cd / && ncdu`
 		runTerminalCommand(cmd)
-		status.SetText("Abrindo análise de armazenamento (ncdu)...")
+		status.SetText(tr("ui_term_ncdu_opening"))
 	})
 	btnNcdu.Importance = widget.MediumImportance
 	terminal.onCtrlC = func() {
@@ -6960,7 +7203,7 @@ func (ui *explorer) showTerminalConsoleCompat(currentDir, host string) {
 	})
 
 	fyne.Do(func() {
-		status.SetText("TTY interativo ativo (modo compatibilidade). Host: " + host)
+		status.SetText(fmt.Sprintf(tr("ui_term_compat_active_fmt"), host))
 	})
 
 	const terminalToolBtnW = float32(66)
@@ -6982,98 +7225,24 @@ func (ui *explorer) showTerminalConsoleCompat(currentDir, host string) {
 		nil,
 		fynecontainer.NewPadded(fynecontainer.NewMax(terminal)),
 	)
-	ui.openSettingsFullscreenWithBack("Terminal SSH", body, closeTerminal)
+	ui.openSettingsFullscreenWithBack(tr("ui_term_title"), body, closeTerminal)
 }
 
-// userManualText executa parte da logica deste modulo.
+// userManualText devolve o manual no idioma atual.
 func userManualText() string {
-	return strings.TrimSpace(`
-ContainerWay — Manual do usuário
-
-0) Menu principal (Início da sessão)
-- Após conectar ao servidor, esta é a porta de entrada: atalhos para cada módulo (arquivos, Docker, discos, terminal, automações e, para administradores, configurações).
-- Campo de pesquisa filtra os cartões por palavras-chave (ex.: lvm, e-mail, ssh).
-- No canto superior: botão "Manual do sistema" (este texto) e o seletor de tema por ícones (computador = padrão do sistema, paleta colorida = claro, tons de cinza = escuro). Cada clique aplica o tema de imediato; o ícone ativo fica em destaque.
-
-1) Acesso local e conexão SSH
-- Primeira tela: usuário e senha de acesso ao aplicativo (contas definidas pelo administrador).
-- Segunda tela: dados SSH/SFTP — host, usuário remoto, senha ou chave, known_hosts opcional, jobs em paralelo, socket Docker/Podman remoto.
-- "Testar conexão" valida SSH, SFTP e API de contêineres antes de "Conectar".
-- É possível salvar e carregar perfis de conexão. Tema e outras opções ficam no formulário de conexão.
-
-2) Gerenciador de arquivos (barra superior)
-- "Voltar": retorna ao menu principal (Início da sessão) sem encerrar a sessão SSH.
-- "Enviar" / "Receber": transferência entre o painel local (esquerda) e o remoto ou contêiner (direita), conforme o painel ativo.
-- "Histórico": fila de operações, repetição de falhas, exportações.
-- "Comparar": relatório de diferenças entre pastas local e remota (nome, tipo, tamanho, data).
-- Estado "Sudo" e "Desativar sudo": quando o modo superusuário remoto está ativo (necessário para algumas operações em disco/LVM no servidor).
-- "Sair": encerra a sessão e volta à tela de conexão.
-
-3) Painéis e navegação
-- Esquerda: computador local. Direita: servidor ou contêiner escolhido no seletor de contexto.
-- Por painel: voltar pasta, subir, raiz do contexto, atualizar; atalhos favoritos (+/−); pesquisa e filtro (Tudo / Pastas / Arquivos).
-- Duplo clique: abrir pasta; arquivo local abre no app padrão do sistema.
-
-4) Transferências
-- Envio local → servidor/contêiner; recepção remota → local.
-- "Enviar visíveis" / "Receber visíveis": lote sobre linhas filtradas na lista.
-- Upload único por SFTP: se já existir destino com o mesmo tamanho, o envio pode ser omitido (registro no log de auditoria).
-- Durante jobs, a barra de status mostra fila e progresso.
-
-5) Pesquisa e filtros nas listas
-- Texto livre no nome; ext:log; tipo:pasta ou tipo:arquivo.
-
-6) Favoritos
-- "+" salva a pasta atual nos atalhos do painel; "−" remove. Favoritos locais são globais; no servidor dependem do host e do contexto (host vs contêiner).
-
-7) Comparar pastas e política local
-- "Comparar" na barra do explorador gera o relatório entre os dois painéis.
-- Política opcional: arquivo policy.json nas preferências do app ou variável CONTAINERWAY_FORBID_INSECURE_HOSTKEY=1 para impedir "Ignorar chave de host". O estado se resume em "Políticas" na central de automações.
-
-8) Edição remota
-- Abrir arquivo remoto para edição: o app sincroniza de volta quando detecta salvamento local.
-
-9) Contêineres Docker (menu principal → cartão)
-- Lista de contêineres em execução no host conectado; atualização, logs, reinício unitário ou em lote (com confirmação).
-
-10) Discos e armazenamento (menu principal → cartão)
-- Visão a partir de lsblk; abas para assistente LVM, resumo e detalhe técnico; filtro opcional de dispositivos loop (ex.: Snap).
-- Operações sensíveis podem exigir sudo no servidor (ativar na própria janela quando disponível).
-
-11) Terminal SSH (menu principal → cartão)
-- Console remoto sobre a sessão já autenticada; modo ANSI ou compatibilidade textual.
-- Atalhos úteis: gerenciador de tarefas, uso de disco, lista de comandos favoritos (quando existir).
-
-12) Central de automações (menu principal → cartão)
-- Regras com gatilho e ação no host; motor liga/desliga; runbooks e políticas de segurança.
-
-13) Configurações (somente administrador — cartão no menu principal)
-- Usuários de acesso ao app ContainerWay (local).
-- Alertas por e-mail (SMTP, destinatários, teste de envio).
-
-14) Histórico, sessão e auditoria
-- "Histórico" no explorador: abas de sessão e log geral; filtrar, exportar, CSV de auditoria, abrir arquivos de log, repetir falhas.
-
-15) Janela e atalhos de teclado (foco no gerenciador de arquivos)
-- Enter: abrir. Backspace: subir nível. Tab: alternar painel.
-- F3 ou Ctrl+F: focar pesquisa. F5: atualizar. F6: enviar/receber. Ctrl+Shift+F6: lote visível.
-- F2: renomear. Del: excluir. Ctrl+Shift+N: nova pasta.
-
-16) Dicas rápidas
-- Permissões no servidor: avaliar sudo. Falhas em lote: usar Histórico. Sem resultados: revisar filtros e texto de pesquisa.
-`)
+	return strings.TrimSpace(tr("manual_body"))
 }
 
 // showUserManual executa parte da logica deste modulo.
 func (ui *explorer) showUserManual() {
-	appendAuditLog("manual", "Manual do usuário aberto")
+	appendAuditLog("manual", tr("manual_window_title")+" aberto")
 	text := widget.NewRichTextWithText(userManualText())
 	text.Wrapping = fyne.TextWrapWord
 	scroll := fynecontainer.NewScroll(text)
 	scroll.SetMinSize(fyne.NewSize(900, 500))
 	dialog.NewCustom(
-		"Manual do sistema",
-		"Fechar",
+		tr("manual_window_title"),
+		tr("manual_close"),
 		scroll,
 		ui.win,
 	).Show()
@@ -7108,7 +7277,7 @@ func (ui *explorer) closeSettingsFullscreen() {
 // e permite executar uma ação antes de voltar.
 func (ui *explorer) openSettingsFullscreenWithBack(title string, content fyne.CanvasObject, onBack func()) {
 	ui.snapshotSettingsReturnTarget()
-	btnBack := widget.NewButtonWithIcon("Voltar", theme.NavigateBackIcon(), func() {
+	btnBack := widget.NewButtonWithIcon(tr("ex_back"), theme.NavigateBackIcon(), func() {
 		if onBack != nil {
 			onBack()
 		}
@@ -7138,18 +7307,18 @@ func (ui *explorer) openSettingsFullscreen(title string, content fyne.CanvasObje
 // showAccessUserManager executa parte da logica deste modulo.
 func (ui *explorer) showAccessUserManager() {
 	if !isCurrentAccessAdmin() {
-		dialog.ShowInformation("Usuários", "Somente o usuário admin pode gerenciar usuários.", ui.win)
+		dialog.ShowInformation(tr("dlg_users_admin"), tr("dlg_users_admin_only"), ui.win)
 		return
 	}
 	newUser := widget.NewEntry()
-	newUser.SetPlaceHolder("novo usuário")
+	newUser.SetPlaceHolder(tr("ui_users_ph_new"))
 	newPass := widget.NewPasswordEntry()
-	newPass.SetPlaceHolder("senha (mínimo 4 caracteres)")
+	newPass.SetPlaceHolder(tr("ui_users_ph_pass"))
 	newName := widget.NewEntry()
-	newName.SetPlaceHolder("nome exibido nos logs")
+	newName.SetPlaceHolder(tr("ui_users_ph_display"))
 	removeUser := widget.NewEntry()
-	removeUser.SetPlaceHolder("usuário para remover")
-	info := widget.NewLabel("Crie ou atualize usuários de acesso local. Em Início → Configurações pode abrir alertas por e-mail (SMTP).")
+	removeUser.SetPlaceHolder(tr("ui_users_ph_remove"))
+	info := widget.NewLabel(tr("ui_users_info"))
 	info.Wrapping = fyne.TextWrapWord
 	usersList := widget.NewMultiLineEntry()
 	usersList.Disable()
@@ -7159,28 +7328,28 @@ func (ui *explorer) showAccessUserManager() {
 	refreshUsersList := func() {
 		users := loadAccessAccounts()
 		if len(users) == 0 {
-			usersList.SetText("Nenhum usuário cadastrado.")
+			usersList.SetText(tr("ui_users_none"))
 			return
 		}
 		lines := make([]string, 0, len(users)+1)
-		lines = append(lines, "Usuários cadastrados:")
+		lines = append(lines, tr("ui_users_list_header"))
 		for _, u := range users {
-			lines = append(lines, fmt.Sprintf("- %s (nome: %s)", u.Username, strings.TrimSpace(u.DisplayName)))
+			lines = append(lines, fmt.Sprintf(tr("ui_users_list_line_fmt"), u.Username, strings.TrimSpace(u.DisplayName)))
 		}
 		usersList.SetText(strings.Join(lines, "\n"))
 	}
 	refreshUsersList()
 
-	btnSave := widget.NewButtonWithIcon("Salvar usuário", theme.DocumentSaveIcon(), func() {
+	btnSave := widget.NewButtonWithIcon(tr("ui_users_btn_save"), theme.DocumentSaveIcon(), func() {
 		u := normalizeAccessUsername(newUser.Text)
 		p := strings.TrimSpace(newPass.Text)
 		n := strings.TrimSpace(newName.Text)
 		if u == "" || p == "" {
-			info.SetText("Informe usuário e senha.")
+			info.SetText(tr("ui_users_need_both"))
 			return
 		}
 		if len(p) < 4 {
-			info.SetText("A senha precisa ter pelo menos 4 caracteres.")
+			info.SetText(tr("ui_users_pass_short"))
 			return
 		}
 		if n == "" {
@@ -7195,17 +7364,17 @@ func (ui *explorer) showAccessUserManager() {
 		saveAccessAccounts(users)
 		refreshUsersList()
 		appendAuditLog("acesso", "Usuário cadastrado/atualizado: "+u)
-		info.SetText("Usuário salvo: " + u)
+		info.SetText(fmt.Sprintf(tr("ui_users_saved_fmt"), u))
 	})
 
-	btnRemove := widget.NewButtonWithIcon("Remover usuário", theme.DeleteIcon(), func() {
+	btnRemove := widget.NewButtonWithIcon(tr("ui_users_btn_remove"), theme.DeleteIcon(), func() {
 		target := normalizeAccessUsername(removeUser.Text)
 		if target == "" {
-			info.SetText("Informe o usuário que deseja remover.")
+			info.SetText(tr("ui_users_need_remove"))
 			return
 		}
 		if target == normalizeAccessUsername(defaultAccessUser) {
-			info.SetText("O usuário admin não pode ser removido.")
+			info.SetText(tr("ui_users_admin_protected"))
 			return
 		}
 		users := loadAccessAccounts()
@@ -7219,16 +7388,16 @@ func (ui *explorer) showAccessUserManager() {
 			filtered = append(filtered, u)
 		}
 		if !removed {
-			info.SetText("Usuário não encontrado.")
+			info.SetText(tr("ui_users_not_found"))
 			return
 		}
 		saveAccessAccounts(filtered)
 		refreshUsersList()
 		appendAuditLog("acesso", "Usuário removido: "+target)
-		info.SetText("Usuário removido: " + target)
+		info.SetText(fmt.Sprintf(tr("ui_users_removed_fmt"), target))
 	})
 
-	btnOpenMailNotify := widget.NewButtonWithIcon("Abrir configuração de alertas por e-mail…", theme.MailComposeIcon(), func() {
+	btnOpenMailNotify := widget.NewButtonWithIcon(tr("ui_users_btn_mail"), theme.MailComposeIcon(), func() {
 		ui.showMailNotifySettings()
 	})
 	btnOpenMailNotify.Importance = widget.MediumImportance
@@ -7237,14 +7406,14 @@ func (ui *explorer) showAccessUserManager() {
 		btnOpenMailNotify,
 		widget.NewSeparator(),
 		widget.NewForm(
-			widget.NewFormItem("Novo usuário", newUser),
-			widget.NewFormItem("Senha", newPass),
-			widget.NewFormItem("Nome", newName),
+			widget.NewFormItem(tr("ui_users_fi_new"), newUser),
+			widget.NewFormItem(tr("ui_users_fi_pass"), newPass),
+			widget.NewFormItem(tr("ui_users_fi_name"), newName),
 		),
 		fynecontainer.NewHBox(btnSave),
 		widget.NewSeparator(),
 		widget.NewForm(
-			widget.NewFormItem("Remover usuário", removeUser),
+			widget.NewFormItem(tr("ui_users_fi_remove"), removeUser),
 		),
 		fynecontainer.NewHBox(btnRemove),
 		widget.NewSeparator(),
@@ -7254,39 +7423,39 @@ func (ui *explorer) showAccessUserManager() {
 	)
 	scroll := fynecontainer.NewScroll(body)
 	scroll.SetMinSize(fyne.NewSize(320, 200))
-	ui.openSettingsFullscreen("Gerenciar usuários", scroll)
+	ui.openSettingsFullscreen(tr("ui_users_screen_title"), scroll)
 }
 
 // showMailNotifySettings executa parte da logica deste modulo.
 func (ui *explorer) showMailNotifySettings() {
 	if !isCurrentAccessAdmin() {
-		dialog.ShowInformation("Alertas por e-mail", "Somente o usuário admin pode configurar alertas por e-mail.", ui.win)
+		dialog.ShowInformation(tr("dlg_mail_admin_title"), tr("dlg_mail_admin_only"), ui.win)
 		return
 	}
 	cur := loadMailNotifySettings()
 	recipients := append([]string(nil), cur.Recipients...)
 	var selectedRecipient widget.ListItemID = -1
 
-	enabled := widget.NewCheck("Enviar alertas por e-mail (login e fim de sessão)", nil)
+	enabled := widget.NewCheck(tr("ui_mail_enabled_check"), nil)
 	enabled.SetChecked(cur.Enabled)
 
 	lblRecipientCount := widget.NewLabel("")
 	updateRecipientCount := func() {
 		n := len(recipients)
 		if n == 0 {
-			lblRecipientCount.SetText("Nenhum destinatário cadastrado.")
+			lblRecipientCount.SetText(tr("ui_mail_rcpt_none"))
 			return
 		}
 		if n == 1 {
-			lblRecipientCount.SetText("1 destinatário cadastrado.")
+			lblRecipientCount.SetText(tr("ui_mail_rcpt_one"))
 			return
 		}
-		lblRecipientCount.SetText(fmt.Sprintf("%d destinatários cadastrados.", n))
+		lblRecipientCount.SetText(fmt.Sprintf(tr("ui_mail_rcpt_many_fmt"), n))
 	}
 	updateRecipientCount()
 
 	hostEntry := widget.NewEntry()
-	hostEntry.SetPlaceHolder("ex.: smtp.office365.com ou smtp.gmail.com")
+	hostEntry.SetPlaceHolder(tr("ui_mail_ph_host"))
 	hostEntry.SetText(cur.Host)
 	portEntry := widget.NewEntry()
 	portEntry.SetPlaceHolder("587")
@@ -7296,19 +7465,15 @@ func (ui *explorer) showMailNotifySettings() {
 		portEntry.SetText("587")
 	}
 	userEntry := widget.NewEntry()
-	userEntry.SetPlaceHolder("usuário SMTP (se exigido pelo servidor)")
+	userEntry.SetPlaceHolder(tr("ui_mail_ph_smtp_user"))
 	userEntry.SetText(cur.User)
 	passEntry := widget.NewPasswordEntry()
-	passEntry.SetPlaceHolder("senha do SMTP (ou app password)")
+	passEntry.SetPlaceHolder(tr("ui_mail_ph_smtp_pass"))
 	passEntry.SetText(cur.Password)
 	fromEntry := widget.NewEntry()
-	fromEntry.SetPlaceHolder("remetente@empresa.com")
+	fromEntry.SetPlaceHolder(tr("ui_mail_ph_from"))
 	fromEntry.SetText(cur.From)
-	info := widget.NewLabel(
-		"Após o login de acesso local, todos os destinatários cadastrados recebem um aviso. Ao sair ou fechar a janela do explorador, recebem o registro desta sessão (mesmo formato do log de atividades). " +
-			"É necessário um servidor SMTP acessível a partir deste computador. " +
-			"Se o teste para @siplan (ou outro domínio corporativo) não chegar, use «Teste só no remetente»: se esse chegar no Gmail, o bloqueio é do servidor de e-mail da empresa (TI / quarentena).",
-	)
+	info := widget.NewLabel(tr("ui_mail_info_body"))
 	info.Wrapping = fyne.TextWrapWord
 
 	readForm := func() mailnotify.Settings {
@@ -7331,7 +7496,7 @@ func (ui *explorer) showMailNotifySettings() {
 	mailList := widget.NewList(
 		func() int { return len(recipients) },
 		func() fyne.CanvasObject {
-			return widget.NewLabel("endereço")
+			return widget.NewLabel(tr("ui_mail_list_placeholder"))
 		},
 		func(id widget.ListItemID, o fyne.CanvasObject) {
 			if id < 0 || int(id) >= len(recipients) {
@@ -7344,7 +7509,7 @@ func (ui *explorer) showMailNotifySettings() {
 	mailList.OnUnselected = func(_ widget.ListItemID) { selectedRecipient = -1 }
 
 	newAddrEntry := widget.NewEntry()
-	newAddrEntry.SetPlaceHolder("novo destinatário@empresa.com")
+	newAddrEntry.SetPlaceHolder(tr("ui_mail_ph_new_addr"))
 
 	refreshMailList := func() {
 		updateRecipientCount()
@@ -7364,20 +7529,20 @@ func (ui *explorer) showMailNotifySettings() {
 		recipients = append([]string(nil), loadMailNotifySettings().Recipients...)
 		refreshMailList()
 		if autoOff {
-			dialog.ShowInformation("Destinatários", "Com nenhum destinatário, o envio por e-mail foi desativado. A configuração já foi salva no disco.", ui.win)
+			dialog.ShowInformation(tr("dlg_rcpt_title"), tr("dlg_rcpt_none_saved"), ui.win)
 		}
 		appendAuditLog("acesso", "Lista de destinatários de alertas atualizada")
 	}
 
-	btnAddAddr := widget.NewButtonWithIcon("Adicionar", theme.ContentAddIcon(), func() {
+	btnAddAddr := widget.NewButtonWithIcon(tr("ui_mail_btn_add"), theme.ContentAddIcon(), func() {
 		e := strings.TrimSpace(newAddrEntry.Text)
 		if e == "" || !strings.Contains(e, "@") {
-			dialog.ShowInformation("Destinatários", "Informe um endereço de e-mail válido (com @).", ui.win)
+			dialog.ShowInformation(tr("dlg_rcpt_title"), tr("dlg_rcpt_invalid"), ui.win)
 			return
 		}
 		for _, x := range recipients {
 			if strings.EqualFold(strings.TrimSpace(x), e) {
-				dialog.ShowInformation("Destinatários", "Este endereço já está na lista.", ui.win)
+				dialog.ShowInformation(tr("dlg_rcpt_title"), tr("dlg_rcpt_dup"), ui.win)
 				return
 			}
 		}
@@ -7388,9 +7553,9 @@ func (ui *explorer) showMailNotifySettings() {
 		persistRecipients()
 	})
 
-	btnRemoveAddr := widget.NewButtonWithIcon("Remover selecionado", theme.ContentRemoveIcon(), func() {
+	btnRemoveAddr := widget.NewButtonWithIcon(tr("ui_mail_btn_remove_sel"), theme.ContentRemoveIcon(), func() {
 		if selectedRecipient < 0 || int(selectedRecipient) >= len(recipients) {
-			dialog.ShowInformation("Destinatários", "Selecione um endereço na lista ou use «Remover e-mail digitado» com o endereço na caixa acima.", ui.win)
+			dialog.ShowInformation(tr("dlg_rcpt_title"), tr("dlg_rcpt_pick"), ui.win)
 			return
 		}
 		i := int(selectedRecipient)
@@ -7401,10 +7566,10 @@ func (ui *explorer) showMailNotifySettings() {
 	})
 	btnRemoveAddr.Importance = widget.MediumImportance
 
-	btnRemoveByEmail := widget.NewButtonWithIcon("Remover e-mail digitado", theme.ContentRemoveIcon(), func() {
+	btnRemoveByEmail := widget.NewButtonWithIcon(tr("ui_mail_btn_remove_typed"), theme.ContentRemoveIcon(), func() {
 		e := strings.TrimSpace(newAddrEntry.Text)
 		if e == "" || !strings.Contains(e, "@") {
-			dialog.ShowInformation("Destinatários", "Digite na caixa acima o e-mail que deseja remover da lista.", ui.win)
+			dialog.ShowInformation(tr("dlg_rcpt_title"), tr("dlg_rcpt_type_remove"), ui.win)
 			return
 		}
 		idx := -1
@@ -7415,7 +7580,7 @@ func (ui *explorer) showMailNotifySettings() {
 			}
 		}
 		if idx < 0 {
-			dialog.ShowInformation("Destinatários", "Este endereço não está na lista.", ui.win)
+			dialog.ShowInformation(tr("dlg_rcpt_title"), tr("dlg_rcpt_not_in_list"), ui.win)
 			return
 		}
 		recipients = append(recipients[:idx], recipients[idx+1:]...)
@@ -7426,54 +7591,51 @@ func (ui *explorer) showMailNotifySettings() {
 	})
 	btnRemoveByEmail.Importance = widget.MediumImportance
 
-	btnSave := widget.NewButtonWithIcon("Salvar", theme.DocumentSaveIcon(), func() {
+	btnSave := widget.NewButtonWithIcon(tr("ui_mail_btn_save"), theme.DocumentSaveIcon(), func() {
 		s := readForm()
 		if s.Enabled && len(s.Recipients) == 0 {
-			dialog.ShowInformation("Destinatários", "Cadastre pelo menos um destinatário ou desative o envio.", ui.win)
+			dialog.ShowInformation(tr("dlg_rcpt_title"), tr("dlg_rcpt_need_one"), ui.win)
 			return
 		}
 		saveMailNotifySettings(s)
 		recipients = append([]string(nil), s.Recipients...)
 		refreshMailList()
 		appendAuditLog("acesso", "Configuração de alertas por e-mail atualizada")
-		dialog.ShowInformation("Alertas por e-mail", "Configuração salva.", ui.win)
+		dialog.ShowInformation(tr("dlg_mail_admin_title"), tr("dlg_mail_saved"), ui.win)
 	})
 
-	btnTest := widget.NewButtonWithIcon("Enviar teste", theme.MailComposeIcon(), func() {
+	btnTest := widget.NewButtonWithIcon(tr("ui_mail_btn_test"), theme.MailComposeIcon(), func() {
 		s := readForm()
 		if !s.Valid() {
 			dialog.ShowInformation(
-				"Alertas por e-mail",
-				"Preencha: ativar opção, pelo menos um destinatário na lista, servidor SMTP, porta, remetente (from) e credenciais se o servidor exigir autenticação.",
+				tr("dlg_mail_admin_title"),
+				tr("dlg_mail_test_fill_form"),
 				ui.win,
 			)
 			return
 		}
 		go func() {
-			err := s.Send("ContainerWay: teste de e-mail", "Este é um e-mail de teste enviado pelo ContainerWay.")
+			err := s.Send(tr("ui_mail_test_subject"), tr("ui_mail_test_body"))
 			if err != nil {
 				fyne.Do(func() {
-					dialog.ShowError(fmt.Errorf("falha ao enviar teste: %w", err), ui.win)
+					dialog.ShowError(fmt.Errorf(tr("ui_mail_test_fail_fmt"), err), ui.win)
 				})
 				return
 			}
 			fyne.Do(func() {
 				dest := strings.Join(mailnotify.NormalizeRecipients(s.Recipients), "\n")
-				msg := "O servidor SMTP aceitou a mensagem de teste para:\n\n" + dest +
-					"\n\nSe nada aparecer na caixa de entrada, confira spam, lixo eletrônico e pastas como \"Promoções\". " +
-					"Em contas corporativas (@empresa) o servidor pode atrasar ou filtrar mensagens vindas do Gmail. " +
-					"Aguarde alguns minutos e tente buscar por \"ContainerWay\"."
-				dialog.ShowInformation("Alertas por e-mail", msg, ui.win)
+				msg := fmt.Sprintf(tr("dlg_mail_test_accepted_fmt"), dest)
+				dialog.ShowInformation(tr("dlg_mail_admin_title"), msg, ui.win)
 			})
 		}()
 	})
 
-	btnTestSelf := widget.NewButton("Teste só no remetente (Gmail)", func() {
+	btnTestSelf := widget.NewButton(tr("ui_mail_btn_test_self"), func() {
 		s := readForm()
 		if !s.ValidTransport() {
 			dialog.ShowInformation(
-				"Alertas por e-mail",
-				"Para este teste: ative o envio, preencha servidor SMTP, porta, usuário, senha e remetente (From) com o mesmo e-mail da conta Gmail usada no SMTP.",
+				tr("dlg_mail_admin_title"),
+				tr("dlg_mail_test_self_prereq"),
 				ui.win,
 			)
 			return
@@ -7481,23 +7643,20 @@ func (ui *explorer) showMailNotifySettings() {
 		go func() {
 			fromAddr := s.EnvelopeFromAddress()
 			err := s.SendTestToSelf(
-				"ContainerWay: teste só no remetente",
-				"Este teste foi enviado apenas para o endereço do remetente (From). "+
-					"Abra o Gmail (mail.google.com) com a conta "+fromAddr+", confira Caixa de entrada e Enviados.",
+				tr("ui_mail_test_self_subject"),
+				fmt.Sprintf(tr("ui_mail_test_self_body"), fromAddr),
 			)
 			if err != nil {
 				fyne.Do(func() {
-					dialog.ShowError(fmt.Errorf("falha no teste ao remetente: %w", err), ui.win)
+					dialog.ShowError(fmt.Errorf(tr("ui_mail_test_self_fail_fmt"), err), ui.win)
 				})
 				return
 			}
 			addr := fromAddr
 			fyne.Do(func() {
 				dialog.ShowInformation(
-					"Alertas por e-mail",
-					"O Gmail aceitou a mensagem enviada só para:\n\n"+addr+
-						"\n\nAbra essa conta em mail.google.com e verifique Caixa de entrada e «Enviados». "+
-						"Se este e-mail chegar mas o teste normal não chegar no @siplan, o bloqueio é no Microsoft 365 / Exchange da empresa (spam, quarentena ou regras de transporte).",
+					tr("dlg_mail_admin_title"),
+					fmt.Sprintf(tr("dlg_mail_test_self_ok_fmt"), addr),
 					ui.win,
 				)
 			})
@@ -7510,7 +7669,7 @@ func (ui *explorer) showMailNotifySettings() {
 	removeRow := fynecontainer.NewHBox(btnRemoveAddr, btnRemoveByEmail, layout.NewSpacer())
 
 	recipientsCol := fynecontainer.NewVBox(
-		widget.NewLabelWithStyle("Destinatários dos alertas", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewLabelWithStyle(tr("ui_mail_rcpt_title_bold"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		lblRecipientCount,
 		fynecontainer.NewPadded(scrollRecipients),
 		widget.NewSeparator(),
@@ -7525,13 +7684,13 @@ func (ui *explorer) showMailNotifySettings() {
 	smtpFieldRow := func(label string, field fyne.CanvasObject) fyne.CanvasObject {
 		return fynecontainer.NewBorder(nil, nil, smtpLbl(label), nil, field)
 	}
-	hostPortRow := fynecontainer.NewBorder(nil, nil, nil, fynecontainer.NewHBox(widget.NewLabel("Porta"), portWrap), hostEntry)
+	hostPortRow := fynecontainer.NewBorder(nil, nil, nil, fynecontainer.NewHBox(widget.NewLabel(tr("ui_mail_fi_port")), portWrap), hostEntry)
 	smtpCol := fynecontainer.NewVBox(
-		widget.NewLabelWithStyle("Servidor de e-mail (SMTP)", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		fynecontainer.NewBorder(nil, nil, smtpLbl("Host"), nil, hostPortRow),
-		smtpFieldRow("Usuário", userEntry),
-		smtpFieldRow("Senha", passEntry),
-		smtpFieldRow("Remetente", fromEntry),
+		widget.NewLabelWithStyle(tr("ui_mail_smtp_title_bold"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		fynecontainer.NewBorder(nil, nil, smtpLbl(tr("ui_mail_fi_host")), nil, hostPortRow),
+		smtpFieldRow(tr("ui_mail_fi_user"), userEntry),
+		smtpFieldRow(tr("ui_mail_fi_pass"), passEntry),
+		smtpFieldRow(tr("ui_mail_fi_from"), fromEntry),
 	)
 
 	cols := fynecontainer.NewHSplit(
@@ -7559,20 +7718,20 @@ func (ui *explorer) showMailNotifySettings() {
 	)
 	fullBody := fynecontainer.NewBorder(nil, fynecontainer.NewPadded(actionBar), nil, nil, scrollCentral)
 
-	ui.openSettingsFullscreen("Alertas por e-mail (admin)", fullBody)
+	ui.openSettingsFullscreen(tr("ui_mail_screen_title"), fullBody)
 }
 
 // openRemoteForEdit executa parte da logica deste modulo.
 func (ui *explorer) openRemoteForEdit(e fsutil.DirEntry) {
 	go func() {
 		fyne.Do(func() {
-			ui.status.SetText("Abrindo arquivo remoto para edição…")
+			ui.status.SetText(tr("ui_remote_opening"))
 		})
 		ext := filepath.Ext(e.Name)
 		tmp, err := os.CreateTemp("", "containerway-open-*"+ext)
 		if err != nil {
 			fyne.Do(func() {
-				dialog.ShowError(fmt.Errorf("não foi possível criar arquivo temporário: %w", err), ui.win)
+				dialog.ShowError(fmt.Errorf(tr("ui_err_temp_create"), err), ui.win)
 			})
 			return
 		}
@@ -7589,7 +7748,7 @@ func (ui *explorer) openRemoteForEdit(e fsutil.DirEntry) {
 			if ui.sudoEnabled {
 				if err := ui.copyHostFileWithSudoToLocal(ctx, e.Path, tmpPath); err != nil {
 					fyne.Do(func() {
-						dialog.ShowError(fmt.Errorf("não foi possível ler arquivo remoto com sudo: %w", err), ui.win)
+						dialog.ShowError(fmt.Errorf(tr("ui_err_remote_sudo_read"), err), ui.win)
 					})
 					return
 				}
@@ -7600,13 +7759,13 @@ func (ui *explorer) openRemoteForEdit(e fsutil.DirEntry) {
 						if isPermissionDeniedError(err) {
 							ui.maybePromptRootAccess(err)
 							dialog.ShowInformation(
-								"Permissão negada",
-								"Este arquivo requer acesso elevado. Preencha as credenciais de sudo para continuar e tente abrir novamente.",
+								tr("dlg_perm_denied_title"),
+								tr("dlg_perm_denied_body"),
 								ui.win,
 							)
 							return
 						}
-						dialog.ShowError(fmt.Errorf("não foi possível ler arquivo remoto: %w", err), ui.win)
+						dialog.ShowError(fmt.Errorf(tr("ui_err_remote_read"), err), ui.win)
 					})
 					return
 				}
@@ -7614,7 +7773,7 @@ func (ui *explorer) openRemoteForEdit(e fsutil.DirEntry) {
 				out, err := os.Create(tmpPath)
 				if err != nil {
 					fyne.Do(func() {
-						dialog.ShowError(fmt.Errorf("não foi possível gravar arquivo temporário: %w", err), ui.win)
+						dialog.ShowError(fmt.Errorf(tr("ui_err_temp_write"), err), ui.win)
 					})
 					return
 				}
@@ -7632,7 +7791,7 @@ func (ui *explorer) openRemoteForEdit(e fsutil.DirEntry) {
 			rc, _, err := cfs.OpenFileReader(ctx, e.Path)
 			if err != nil {
 				fyne.Do(func() {
-					dialog.ShowError(fmt.Errorf("não foi possível ler arquivo no contêiner: %w", err), ui.win)
+					dialog.ShowError(fmt.Errorf(tr("ui_err_container_read"), err), ui.win)
 				})
 				return
 			}
@@ -7640,7 +7799,7 @@ func (ui *explorer) openRemoteForEdit(e fsutil.DirEntry) {
 			out, err := os.Create(tmpPath)
 			if err != nil {
 				fyne.Do(func() {
-					dialog.ShowError(fmt.Errorf("não foi possível gravar arquivo temporário: %w", err), ui.win)
+					dialog.ShowError(fmt.Errorf(tr("ui_err_temp_write"), err), ui.win)
 				})
 				return
 			}
@@ -7655,14 +7814,14 @@ func (ui *explorer) openRemoteForEdit(e fsutil.DirEntry) {
 		}
 		if err := openWithDefaultApp(tmpPath); err != nil {
 			fyne.Do(func() {
-				dialog.ShowError(fmt.Errorf("arquivo baixado, mas não foi possível abrir: %w", err), ui.win)
+				dialog.ShowError(fmt.Errorf(tr("ui_err_download_open"), err), ui.win)
 			})
 			return
 		}
 		st, err := os.Stat(tmpPath)
 		if err != nil {
 			fyne.Do(func() {
-				dialog.ShowError(fmt.Errorf("arquivo aberto, mas não foi possível iniciar monitoramento: %w", err), ui.win)
+				dialog.ShowError(fmt.Errorf(tr("ui_err_watch_start"), err), ui.win)
 			})
 			return
 		}
@@ -7712,7 +7871,7 @@ func (ui *explorer) startRemoteEditWatcher(s *remoteEditSession) {
 				if err := ui.syncEditedFileBack(s); err != nil {
 					fyne.Do(func() {
 						ui.status.SetText("Erro ao sincronizar edição remota")
-						dialog.ShowError(fmt.Errorf("não foi possível sincronizar o arquivo remoto: %w", err), ui.win)
+						dialog.ShowError(fmt.Errorf(tr("ui_err_remote_sync"), err), ui.win)
 					})
 					continue
 				}
