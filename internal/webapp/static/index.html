@@ -6,90 +6,139 @@
   <title>ContainerWay Web</title>
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <link rel="stylesheet" href="/app.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
 </head>
 <body>
   <div id="app">
-  <section id="view-login" class="view active">
-    <div class="card login-card">
-      <header class="brand">
-        <img class="logo" src="/icon-192.png" width="52" height="52" alt="ContainerWay" />
-        <div>
-          <h1>ContainerWay</h1>
-          <p class="subtitle">Gestão de ficheiros remota — interface web</p>
-        </div>
-      </header>
-      <form id="login-form">
-        <label>
-          Utilizador
-          <input type="text" id="login-user" autocomplete="username" required />
-        </label>
-        <label>
-          Senha
-          <input type="password" id="login-pass" autocomplete="current-password" required />
-        </label>
-        <p id="login-error" class="error hidden"></p>
-        <button type="submit" class="btn primary">Entrar</button>
-      </form>
-      <p class="hint">Usa as mesmas credenciais de acesso local do app desktop (por omissão: admin).</p>
-    </div>
-  </section>
-
-  <section id="view-app" class="view">
-    <header class="topbar">
-      <div class="topbar-left">
-        <img class="logo-sm" src="/favicon-32x32.png" width="32" height="32" alt="" />
-        <span id="user-label"></span>
-      </div>
-      <div class="topbar-center">
-        <form id="ssh-form" class="ssh-bar">
-          <select id="ssh-profile" title="Perfil guardado">
-            <option value="">— perfil —</option>
-          </select>
-          <input type="text" id="ssh-host" placeholder="host" required />
-          <input type="text" id="ssh-user" placeholder="utilizador" required />
-          <input type="password" id="ssh-pass" placeholder="senha (opcional com chave)" />
-          <button type="submit" class="btn primary" id="btn-ssh-connect">Conectar</button>
-          <button type="button" class="btn ghost" id="btn-ssh-disconnect" hidden>Desconectar</button>
+    <section id="view-login" class="view active">
+      <div class="card login-card">
+        <header class="brand">
+          <img class="logo" src="/icon-192.png" width="52" height="52" alt="ContainerWay" />
+          <div>
+            <h1>ContainerWay</h1>
+            <p class="subtitle">Gestão de ficheiros remota — interface web</p>
+          </div>
+        </header>
+        <form id="login-form">
+          <label>Utilizador<input type="text" id="login-user" autocomplete="username" required /></label>
+          <label>Senha<input type="password" id="login-pass" autocomplete="current-password" required /></label>
+          <p id="login-error" class="error hidden"></p>
+          <button type="submit" class="btn primary">Entrar</button>
         </form>
       </div>
-      <div class="topbar-right">
-        <span id="ssh-status" class="badge">SSH: offline</span>
-        <button type="button" class="btn ghost" id="btn-logout">Sair</button>
-      </div>
-    </header>
+    </section>
 
-    <main class="explorer">
-      <article class="panel" data-side="local">
-        <header class="panel-head">
-          <h2>Local</h2>
-          <nav class="panel-nav">
-            <button type="button" class="icon-btn" data-action="up" title="Subir">↑</button>
-            <button type="button" class="icon-btn" data-action="refresh" title="Atualizar">↻</button>
-          </nav>
-        </header>
-        <div class="path-bar" id="local-path">—</div>
-        <div class="file-list" id="local-list"></div>
-      </article>
-
-      <article class="panel" data-side="remote">
-        <header class="panel-head">
-          <h2>Remoto</h2>
-          <nav class="panel-nav">
-            <button type="button" class="icon-btn" data-action="up" title="Subir">↑</button>
-            <button type="button" class="icon-btn" data-action="refresh" title="Atualizar">↻</button>
-          </nav>
-        </header>
-        <div class="path-bar" id="remote-path">—</div>
-        <div class="file-list" id="remote-list">
-          <p class="placeholder">Ligue-se ao servidor SSH para listar ficheiros.</p>
+    <section id="view-shell" class="view">
+      <header class="topbar">
+        <div class="topbar-left">
+          <img class="logo-sm" src="/favicon-32x32.png" width="32" height="32" alt="" />
+          <span id="user-label"></span>
         </div>
-      </article>
-    </main>
-  </section>
+        <div class="topbar-center">
+          <span id="session-host" class="session-host"></span>
+        </div>
+        <div class="topbar-right">
+          <span id="ssh-status" class="badge">SSH: offline</span>
+          <button type="button" class="btn ghost" id="btn-hub" hidden>Início</button>
+          <button type="button" class="btn ghost" id="btn-disconnect" hidden>Desconectar SSH</button>
+          <button type="button" class="btn ghost" id="btn-logout">Sair</button>
+        </div>
+      </header>
+
+      <div id="view-connect" class="subview active">
+        <div class="card page-card">
+          <h2>Ligação SSH/SFTP</h2>
+          <p class="muted">Ligue-se ao servidor Linux para aceder aos módulos.</p>
+          <form id="ssh-form" class="form-grid">
+            <label>Perfil<select id="ssh-profile"><option value="">— manual —</option></select></label>
+            <label>Host<input type="text" id="ssh-host" required /></label>
+            <label>Utilizador<input type="text" id="ssh-user" required /></label>
+            <label>Senha<input type="password" id="ssh-pass" /></label>
+            <div class="form-actions">
+              <button type="submit" class="btn primary">Conectar</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div id="view-hub" class="subview">
+        <div class="page-head">
+          <h2>Início da sessão</h2>
+          <p id="hub-connected" class="muted"></p>
+          <input type="search" id="hub-search" class="search" placeholder="Pesquisar módulos…" />
+        </div>
+        <div id="hub-grid" class="hub-grid"></div>
+      </div>
+
+      <div id="view-explorer" class="subview">
+        <div class="module-toolbar">
+          <button type="button" class="btn" id="btn-send">Enviar →</button>
+          <button type="button" class="btn" id="btn-receive">← Receber</button>
+          <span id="transfer-status" class="muted"></span>
+        </div>
+        <main class="explorer">
+          <article class="panel" data-side="local">
+            <header class="panel-head"><h2>Local</h2><nav class="panel-nav">
+              <button type="button" class="icon-btn" data-side="local" data-action="up">↑</button>
+              <button type="button" class="icon-btn" data-side="local" data-action="refresh">↻</button>
+            </nav></header>
+            <div class="path-bar" id="local-path">—</div>
+            <div class="file-list selectable" id="local-list"></div>
+          </article>
+          <article class="panel" data-side="remote">
+            <header class="panel-head"><h2>Remoto</h2><nav class="panel-nav">
+              <button type="button" class="icon-btn" data-side="remote" data-action="up">↑</button>
+              <button type="button" class="icon-btn" data-side="remote" data-action="refresh">↻</button>
+            </nav></header>
+            <div class="path-bar" id="remote-path">—</div>
+            <div class="file-list selectable" id="remote-list"></div>
+          </article>
+        </main>
+      </div>
+
+      <div id="view-docker" class="subview">
+        <div class="page-head"><h2>Contêineres Docker</h2>
+          <button type="button" class="btn ghost" id="docker-refresh">Atualizar</button></div>
+        <div id="docker-list" class="data-list"></div>
+      </div>
+
+      <div id="view-disks" class="subview">
+        <div class="page-head"><h2>Discos e armazenamento</h2>
+          <button type="button" class="btn ghost" id="disks-refresh">Atualizar</button></div>
+        <div id="disks-table-wrap" class="table-wrap"></div>
+        <pre id="disks-df" class="code-block"></pre>
+      </div>
+
+      <div id="view-terminal" class="subview">
+        <div class="page-head"><h2>Terminal SSH</h2>
+          <button type="button" class="btn ghost" id="terminal-reconnect">Reconectar</button></div>
+        <div id="terminal" class="terminal-box"></div>
+      </div>
+
+      <div id="view-automations" class="subview">
+        <div class="page-head"><h2>Central de automações</h2></div>
+        <div class="split-panels">
+          <div><h3>Regras</h3><div id="auto-rules" class="data-list"></div></div>
+          <div><h3>Histórico</h3><pre id="auto-history" class="code-block"></pre></div>
+        </div>
+      </div>
+
+      <div id="view-settings" class="subview">
+        <div class="page-head"><h2>Configurações</h2></div>
+        <div class="card page-card">
+          <p>Gestão de utilizadores e e-mail SMTP está disponível na aplicação desktop Fyne.</p>
+          <p class="muted">Na versão web pode consultar o manual em <code>docs/GUIA.md</code> e políticas em <code>docs/SECURITY.md</code>.</p>
+          <ul class="settings-list">
+            <li>Conta atual: <strong id="settings-user"></strong></li>
+            <li>Perfil: <strong id="settings-role"></strong></li>
+          </ul>
+        </div>
+      </div>
+    </section>
   </div>
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

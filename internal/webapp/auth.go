@@ -24,9 +24,9 @@ type webSession struct {
 }
 
 type sessionStore struct {
-	mu    sync.RWMutex
-	web   map[string]webSession
-	ssh   map[string]*session.Session
+	mu  sync.RWMutex
+	web map[string]webSession
+	ssh map[string]*sshBundle
 }
 
 // newWebToken cria token de sessão web.
@@ -65,27 +65,27 @@ func (st *sessionStore) deleteWebToken(tok string) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	delete(st.web, tok)
-	if ssh, ok := st.ssh[tok]; ok {
-		ssh.Close()
+	if b, ok := st.ssh[tok]; ok {
+		b.Sess.Close()
 		delete(st.ssh, tok)
 	}
 }
 
 // setSSH associa sessão SSH à sessão web.
-func (st *sessionStore) setSSH(webTok string, s *session.Session) {
+func (st *sessionStore) setSSH(webTok string, s *session.Session, host, user string) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	if st.ssh == nil {
-		st.ssh = map[string]*session.Session{}
+		st.ssh = map[string]*sshBundle{}
 	}
-	if old, ok := st.ssh[webTok]; ok && old != nil && old != s {
-		old.Close()
+	if old, ok := st.ssh[webTok]; ok && old != nil && old.Sess != s {
+		old.Sess.Close()
 	}
-	st.ssh[webTok] = s
+	st.ssh[webTok] = &sshBundle{Sess: s, Host: host, User: user}
 }
 
-// getSSH devolve sessão SSH da sessão web.
-func (st *sessionStore) getSSH(webTok string) *session.Session {
+// getSSH devolve bundle SSH da sessão web.
+func (st *sessionStore) getSSH(webTok string) *sshBundle {
 	st.mu.RLock()
 	defer st.mu.RUnlock()
 	return st.ssh[webTok]
@@ -95,8 +95,8 @@ func (st *sessionStore) getSSH(webTok string) *session.Session {
 func (st *sessionStore) clearSSH(webTok string) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
-	if ssh, ok := st.ssh[webTok]; ok {
-		ssh.Close()
+	if b, ok := st.ssh[webTok]; ok {
+		b.Sess.Close()
 		delete(st.ssh, webTok)
 	}
 }

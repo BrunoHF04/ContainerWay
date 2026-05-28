@@ -107,6 +107,15 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("/api/ssh/status", s.handleSSHStatus)
 	mux.HandleFunc("/api/local/list", s.handleLocalList)
 	mux.HandleFunc("/api/remote/list", s.handleRemoteList)
+	mux.HandleFunc("/api/transfer/status", s.handleTransferStatus)
+	mux.HandleFunc("/api/transfer/push", s.handleTransferPush)
+	mux.HandleFunc("/api/transfer/pull", s.handleTransferPull)
+	mux.HandleFunc("/api/docker/containers", s.handleDockerContainers)
+	mux.HandleFunc("/api/docker/restart", s.handleDockerRestart)
+	mux.HandleFunc("/api/disks/summary", s.handleDisksSummary)
+	mux.HandleFunc("/api/automations/rules", s.handleAutomationsRules)
+	mux.HandleFunc("/api/automations/history", s.handleAutomationsHistory)
+	mux.HandleFunc("/api/ssh/terminal/ws", s.handleTerminalWS)
 
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" || !strings.Contains(r.URL.Path, ".") {
@@ -160,6 +169,7 @@ func (s *Server) handleAuthLogin(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"username":    user.Username,
 		"displayName": user.DisplayName,
+		"isAdmin":     isAdminUser(user.Username),
 	})
 }
 
@@ -189,6 +199,7 @@ func (s *Server) handleAuthMe(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"username":    ws.Username,
 		"displayName": ws.DisplayName,
+		"isAdmin":     isAdminUser(ws.Username),
 	})
 }
 
@@ -248,7 +259,7 @@ func (s *Server) handleSSHConnect(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 		return
 	}
-	s.store.setSSH(tok, sess)
+	s.store.setSSH(tok, sess, creds.Host, creds.User)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"connected": true,
 		"host":      creds.Host,
@@ -276,12 +287,20 @@ func (s *Server) handleSSHStatus(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "método não permitido"})
 		return
 	}
-	tok, _, ok := s.requireWebAuth(w, r)
+	tok, ws, ok := s.requireWebAuth(w, r)
 	if !ok {
 		return
 	}
-	ssh := s.store.getSSH(tok)
-	writeJSON(w, http.StatusOK, map[string]any{"connected": ssh != nil})
+	b := s.store.getSSH(tok)
+	resp := map[string]any{
+		"connected": b != nil,
+		"isAdmin":   isAdminUser(ws.Username),
+	}
+	if b != nil {
+		resp["host"] = b.Host
+		resp["user"] = b.User
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // handleLocalList lista diretório no computador onde o servidor corre.
@@ -327,8 +346,8 @@ func (s *Server) handleRemoteList(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	ssh := s.store.getSSH(tok)
-	if ssh == nil {
+	b := s.store.getSSH(tok)
+	if b == nil {
 		writeJSON(w, http.StatusPreconditionFailed, map[string]string{"error": "ligue-se ao servidor SSH primeiro"})
 		return
 	}
@@ -336,7 +355,7 @@ func (s *Server) handleRemoteList(w http.ResponseWriter, r *http.Request) {
 	if dir == "" {
 		dir = "/"
 	}
-	hfs := &hostfs.FS{Client: ssh.SFTP}
+	hfs := &hostfs.FS{Client: b.Sess.SFTP}
 	entries, err := hfs.List(r.Context(), dir)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})

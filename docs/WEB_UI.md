@@ -73,17 +73,31 @@ Flags: `-addr 127.0.0.1:9000`, `-no-browser` (não abrir o navegador).
 | GET | `/api/ssh/status` | SSH ativo? |
 | GET | `/api/local/list?path=` | Listagem local |
 | GET | `/api/remote/list?path=` | Listagem remota (SFTP) |
+| GET | `/api/transfer/status` | Fila de transferências |
+| POST | `/api/transfer/push` | Enviar ficheiro local → remoto |
+| POST | `/api/transfer/pull` | Receber ficheiro remoto → local |
+| GET | `/api/docker/containers` | Contêineres em execução |
+| POST | `/api/docker/restart` | Reiniciar contêiner (`{"id"}`) |
+| GET | `/api/disks/summary` | Discos (lsblk + df) |
+| GET | `/api/automations/rules` | Regras do host |
+| GET | `/api/automations/history` | Histórico de automações |
+| WS | `/api/ssh/terminal/ws` | Terminal interativo |
 
 ## Estado atual (telas)
 
 | Tela | Disponível |
 |------|------------|
 | Login de acesso local | Sim |
-| Explorador dual (local + remoto) | Sim |
-| Hub / módulos da sessão | Não |
-| Transferências | Não |
-| Terminal SSH | Não |
-| Docker, discos, automações | Não |
+| Ligação SSH | Sim |
+| Hub / menu da sessão (cartões) | Sim |
+| Explorador dual + enviar/receber ficheiro | Sim |
+| Contêineres Docker (lista + reiniciar) | Sim |
+| Discos (lsblk + df) | Sim |
+| Terminal SSH (WebSocket + xterm) | Sim |
+| Automações (regras + histórico leitura) | Sim |
+| Configurações (info admin) | Sim |
+| Edição de regras / e-mail / utilizadores | Só desktop |
+| Transferência de pastas / contêineres | Em desenvolvimento |
 
 ## Próximas fases
 
