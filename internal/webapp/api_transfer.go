@@ -31,8 +31,9 @@ func (s *Server) handleTransferStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 type transferPathsBody struct {
-	LocalPath  string `json:"localPath"`
-	RemotePath string `json:"remotePath"`
+	LocalPath   string `json:"localPath"`
+	RemotePath  string `json:"remotePath"`
+	ContainerID string `json:"containerId,omitempty"`
 }
 
 // handleTransferPush envia ficheiro ou pasta local → remoto.
@@ -54,6 +55,11 @@ func (s *Server) handleTransferPush(w http.ResponseWriter, r *http.Request) {
 	remote := strings.TrimSpace(body.RemotePath)
 	if local == "" || remote == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "caminhos obrigatórios"})
+		return
+	}
+	cid := strings.TrimSpace(body.ContainerID)
+	if cid != "" {
+		s.enqueueContainerPushHandler(w, r, tok, b, local, remote, cid)
 		return
 	}
 	st, err := os.Stat(local)
@@ -99,6 +105,11 @@ func (s *Server) handleTransferPull(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "caminhos obrigatórios"})
 		return
 	}
+	cid := strings.TrimSpace(body.ContainerID)
+	if cid != "" {
+		s.enqueueContainerPullHandler(w, r, tok, b, local, remote, cid)
+		return
+	}
 	hfs := &hostfs.FS{Client: b.Sess.SFTP}
 	rst, err := hfs.Stat(remote)
 	if err != nil {
@@ -134,7 +145,14 @@ func (s *Server) drainTransfers(webTok string, b *sshBundle) {
 		return
 	}
 	ctx := context.Background()
-	b.TM.DrainAsync(ctx, 2,
+	par := b.parallelJobs
+	if par < 1 {
+		par = 2
+	}
+	if par > 8 {
+		par = 8
+	}
+	b.TM.DrainAsync(ctx, par,
 		func(j transfer.Job) {
 			b.addTransferLog(j.Name, "running", "")
 			b.setTransferProgress(j.Name, 0, 0)
@@ -269,4 +287,180 @@ func joinLocalPath(dir, name string) string {
 		return name
 	}
 	return filepath.Join(dir, name)
+}
+
+// pasteLocalFileToContainer envia um ficheiro local para pasta no contêiner.
+func pasteLocalFileToContainer(ctx context.Context, b *sshBundle, containerID, localPath, destDir string) error {
+	cfs, err := containerFS(b, containerID)
+	if err != nil {
+		return err
+	}
+	f, err := os.Open(localPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	return cfs.UploadFile(ctx, destDir, filepath.Base(localPath), f, st.Size())
+}
+
+// pullContainerFileToLocal obtém um ficheiro do contêiner para disco local.
+func pullContainerFileToLocal(ctx context.Context, b *sshBundle, containerID, remotePath, localPath string) error {
+	cfs, err := containerFS(b, containerID)
+	if err != nil {
+		return err
+	}
+	rc, _, err := cfs.OpenFileReader(ctx, remotePath)
+	if err != nil {
+		return err
+	}
+	defer rc.Close()
+	if err := os.MkdirAll(filepath.Dir(localPath), 0o755); err != nil {
+		return err
+	}
+	out, err := os.Create(localPath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	_, err = io.Copy(out, rc)
+	return err
+}
+
+func (s *Server) enqueueContainerPushHandler(w http.ResponseWriter, r *http.Request, webTok string, b *sshBundle, local, remote, containerID string) {
+	_ = r
+	st, err := os.Stat(local)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "caminho local inválido"})
+		return
+	}
+	if st.IsDir() {
+		remote = joinRemotePath(remote, filepath.Base(local))
+		name := fmt.Sprintf("Enviar pasta → contêiner %s", path.Base(local))
+		s.enqueueTransfer(webTok, b, name, func(ctx context.Context, on transfer.Progress) error {
+			if on != nil {
+				on(0, -1)
+			}
+			err := tarxfer.UploadLocalDirToContainer(ctx, b.Sess.Docker, containerID, local, remote)
+			if on != nil {
+				on(1, 1)
+			}
+			return err
+		})
+		writeJSON(w, http.StatusAccepted, map[string]string{"status": "enfileirado", "name": name, "kind": "dir"})
+		return
+	}
+	name := fmt.Sprintf("Enviar → contêiner %s", filepath.Base(local))
+	s.enqueueTransfer(webTok, b, name, func(ctx context.Context, on transfer.Progress) error {
+		return pasteLocalFileToContainer(ctx, b, containerID, local, remote)
+	})
+	writeJSON(w, http.StatusAccepted, map[string]string{"status": "enfileirado", "name": name, "kind": "file"})
+}
+
+func (s *Server) enqueueContainerPullHandler(w http.ResponseWriter, r *http.Request, webTok string, b *sshBundle, local, remote, containerID string) {
+	if b.Sess.Docker == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": errDockerUnavailable.Error()})
+		return
+	}
+	stat, err := b.Sess.Docker.ContainerStatPath(r.Context(), containerID, remote)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	if stat.Mode.IsDir() {
+		localDir := joinLocalPath(local, path.Base(remote))
+		name := fmt.Sprintf("Receber pasta do contêiner %s", path.Base(remote))
+		s.enqueueTransfer(webTok, b, name, func(ctx context.Context, on transfer.Progress) error {
+			if on != nil {
+				on(0, -1)
+			}
+			_, err := tarxfer.ExtractContainerDirToLocal(ctx, b.Sess.Docker, containerID, remote, localDir)
+			if on != nil {
+				on(1, 1)
+			}
+			return err
+		})
+		writeJSON(w, http.StatusAccepted, map[string]string{"status": "enfileirado", "name": name, "kind": "dir"})
+		return
+	}
+	localFile := joinLocalPath(local, path.Base(remote))
+	name := fmt.Sprintf("Receber do contêiner %s", path.Base(remote))
+	s.enqueueTransfer(webTok, b, name, func(ctx context.Context, on transfer.Progress) error {
+		return pullContainerFileToLocal(ctx, b, containerID, remote, localFile)
+	})
+	writeJSON(w, http.StatusAccepted, map[string]string{"status": "enfileirado", "name": name, "kind": "file"})
+}
+
+// handleTransferBatch envia ou recebe vários itens visíveis/selecionados.
+func (s *Server) handleTransferBatch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "método não permitido"})
+		return
+	}
+	tok, b, ok := s.requireSSH(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		Direction   string `json:"direction"` // push | pull
+		LocalDir    string `json:"localDir"`
+		RemoteDir   string `json:"remoteDir"`
+		ContainerID string `json:"containerId,omitempty"`
+		Items       []struct {
+			Name  string `json:"name"`
+			Path  string `json:"path"`
+			IsDir bool   `json:"isDir"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || len(body.Items) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "items obrigatório"})
+		return
+	}
+	for _, it := range body.Items {
+		if it.Name == ".." {
+			continue
+		}
+		if body.Direction == "push" {
+			if it.IsDir {
+				s.enqueueTransfer(tok, b, "Lote: "+it.Name, func(ctx context.Context, on transfer.Progress) error {
+					if body.ContainerID != "" {
+						return tarxfer.UploadLocalDirToContainer(ctx, b.Sess.Docker, body.ContainerID, it.Path, joinRemotePath(body.RemoteDir, it.Name))
+					}
+					return pushDir(ctx, b, it.Path, joinRemotePath(body.RemoteDir, it.Name), on)
+				})
+			} else {
+				st, _ := os.Stat(it.Path)
+				size := int64(0)
+				if st != nil {
+					size = st.Size()
+				}
+				remote := joinRemotePath(body.RemoteDir, it.Name)
+				s.enqueueTransfer(tok, b, "Lote: "+it.Name, func(ctx context.Context, on transfer.Progress) error {
+					if body.ContainerID != "" {
+						return pasteLocalFileToContainer(ctx, b, body.ContainerID, it.Path, body.RemoteDir)
+					}
+					return pushOneFile(ctx, b, it.Path, remote, size, on)
+				})
+			}
+		} else {
+			local := joinLocalPath(body.LocalDir, it.Name)
+			s.enqueueTransfer(tok, b, "Lote: "+it.Name, func(ctx context.Context, on transfer.Progress) error {
+				if body.ContainerID != "" {
+					if it.IsDir {
+						_, err := tarxfer.ExtractContainerDirToLocal(ctx, b.Sess.Docker, body.ContainerID, it.Path, local)
+						return err
+					}
+					return pullContainerFileToLocal(ctx, b, body.ContainerID, it.Path, local)
+				}
+				if it.IsDir {
+					return pullDir(ctx, b, local, it.Path, on)
+				}
+				return pullOneFile(ctx, b, local, it.Path, on)
+			})
+		}
+	}
+	writeJSON(w, http.StatusAccepted, map[string]string{"status": "enfileirado", "count": fmt.Sprintf("%d", len(body.Items))})
 }

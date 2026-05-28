@@ -210,7 +210,9 @@ async function refreshSSH() {
   if (st.connected) {
     CWUI.hostAccent(st.host);
     if (typeof measureSSHLatency === "function") measureSSHLatency();
+    if (typeof refreshSudoUI === "function") refreshSudoUI();
   } else {
+    if (typeof refreshSudoUI === "function") refreshSudoUI();
     CWUI.hostAccent("");
     $("#ssh-latency")?.classList.add("hidden");
   }
@@ -392,62 +394,7 @@ $("#ssh-delete-profile").addEventListener("click", async () => {
 
 $("#hub-search").addEventListener("input", renderHub);
 
-// Explorer
-function renderEntries(container, entries, side) {
-  container.classList.remove("skeleton-host");
-  container.innerHTML = "";
-  if (!entries?.length) {
-    CWUI.emptyState(container, {
-      icon: "📂",
-      title: "Pasta vazia",
-      desc: side === "local" ? "Não há ficheiros nesta pasta local." : "Não há ficheiros neste diretório remoto.",
-    });
-    return;
-  }
-  for (const e of entries) {
-    const row = document.createElement("div");
-    row.className = "file-row" + (e.isDir ? " dir" : "");
-    row.dataset.path = e.path;
-    row.dataset.isDir = e.isDir ? "1" : "0";
-    const icon = CWUI.fileIcon(e.name, e.isDir);
-    row.innerHTML = `<span class="icon">${icon}</span><span class="name">${escapeHtml(e.name)}</span><span class="meta">${e.isDir ? "" : formatSize(e.size)}</span>`;
-    row.addEventListener("click", () => {
-      container.querySelectorAll(".file-row").forEach((r) => r.classList.remove("selected"));
-      row.classList.add("selected");
-      if (side === "local") state.selLocal = e;
-      else state.selRemote = e;
-    });
-    row.addEventListener("dblclick", () => {
-      if (e.isDir) {
-        if (side === "local") loadLocal(e.path);
-        else loadRemote(e.path);
-      }
-    });
-    container.appendChild(row);
-  }
-}
-
-async function loadLocal(path) {
-  CWUI.skeletonList($("#local-list"), 8);
-  const q = path ? `?path=${encodeURIComponent(path)}` : "";
-  const data = await api("/api/local/list" + q);
-  state.localPath = data.path;
-  state.selLocal = null;
-  $("#local-path").textContent = data.path;
-  renderEntries($("#local-list"), data.entries, "local");
-  if (typeof updateExplorerBreadcrumbs === "function") updateExplorerBreadcrumbs();
-}
-
-async function loadRemote(path) {
-  if (!state.ssh.connected) return;
-  CWUI.skeletonList($("#remote-list"), 8);
-  const data = await api(`/api/remote/list?path=${encodeURIComponent(path || "/")}`);
-  state.remotePath = data.path;
-  state.selRemote = null;
-  $("#remote-path").textContent = data.path;
-  renderEntries($("#remote-list"), data.entries, "remote");
-  if (typeof updateExplorerBreadcrumbs === "function") updateExplorerBreadcrumbs();
-}
+// Explorer — ver explorer.js
 
 async function goUp(side) {
   const path = side === "local" ? state.localPath : state.remotePath;
@@ -470,62 +417,9 @@ $$(".icon-btn").forEach((btn) => {
   });
 });
 
-function resolveRemoteDest(sel) {
-  const base = sel.path.split(/[/\\]/).pop();
-  const sep = state.remotePath.endsWith("/") ? "" : "/";
-  return state.remotePath + sep + base;
-}
-
-function resolveLocalDest(sel) {
-  const base = sel.name;
-  const root = state.localPath.replace(/[/\\]+$/, "");
-  const sep = root.includes("\\") ? "\\" : "/";
-  return root + sep + base;
-}
-
-$("#btn-send").addEventListener("click", async () => {
-  if (!state.selLocal || state.selLocal.name === "..") {
-    CWUI.toast("Selecione um ficheiro ou pasta no painel local.", "error");
-    return;
-  }
-  const remote = resolveRemoteDest(state.selLocal);
-  const kind = state.selLocal.isDir ? "pasta" : "ficheiro";
-  if (!(await CWConfirm(`Enviar ${kind} para ${remote}?`))) return;
-  try {
-    await api("/api/transfer/push", {
-      method: "POST",
-      body: JSON.stringify({ localPath: state.selLocal.path, remotePath: state.remotePath }),
-    });
-    showTransferLog();
-    $("#transfer-progress-panel")?.classList.remove("hidden");
-    refreshTransferStatus();
-    CWUI.toast("Transferência enfileirada", "success");
-  } catch (e) { CWUI.toast(e.message, "error"); }
-});
-
-$("#btn-receive").addEventListener("click", async () => {
-  if (!state.selRemote || state.selRemote.name === "..") {
-    CWUI.toast("Selecione um ficheiro ou pasta no painel remoto.", "error");
-    return;
-  }
-  const local = resolveLocalDest(state.selRemote);
-  const kind = state.selRemote.isDir ? "pasta" : "ficheiro";
-  if (!(await CWConfirm(`Receber ${kind} para ${local}?`))) return;
-  try {
-    await api("/api/transfer/pull", {
-      method: "POST",
-      body: JSON.stringify({ localPath: state.localPath, remotePath: state.selRemote.path }),
-    });
-    showTransferLog();
-    $("#transfer-progress-panel")?.classList.remove("hidden");
-    refreshTransferStatus();
-    CWUI.toast("Transferência enfileirada", "success");
-  } catch (e) { CWUI.toast(e.message, "error"); }
-});
-
-$("#btn-refresh-panels").addEventListener("click", () => {
-  loadLocal(state.localPath);
-  if (state.ssh.connected) loadRemote(state.remotePath);
+$("#btn-refresh-panels")?.addEventListener("click", () => {
+  if (typeof loadLocal === "function") loadLocal(state.localPath);
+  if (state.ssh.connected && typeof loadRemote === "function") loadRemote(state.remotePath);
 });
 
 function showTransferLog() {
@@ -591,18 +485,37 @@ async function loadDocker() {
       const row = document.createElement("div");
       row.className = "data-row";
       row.innerHTML = `<div><strong>${escapeHtml(c.name || c.id)}</strong><span class="muted">${escapeHtml(c.image)} — ${escapeHtml(c.status)}</span></div>`;
-      const btn = document.createElement("button");
-      btn.className = "btn btn-ghost";
-      btn.textContent = "Reiniciar";
-      btn.addEventListener("click", async () => {
-        if (!(await CWConfirm(`Reiniciar ${c.name || c.id}?`))) return;
-        try {
-          await api("/api/docker/restart", { method: "POST", body: JSON.stringify({ id: c.idFull || c.id }) });
+      const actions = document.createElement("div");
+      actions.className = "data-row-actions";
+      const id = c.idFull || c.id;
+      for (const [label, fn] of [
+        ["Logs", async () => {
+          try {
+            const data = await api(`/api/docker/logs?id=${encodeURIComponent(id)}&tail=300`);
+            await CWConfirm(data.logs || "(vazio)", { ok: "Fechar", title: `Logs — ${c.name || id}` });
+          } catch (e) { CWUI.toast(e.message, "error"); }
+        }],
+        ["Stats", async () => {
+          try {
+            const data = await api(`/api/docker/stats?id=${encodeURIComponent(id)}`);
+            const txt = typeof data.stats === "string" ? data.stats : JSON.stringify(data.stats, null, 2);
+            await CWConfirm(txt.slice(0, 4000), { ok: "Fechar", title: `Stats — ${c.name || id}` });
+          } catch (e) { CWUI.toast(e.message, "error"); }
+        }],
+        ["Reiniciar", async () => {
+          if (!(await CWConfirm(`Reiniciar ${c.name || c.id}?`))) return;
+          await api("/api/docker/restart", { method: "POST", body: JSON.stringify({ id }) });
           CWUI.toast("Contêiner reiniciado", "success");
           loadDocker();
-        } catch (e) { CWUI.toast(e.message, "error"); }
-      });
-      row.appendChild(btn);
+        }],
+      ]) {
+        const btn = document.createElement("button");
+        btn.className = "btn btn-ghost btn-sm";
+        btn.textContent = label;
+        btn.addEventListener("click", fn);
+        actions.appendChild(btn);
+      }
+      row.appendChild(actions);
       box.appendChild(row);
     }
   } catch (e) {

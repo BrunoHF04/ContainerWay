@@ -44,7 +44,19 @@ type sshBundle struct {
 
 	autoEngine automation.Engine
 
+	clipboardMu sync.Mutex
+	clipboard   *clipboardEntry
+
+	parallelJobs int
+
+	sudoMu          sync.Mutex
+	sudoEnabled     bool
+	sudoUser        string
+	sudoPass        string
+	sudoValidatedAt time.Time
 }
+
+const sudoSessionTTL = 10 * time.Minute
 
 
 

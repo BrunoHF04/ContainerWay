@@ -1,8 +1,16 @@
 package webapp
 
 import (
+	"errors"
 	"net/http"
 	"strings"
+)
+
+// errDockerUnavailable está definido em api_automations.go (partilhado no pacote webapp).
+
+var (
+	errInvalidContainer = errors.New("ID de contêiner obrigatório")
+	errInvalidPath      = errors.New("caminho inválido")
 )
 
 // requireSSH exige sessão web e SSH ativa.

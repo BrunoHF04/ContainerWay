@@ -305,6 +305,122 @@ const CWUI = (() => {
     panel.classList.toggle("hidden", !inner.children.length && !(active && active.name));
   }
 
+  const _floatMenus = new Set();
+
+  function setMenuBackdrop(visible) {
+    const backdrop = document.getElementById("explorer-menu-backdrop");
+    if (!backdrop) return;
+    backdrop.classList.toggle("hidden", !visible);
+    backdrop.classList.toggle("is-visible", visible);
+  }
+
+  function closeAllFloatMenus(except) {
+    for (const d of _floatMenus) {
+      if (d !== except && d.open) d.removeAttribute("open");
+    }
+    setMenuBackdrop(false);
+  }
+
+  /** Menu flutuante: portal para body, um aberto de cada vez, sem sobrepor painéis. */
+  function wireFloatingDropdown(detailsEl, panelSelector, align = "left", group = "explorer") {
+    if (!detailsEl) return;
+    const panel = detailsEl.querySelector(panelSelector);
+    if (!panel) return;
+    _floatMenus.add(detailsEl);
+    detailsEl.dataset.floatGroup = group;
+
+    const placeholder = document.createComment("cw-menu");
+    let portaled = false;
+    const anchor = () => detailsEl.querySelector("summary") || detailsEl;
+    const menuPrefer = detailsEl.dataset.menuPrefer || "auto";
+
+    const restorePanel = () => {
+      panel.classList.remove("is-floating");
+      panel.style.cssText = "";
+      if (portaled && placeholder.parentNode) {
+        placeholder.parentNode.insertBefore(panel, placeholder);
+        portaled = false;
+      }
+    };
+
+    const place = () => {
+      if (!detailsEl.open) {
+        restorePanel();
+        return;
+      }
+      if (!portaled) {
+        detailsEl.insertBefore(placeholder, panel);
+        document.body.appendChild(panel);
+        portaled = true;
+      }
+      panel.classList.remove("menu-anchor-up");
+      panel.classList.add("is-floating");
+      panel.style.display = "flex";
+      const ar = anchor().getBoundingClientRect();
+      const pw = panel.offsetWidth || 180;
+      const ph = panel.offsetHeight || 160;
+      let top;
+      let left;
+      let openUp = false;
+      const centerX = ar.left + ar.width / 2 - pw / 2;
+
+      const explorerGrid = document.querySelector("#view-explorer .explorer");
+      const gridTop = explorerGrid?.getBoundingClientRect().top ?? window.innerHeight;
+
+      if (menuPrefer === "down") {
+        top = ar.bottom + 8;
+        left = centerX;
+      } else if (menuPrefer === "up") {
+        top = ar.top - ph - 8;
+        left = centerX;
+        openUp = true;
+      } else {
+        top = ar.bottom + 6;
+        left = align === "right" ? ar.right - pw : ar.left;
+        if (top + ph > gridTop - 4 && ar.top > ph + 12) {
+          top = ar.top - ph - 6;
+          left = centerX;
+          openUp = true;
+        }
+      }
+
+      if (openUp) panel.classList.add("menu-anchor-up");
+
+      left = Math.max(8, Math.min(left, window.innerWidth - pw - 8));
+      top = Math.max(8, Math.min(top, window.innerHeight - ph - 8));
+      panel.style.top = `${top}px`;
+      panel.style.left = `${left}px`;
+
+      setMenuBackdrop(true);
+    };
+
+    detailsEl.addEventListener("toggle", () => {
+      if (detailsEl.open) {
+        document.querySelectorAll(`details[data-float-group="${group}"][open]`).forEach((d) => {
+          if (d !== detailsEl) d.removeAttribute("open");
+        });
+        requestAnimationFrame(() => requestAnimationFrame(place));
+      } else {
+        restorePanel();
+        if (![..._floatMenus].some((d) => d.open)) setMenuBackdrop(false);
+      }
+    });
+
+    panel.addEventListener("click", (e) => e.stopPropagation());
+
+    window.addEventListener("resize", () => { if (detailsEl.open) place(); });
+    window.addEventListener("scroll", () => { if (detailsEl.open) place(); }, true);
+  }
+
+  document.addEventListener("pointerdown", (e) => {
+    if (e.target.closest("details[data-float-group] > summary")) return;
+    if (e.target.closest(".is-floating")) return;
+    if (![..._floatMenus].some((d) => d.open)) return;
+    closeAllFloatMenus();
+  });
+
+  document.getElementById("explorer-menu-backdrop")?.addEventListener("pointerdown", () => closeAllFloatMenus());
+
   return {
     toast,
     confirmDialog,
@@ -322,6 +438,8 @@ const CWUI = (() => {
     pathToBreadcrumbs,
     renderTransferProgress,
     escapeHtml,
+    wireFloatingDropdown,
+    closeAllFloatMenus,
   };
 })();
 

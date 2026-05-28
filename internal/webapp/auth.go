@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -72,7 +73,7 @@ func (st *sessionStore) deleteWebToken(tok string) {
 }
 
 // setSSH associa sessão SSH à sessão web.
-func (st *sessionStore) setSSH(webTok string, s *session.Session, host, user string) {
+func (st *sessionStore) setSSH(webTok string, s *session.Session, host, user string, parallelJobs int) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	if st.ssh == nil {
@@ -81,7 +82,13 @@ func (st *sessionStore) setSSH(webTok string, s *session.Session, host, user str
 	if old, ok := st.ssh[webTok]; ok && old != nil && old.Sess != s {
 		old.Sess.Close()
 	}
-	st.ssh[webTok] = &sshBundle{Sess: s, Host: host, User: user}
+	if parallelJobs < 1 {
+		parallelJobs = 2
+	}
+	if parallelJobs > 8 {
+		parallelJobs = 8
+	}
+	st.ssh[webTok] = &sshBundle{Sess: s, Host: host, User: user, parallelJobs: parallelJobs}
 }
 
 // getSSH devolve bundle SSH da sessão web.
@@ -144,6 +151,40 @@ type sshConnectRequest struct {
 	KnownHosts      string `json:"knownHosts"`
 	InsecureHostKey bool   `json:"insecureHostKey"`
 	DockerSocket    string `json:"dockerSocket"`
+	ParallelJobs    string `json:"parallelJobs"`
+}
+
+// parallelJobsFromRequest devolve paralelismo de transferências (1–8).
+func parallelJobsFromRequest(req sshConnectRequest) int {
+	if n := parseParallelJobs(req.ParallelJobs); n > 0 {
+		return n
+	}
+	if name := strings.TrimSpace(req.ProfileName); name != "" {
+		list, err := connectcfg.LoadAll()
+		if err == nil {
+			if prof, ok := connectcfg.FindByName(list, name); ok {
+				if n := parseParallelJobs(prof.ParallelJobs); n > 0 {
+					return n
+				}
+			}
+		}
+	}
+	return 2
+}
+
+func parseParallelJobs(s string) int {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n < 1 {
+		return 0
+	}
+	if n > 8 {
+		return 8
+	}
+	return n
 }
 
 // credentials monta credenciais SSH a partir do pedido ou perfil guardado.

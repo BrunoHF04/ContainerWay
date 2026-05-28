@@ -104,13 +104,28 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("/api/ssh/connect", s.handleSSHConnect)
 	mux.HandleFunc("/api/ssh/disconnect", s.handleSSHDisconnect)
 	mux.HandleFunc("/api/ssh/status", s.handleSSHStatus)
+	mux.HandleFunc("/api/ssh/sudo", s.handleSSHSudo)
 	mux.HandleFunc("/api/local/list", s.handleLocalList)
 	mux.HandleFunc("/api/remote/list", s.handleRemoteList)
 	mux.HandleFunc("/api/transfer/status", s.handleTransferStatus)
 	mux.HandleFunc("/api/transfer/push", s.handleTransferPush)
 	mux.HandleFunc("/api/transfer/pull", s.handleTransferPull)
+	mux.HandleFunc("/api/transfer/batch", s.handleTransferBatch)
+	mux.HandleFunc("/api/local/mkdir", s.handleLocalMkdir)
+	mux.HandleFunc("/api/local/rename", s.handleLocalRename)
+	mux.HandleFunc("/api/local/delete", s.handleLocalDelete)
+	mux.HandleFunc("/api/local/shortcuts", s.handleLocalShortcuts)
+	mux.HandleFunc("/api/remote/mkdir", s.handleRemoteMkdir)
+	mux.HandleFunc("/api/remote/rename", s.handleRemoteRename)
+	mux.HandleFunc("/api/remote/delete", s.handleRemoteDelete)
+	mux.HandleFunc("/api/explorer/compare", s.handleExplorerCompare)
+	mux.HandleFunc("/api/explorer/favorites", s.handleExplorerFavorites)
+	mux.HandleFunc("/api/explorer/clipboard", s.handleExplorerClipboard)
+	mux.HandleFunc("/api/explorer/paste", s.handleExplorerPaste)
 	mux.HandleFunc("/api/docker/containers", s.handleDockerContainers)
 	mux.HandleFunc("/api/docker/restart", s.handleDockerRestart)
+	mux.HandleFunc("/api/docker/logs", s.handleDockerLogs)
+	mux.HandleFunc("/api/docker/stats", s.handleDockerStats)
 	mux.HandleFunc("/api/disks/summary", s.handleDisksSummary)
 	mux.HandleFunc("/api/automations/rules", s.handleAutomationsRules)
 	mux.HandleFunc("/api/automations/history", s.handleAutomationsHistory)
@@ -233,7 +248,7 @@ func (s *Server) handleSSHConnect(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 		return
 	}
-	s.store.setSSH(tok, sess, creds.Host, creds.User)
+	s.store.setSSH(tok, sess, creds.Host, creds.User, parallelJobsFromRequest(body))
 	writeJSON(w, http.StatusOK, map[string]any{
 		"connected": true,
 		"host":      creds.Host,
@@ -329,16 +344,42 @@ func (s *Server) handleRemoteList(w http.ResponseWriter, r *http.Request) {
 	if dir == "" {
 		dir = "/"
 	}
-	hfs := &hostfs.FS{Client: b.Sess.SFTP}
-	entries, err := hfs.List(r.Context(), dir)
+	containerID := strings.TrimSpace(r.URL.Query().Get("containerId"))
+	var entries []fsutil.DirEntry
+	var err error
+	if containerID != "" {
+		cfs, cfsErr := containerFS(b, containerID)
+		if cfsErr != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": cfsErr.Error()})
+			return
+		}
+		entries, err = cfs.List(r.Context(), dir)
+	} else {
+		b.sudoMu.Lock()
+		sudoOn := b.sudoEnabled
+		b.sudoMu.Unlock()
+		if sudoOn {
+			entries, err = b.listHostWithSudo(r.Context(), dir)
+		} else {
+			hfs := &hostfs.FS{Client: b.Sess.SFTP}
+			entries, err = hfs.List(r.Context(), dir)
+		}
+	}
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"path":    dir,
-		"entries": serializeEntries(entries),
-	})
+	resp := map[string]any{
+		"path":        dir,
+		"containerId": containerID,
+		"entries":     serializeEntries(entries),
+	}
+	b.sudoMu.Lock()
+	if b.sudoEnabled {
+		resp["sudo"] = map[string]any{"enabled": true, "user": b.sudoUser}
+	}
+	b.sudoMu.Unlock()
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // requireWebAuth valida cookie de sessão web.

@@ -77,10 +77,25 @@ Flags: `-addr 127.0.0.1:9000`, `-no-browser` (não abrir o navegador).
 | GET | `/api/local/list?path=` | Listagem local |
 | GET | `/api/remote/list?path=` | Listagem remota (SFTP) |
 | GET | `/api/transfer/status` | Fila de transferências |
-| POST | `/api/transfer/push` | Enviar ficheiro local → remoto |
-| POST | `/api/transfer/pull` | Receber ficheiro remoto → local |
+| POST | `/api/transfer/push` | Enviar ficheiro/pasta local → remoto (ou contêiner com `containerId`) |
+| POST | `/api/transfer/pull` | Receber ficheiro/pasta remoto → local (ou de contêiner) |
+| POST | `/api/transfer/batch` | Lote push/pull dos itens visíveis |
+| POST | `/api/local/mkdir` | Criar pasta local |
+| POST | `/api/local/rename` | Renomear local |
+| POST/DELETE | `/api/local/delete` | Apagar local |
+| GET | `/api/local/shortcuts` | Atalhos Home/Desktop/… |
+| POST | `/api/remote/mkdir` | Criar pasta remota (host ou `containerId`) |
+| POST | `/api/remote/rename` | Renomear remoto |
+| POST/DELETE | `/api/remote/delete` | Apagar remoto |
+| GET | `/api/explorer/compare` | Comparar pastas dos dois painéis |
+| GET/PUT | `/api/explorer/favorites` | Favoritos (partilhados com desktop) |
+| GET/POST/DELETE | `/api/explorer/clipboard` | Copiar metadados para colar |
+| POST | `/api/explorer/paste` | Colar / mover entre painéis |
+| GET | `/api/remote/list?containerId=` | Listar dentro de contêiner |
 | GET | `/api/docker/containers` | Contêineres em execução |
 | POST | `/api/docker/restart` | Reiniciar contêiner (`{"id"}`) |
+| GET | `/api/docker/logs?id=` | Logs do contêiner |
+| GET | `/api/docker/stats?id=` | Estatísticas do contêiner |
 | GET | `/api/disks/summary` | Discos (lsblk + df) |
 | GET / PUT | `/api/automations/rules` | Listar / gravar regras do host |
 | GET / DELETE | `/api/automations/history` | Histórico / limpar |
@@ -96,15 +111,16 @@ Flags: `-addr 127.0.0.1:9000`, `-no-browser` (não abrir o navegador).
 | Login de acesso local | Sim |
 | Ligação SSH | Sim |
 | Hub / menu da sessão (cartões) | Sim |
-| Explorador dual + enviar/receber (ficheiro ou pasta) | Sim |
-| Contêineres Docker (lista + reiniciar) | Sim |
+| Explorador dual (renomear, apagar, nova pasta, copiar/colar, comparar, favoritos, lote, contêiner) | Sim |
+| Contêineres Docker (lista, reiniciar, logs, stats) | Sim |
 | Discos (lsblk + df) | Sim |
 | Terminal SSH (WebSocket + xterm) | Sim |
 | Automações (editar regras, motor, histórico) | Sim |
 | Configurações (info admin) | Sim |
 | Gestão de utilizadores e SMTP (admin) | Sim |
-| Transferência para contêineres | Só desktop |
+| Transferência para contêineres | Sim (painel remoto → Contêiner) |
 | Painel de histórico de transferências (web) | Sim |
+| Editor remoto / modo sudo / i18n / LVM completo | Só desktop (fase seguinte) |
 
 ## Interface
 
@@ -114,8 +130,9 @@ Flags: `-addr 127.0.0.1:9000`, `-no-browser` (não abrir o navegador).
 
 ## Próximas fases
 
-1. Comparar pastas, favoritos, contêineres no explorador
+1. Editor remoto integrado, modo sudo, teste de ligação SSH na UI
 2. i18n (PT / EN / ES)
+3. Assistente LVM completo (como no desktop)
 
 ## Estrutura
 

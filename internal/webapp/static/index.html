@@ -132,12 +132,31 @@
       </div>
 
       <div id="view-explorer" class="subview">
-        <div class="module-toolbar glass-bar-inline">
+        <div class="explorer-topbar glass-bar-inline">
+          <details class="explorer-menu" data-menu-prefer="down">
+            <summary class="btn btn-ghost btn-sm explorer-menu-trigger">Ações ▾</summary>
+            <div class="explorer-menu-panel">
+              <button type="button" class="btn btn-ghost btn-sm" id="btn-new-folder">Nova pasta</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="btn-rename-item">Renomear</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="btn-delete-item">Apagar</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="btn-copy-item">Copiar</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="btn-paste-item">Colar</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="btn-compare-folders">Comparar pastas</button>
+            </div>
+          </details>
+          <div class="explorer-topbar-group explorer-topbar-meta">
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-refresh-panels" title="Atualizar painéis">↻</button>
+            <span id="transfer-status" class="transfer-status-pill muted"></span>
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-toggle-xfer-panel">Progresso</button>
+          </div>
+        </div>
+        <div class="explorer-transfer-bar glass-bar-inline">
           <button type="button" class="btn btn-primary" id="btn-send">Enviar →</button>
-          <button type="button" class="btn btn-primary" id="btn-receive">← Receber</button>
-          <button type="button" class="btn btn-ghost" id="btn-refresh-panels">↻ Atualizar</button>
-          <span id="transfer-status" class="muted"></span>
-          <button type="button" class="btn btn-ghost btn-sm" id="btn-toggle-xfer-panel">Progresso</button>
+          <button type="button" class="btn btn-primary btn-receive" id="btn-receive">← Receber</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-batch-send" title="Enviar itens visíveis">Lote →</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-batch-receive" title="Receber itens visíveis">← Lote</button>
+          <span class="transfer-bar-sep" aria-hidden="true"></span>
+          <button type="button" class="btn btn-ghost btn-sm btn-sudo" id="btn-sudo" title="Activar sudo/root no host SFTP">Sudo: inativo</button>
         </div>
         <aside id="transfer-progress-panel" class="transfer-progress glass-card hidden">
           <strong>Transferências em curso</strong>
@@ -151,24 +170,74 @@
           <ul id="transfer-log-list"></ul>
         </aside>
         <main class="explorer">
+          <div class="explorer-panels">
           <article class="panel glass-panel" data-side="local">
-            <header class="panel-head"><h2>Local</h2><nav class="panel-nav">
-              <button type="button" class="icon-btn" data-side="local" data-action="up">↑</button>
-              <button type="button" class="icon-btn" data-side="local" data-action="refresh">↻</button>
-            </nav></header>
+            <header class="panel-head">
+              <h2>Local</h2>
+              <nav class="panel-nav">
+                <details class="panel-menu" id="local-menu">
+                  <summary class="icon-btn panel-menu-btn" title="Atalhos e favoritos" aria-label="Atalhos e favoritos">
+                    <svg class="ico ico-pin" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>
+                  </summary>
+                  <div class="panel-menu-list" id="local-menu-list"></div>
+                </details>
+                <button type="button" class="icon-btn" data-side="local" data-action="fav-add" title="Guardar pasta nos favoritos" aria-label="Favorito">
+                  <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                </button>
+                <button type="button" class="icon-btn" data-side="local" data-action="up" title="Subir" aria-label="Subir">
+                  <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 4l-8 8h5v8h6v-8h5z"/></svg>
+                </button>
+                <button type="button" class="icon-btn" data-side="local" data-action="refresh" title="Atualizar" aria-label="Atualizar">
+                  <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M17.65 6.35A7.95 7.95 0 0 0 12 4V1L7 6l5 5V7c2.76 0 5 2.24 5 5 0 1.07-.34 2.07-.92 2.89l1.46 1.46A7.94 7.94 0 0 0 20 12c0-2.21-.9-4.21-2.35-5.65zM6.53 9.47 5.07 8.01A7.94 7.94 0 0 0 4 12c0 4.42 3.58 8 8 8v3l5-5-5-5v3c-2.76 0-5-2.24-5-5 0-1.07.34-2.07.92-2.89z"/></svg>
+                </button>
+              </nav>
+            </header>
             <div id="local-bc" class="bc-bar"></div>
-            <div class="path-bar" id="local-path">—</div>
+            <div class="path-bar" id="local-path" title="">—</div>
+            <div class="panel-search">
+              <input type="search" id="local-filter" class="panel-filter" placeholder="Filtrar ficheiros…" />
+            </div>
             <div class="file-list selectable" id="local-list"></div>
           </article>
           <article class="panel glass-panel" data-side="remote">
-            <header class="panel-head"><h2>Remoto</h2><nav class="panel-nav">
-              <button type="button" class="icon-btn" data-side="remote" data-action="up">↑</button>
-              <button type="button" class="icon-btn" data-side="remote" data-action="refresh">↻</button>
-            </nav></header>
+            <header class="panel-head">
+              <h2>Remoto</h2>
+              <nav class="panel-nav">
+                <details class="panel-menu" id="remote-menu">
+                  <summary class="icon-btn panel-menu-btn" title="Favoritos" aria-label="Favoritos">
+                    <svg class="ico ico-pin" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>
+                  </summary>
+                  <div class="panel-menu-list" id="remote-menu-list"></div>
+                </details>
+                <button type="button" class="icon-btn" data-side="remote" data-action="fav-add" title="Guardar pasta nos favoritos" aria-label="Favorito">
+                  <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                </button>
+                <button type="button" class="icon-btn" data-side="remote" data-action="up" title="Subir" aria-label="Subir">
+                  <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 4l-8 8h5v8h6v-8h5z"/></svg>
+                </button>
+                <button type="button" class="icon-btn" data-side="remote" data-action="refresh" title="Atualizar" aria-label="Atualizar">
+                  <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M17.65 6.35A7.95 7.95 0 0 0 12 4V1L7 6l5 5V7c2.76 0 5 2.24 5 5 0 1.07-.34 2.07-.92 2.89l1.46 1.46A7.94 7.94 0 0 0 20 12c0-2.21-.9-4.21-2.35-5.65zM6.53 9.47 5.07 8.01A7.94 7.94 0 0 0 4 12c0 4.42 3.58 8 8 8v3l5-5-5-5v3c-2.76 0-5-2.24-5-5 0-1.07.34-2.07.92-2.89z"/></svg>
+                </button>
+              </nav>
+            </header>
+            <div class="panel-remote-ctx">
+              <div class="remote-target-toggle" role="tablist" aria-label="Destino remoto">
+                <button type="button" class="remote-target-btn active" data-target="host" id="remote-target-host">Host SFTP</button>
+                <button type="button" class="remote-target-btn" data-target="container" id="remote-target-container">Contêiner</button>
+              </div>
+              <div id="remote-container-wrap" class="remote-container-wrap hidden">
+                <label class="remote-container-label" for="remote-container">Contêiner</label>
+                <select id="remote-container" class="panel-select remote-container-select" size="1"></select>
+              </div>
+            </div>
             <div id="remote-bc" class="bc-bar"></div>
-            <div class="path-bar" id="remote-path">—</div>
+            <div class="path-bar" id="remote-path" title="">—</div>
+            <div class="panel-search">
+              <input type="search" id="remote-filter" class="panel-filter" placeholder="Filtrar ficheiros…" />
+            </div>
             <div class="file-list selectable" id="remote-list"></div>
           </article>
+          </div>
         </main>
       </div>
 
@@ -343,6 +412,48 @@
   <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
   <script src="/ui.js"></script>
   <script src="/app.js"></script>
+  <script src="/explorer.js"></script>
   <script src="/app-ui.js"></script>
+
+  <div id="explorer-menu-backdrop" class="explorer-menu-backdrop hidden" aria-hidden="true"></div>
+
+  <menu id="explorer-ctx-menu" class="ctx-menu hidden">
+    <button type="button" data-action="open">Abrir</button>
+    <button type="button" data-action="send">Enviar →</button>
+    <button type="button" data-action="receive">← Receber</button>
+    <hr />
+    <button type="button" data-action="copy">Copiar</button>
+    <button type="button" data-action="paste">Colar</button>
+    <button type="button" data-action="rename">Renomear</button>
+    <button type="button" data-action="delete">Apagar</button>
+    <button type="button" data-action="mkdir">Nova pasta aqui</button>
+  </menu>
+
+  <dialog id="compare-dialog" class="modal-dialog">
+    <form method="dialog">
+      <h3>Comparar pastas</h3>
+      <pre id="compare-report" class="compare-pre"></pre>
+      <div class="btn-row"><button type="submit" class="btn btn-primary">Fechar</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="sudo-dialog" class="modal-dialog">
+    <form id="sudo-form" class="modal-form">
+      <h3>Superusuário (sudo)</h3>
+      <p class="muted">Credenciais para pastas e operações que exigem privilégios elevados no host SFTP.</p>
+      <label class="field">
+        <span>Utilizador</span>
+        <input type="text" id="sudo-user" value="root" autocomplete="username" />
+      </label>
+      <label class="field">
+        <span>Senha</span>
+        <input type="password" id="sudo-pass" autocomplete="current-password" />
+      </label>
+      <div class="btn-row end">
+        <button type="button" class="btn btn-ghost" id="sudo-cancel">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="sudo-submit">Activar sudo</button>
+      </div>
+    </form>
+  </dialog>
 </body>
 </html>
