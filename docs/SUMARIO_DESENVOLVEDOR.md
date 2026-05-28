@@ -15,8 +15,12 @@ Este arquivo serve como guia rapido para manutencao do projeto `ContainerWay`.
 - `cmd/containerway/`: executavel principal da aplicacao desktop.
 - `cmd/containerway-web/`: servidor HTTP local da versao browser.
 - `cmd/iconforge/`: utilitario para gerar/converter icones da aplicacao.
+- `docs/`: toda a documentacao Markdown ([indice](README.md)).
 - `docs/WEB_UI.md`: guia da versao web (API, scripts, roadmap).
+- `docs/SCRIPTS.md`: referencia dos scripts em `scripts/`.
+- `scripts/build.ps1`: build desktop e pacotes Linux.
 - `scripts/web/`: build e execucao da versao web (`.bat` / `.sh`).
+- `scripts/release/`: publicacao GitHub (`publish-github-release.ps1`).
 - `internal/appui/`: telas, componentes visuais, tema e acoes de UI.
 - `internal/containerfs/`: operacoes de sistema de arquivos no lado do conteiner.
 - `internal/hostfs/`: operacoes de sistema de ficheiros no **host remoto Linux** via SFTP.
@@ -33,12 +37,12 @@ Este arquivo serve como guia rapido para manutencao do projeto `ContainerWay`.
 - `internal/configdir/`: diretorio de configuracao ContainerWay e preferencias Fyne.
 - `assets/`: recursos estaticos (icones, imagens e afins).
 - `packaging/linux/`: arquivos de empacotamento Linux (manifesto Flatpak, entrada `.desktop`, metainfo AppStream usados no `.deb` e no bundle).
-- `SECURITY.md`: notas de seguranca e politica local (referencia para auditores e administradores).
+- `docs/SECURITY.md`: notas de seguranca e politica local (referencia para auditores e administradores).
 - `.github/workflows/`: CI (testes Go em pacotes internos sem compilar a UI Fyne no runner Ubuntu).
 
 ## Build e releases
 
-- **`build.ps1`** (na raiz):
+- **`scripts/build.ps1`**:
   - **Windows:** `go build` local com `CGO_ENABLED=1` e `-H=windowsgui` → `ContainerWay.exe`.
   - **Linux:** `docker run` com imagem `golang:1.26-bookworm`, volume do repo em `/src`, script gerado em `dist/build-linux.sh`. Dentro do container: dependências (`build-essential`, libs X11/GL, `flatpak`, `flatpak-builder`, `appstream-compose`, etc.), compilação `GOOS=linux GOARCH=amd64`, montagem do `.deb` e `flatpak-builder` + `flatpak build-bundle`. O container usa **`--privileged`** para o `bwrap` do Flatpak; usa **`--disable-rofiles-fuse`** porque FUSE costuma nao estar disponivel no Docker.
 - **Saidas:** `dist/linux/containerway` (binario Linux), `dist/deb/containerway_<versao>_amd64.deb`, `dist/flatpak/containerway-<versao>.flatpak`. Pastas `dist/` e `.flatpak-builder/` estao no `.gitignore`.
@@ -74,8 +78,8 @@ Este arquivo serve como guia rapido para manutencao do projeto `ContainerWay`.
 
 ## Prioridade de Estudo (sugestao)
 
-1. `README.md`, `docs/WEB_UI.md` e `SECURITY.md`
-2. `build.ps1` e `packaging/linux/` (releases Linux)
+1. [README.md](../README.md), [GUIA.md](GUIA.md), [WEB_UI.md](WEB_UI.md) e [SECURITY.md](SECURITY.md)
+2. `scripts/build.ps1` e `packaging/linux/` (releases Linux)
 3. `cmd/containerway/main.go` (desktop) ou `cmd/containerway-web` (web)
 4. `internal/appui/appui.go`
 5. `internal/policy/policy.go`

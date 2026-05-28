@@ -15,7 +15,7 @@ if exist "containerway-web.exe" (
 
 where go >nul 2>&1
 if errorlevel 1 (
-  echo [ContainerWay Web] Go nao encontrado. Execute build-web.bat ou scripts\web\build.bat
+  echo [ContainerWay Web] Go nao encontrado. Execute scripts\web\build.bat
   exit /b 1
 )
 

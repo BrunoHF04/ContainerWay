@@ -13,7 +13,7 @@ if [ -x "./containerway-web" ]; then
 fi
 
 if ! command -v go >/dev/null 2>&1; then
-  echo "[ContainerWay Web] Go não encontrado. Execute ./build-web.sh ou scripts/web/build.sh" >&2
+  echo "[ContainerWay Web] Go não encontrado. Execute ./scripts/web/build.sh" >&2
   exit 1
 fi
 

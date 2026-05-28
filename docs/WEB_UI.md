@@ -6,31 +6,33 @@ Interface web local que reutiliza o motor Go do ContainerWay (SSH/SFTP, listagen
 
 ## Executar
 
-**Windows (duplo clique ou terminal na raiz do repo):**
+**Windows:**
 
 ```bat
-run-web.bat
+.\scripts\web\run.bat
 ```
 
 **Linux / macOS:**
 
 ```sh
-chmod +x run-web.sh build-web.sh scripts/web/*.sh
-./run-web.sh
+chmod +x scripts/web/*.sh
+./scripts/web/run.sh
 ```
 
-Scripts completos em `scripts/web/`. Porta personalizada: `run-web.bat 127.0.0.1:9000` ou `./run-web.sh 127.0.0.1:9000`.
+Porta personalizada: `.\scripts\web\run.bat 127.0.0.1:9000` ou `./scripts/web/run.sh 127.0.0.1:9000`.
+
+Ver também [SCRIPTS.md](SCRIPTS.md).
 
 Por omissão escuta em **http://127.0.0.1:8765** (só localhost). Se existir `containerway-web.exe` / `containerway-web` na raiz, usa o executável; senão faz `go run`.
 
 **Compilar:**
 
 ```bat
-build-web.bat
+.\scripts\web\build.bat
 ```
 
 ```sh
-./build-web.sh
+./scripts/web/build.sh
 ```
 
 **Go direto (sem scripts):**
@@ -90,5 +92,4 @@ go build -o containerway-web.exe ./cmd/containerway-web/
 | `internal/accessauth/` | Autenticação local |
 | `internal/configdir/` | Caminhos de configuração |
 | `scripts/web/` | Scripts `build` e `run` (`.bat` / `.sh`) |
-| `run-web.bat`, `build-web.bat` | Atalhos na raiz (Windows) |
-| `run-web.sh`, `build-web.sh` | Atalhos na raiz (Unix) |
+| `docs/` | Documentação (este ficheiro, [SCRIPTS.md](SCRIPTS.md), etc.) |

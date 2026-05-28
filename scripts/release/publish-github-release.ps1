@@ -2,15 +2,15 @@
 #
 # Pré-requisitos:
 # - Token com escopo repo (classic) ou permissão de Contents: write (fine-grained).
-# - Arquivos existentes nos caminhos informados (rode .\build.ps1 -Version 1.1.0 se precisar gerar .deb/.flatpak).
+# - Arquivos existentes nos caminhos informados (rode .\scripts\build.ps1 -Version 1.1.0 se precisar gerar .deb/.flatpak).
 #
 # Uso (PowerShell):
 #   $env:GITHUB_TOKEN = "ghp_..."   # ou fine-grained PAT
-#   .\scripts\publish-github-release.ps1
+#   .\scripts\release\publish-github-release.ps1
 #
 # Parâmetros comuns:
-#   .\scripts\publish-github-release.ps1 -Tag v1.1.0 -Prerelease:$false
-#   .\scripts\publish-github-release.ps1 -ExePath .\ContainerWay.exe -DebPath .\dist\deb\containerway_1.1.0_amd64.deb -FlatpakPath .\dist\flatpak\containerway-1.1.0.flatpak
+#   .\scripts\release\publish-github-release.ps1 -Tag v1.1.0 -Prerelease:$false
+#   .\scripts\release\publish-github-release.ps1 -ExePath .\ContainerWay.exe -DebPath .\dist\deb\containerway_1.1.0_amd64.deb -FlatpakPath .\dist\flatpak\containerway-1.1.0.flatpak
 
 param(
     [string]$Owner = "",
@@ -32,7 +32,7 @@ if ([string]::IsNullOrWhiteSpace($token)) {
     throw "Defina a variavel de ambiente GITHUB_TOKEN com um Personal Access Token (escopo repo ou Contents: write)."
 }
 
-Set-Location $PSScriptRoot\..
+Set-Location (Join-Path $PSScriptRoot "..\..")
 
 if ([string]::IsNullOrWhiteSpace($Owner) -or [string]::IsNullOrWhiteSpace($Repo)) {
     $remote = (git remote get-url origin).Trim()
@@ -56,7 +56,7 @@ if ([string]::IsNullOrWhiteSpace($FlatpakPath)) {
 
 foreach ($p in @($ExePath, $DebPath, $FlatpakPath)) {
     if (-not (Test-Path -LiteralPath $p)) {
-        throw "Arquivo não encontrado: $p`nGere os artefatos com: .\build.ps1 -Version 1.1.0"
+        throw "Arquivo não encontrado: $p`nGere os artefatos com: .\scripts\build.ps1 -Version 1.1.0"
     }
 }
 
