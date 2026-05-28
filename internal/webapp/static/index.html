@@ -408,13 +408,6 @@
     </div>
   </dialog>
 
-  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
-  <script src="/ui.js"></script>
-  <script src="/app.js"></script>
-  <script src="/explorer.js"></script>
-  <script src="/app-ui.js"></script>
-
   <div id="explorer-menu-backdrop" class="explorer-menu-backdrop hidden" aria-hidden="true"></div>
 
   <menu id="explorer-ctx-menu" class="ctx-menu hidden">
@@ -438,7 +431,7 @@
   </dialog>
 
   <dialog id="sudo-dialog" class="modal-dialog">
-    <form id="sudo-form" class="modal-form">
+    <form id="sudo-form" class="modal-form" onsubmit="return false;">
       <h3>Superusuário (sudo)</h3>
       <p class="muted">Credenciais para pastas e operações que exigem privilégios elevados no host SFTP.</p>
       <label class="field">
@@ -449,11 +442,19 @@
         <span>Senha</span>
         <input type="password" id="sudo-pass" autocomplete="current-password" />
       </label>
+      <p id="sudo-error" class="sudo-error hidden" role="alert"></p>
       <div class="btn-row end">
-        <button type="button" class="btn btn-ghost" id="sudo-cancel">Cancelar</button>
-        <button type="submit" class="btn btn-primary" id="sudo-submit">Activar sudo</button>
+        <button type="button" class="btn btn-ghost" id="sudo-cancel" data-action="sudo-cancel">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="sudo-submit">Activar sudo</button>
       </div>
     </form>
   </dialog>
+
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+  <script src="/ui.js"></script>
+  <script src="/app.js"></script>
+  <script src="/explorer.js"></script>
+  <script src="/app-ui.js"></script>
 </body>
 </html>

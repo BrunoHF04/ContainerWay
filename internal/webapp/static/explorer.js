@@ -543,20 +543,50 @@
       }
       return;
     }
+    clearSudoError();
     $("#sudo-pass").value = "";
     $("#sudo-dialog")?.showModal();
     $("#sudo-pass")?.focus();
   });
 
-  $("#sudo-cancel")?.addEventListener("click", () => $("#sudo-dialog")?.close());
+  function showSudoError(message) {
+    const el = $("#sudo-error");
+    if (!el) {
+      CWUI.toast(message, "error");
+      return;
+    }
+    el.textContent = message;
+    el.classList.remove("hidden");
+  }
 
-  $("#sudo-form")?.addEventListener("submit", async (ev) => {
-    ev.preventDefault();
+  function clearSudoError() {
+    const el = $("#sudo-error");
+    if (!el) return;
+    el.textContent = "";
+    el.classList.add("hidden");
+  }
+
+  $("#sudo-cancel")?.addEventListener("click", () => {
+    clearSudoError();
+    $("#sudo-dialog")?.close();
+  });
+
+  async function activateSudo() {
+    clearSudoError();
     const user = ($("#sudo-user")?.value || "root").trim() || "root";
     const password = $("#sudo-pass")?.value || "";
     if (!password) {
-      CWUI.toast("Indique a senha sudo.", "error");
+      showSudoError("Indique a senha sudo.");
       return;
+    }
+    if (!state.ssh.connected) {
+      showSudoError("Ligue-se ao servidor SSH antes de activar o sudo.");
+      return;
+    }
+    const btn = $("#sudo-submit");
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "A validar…";
     }
     try {
       const res = await api("/api/ssh/sudo", {
@@ -566,10 +596,25 @@
       state.sudo = { enabled: true, user: res.user || user };
       updateSudoButton();
       $("#sudo-dialog")?.close();
+      if (state.screen !== "explorer") showScreen("explorer");
       CWUI.toast(`Sudo activo (${state.sudo.user})`, "success");
-      loadRemote(state.remotePath || "/");
+      await loadRemote(state.remotePath || "/");
     } catch (e) {
-      CWUI.toast(e.message, "error");
+      const msg = e.message || "Falha ao activar sudo";
+      if (state.user) showSudoError(msg);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Activar sudo";
+      }
+    }
+  }
+
+  $("#sudo-submit")?.addEventListener("click", () => void activateSudo());
+  $("#sudo-form")?.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") {
+      ev.preventDefault();
+      void activateSudo();
     }
   });
 
@@ -596,12 +641,35 @@
     };
   }
 
-  refreshFavorites();
-
   const U = window.CWUI;
   if (U?.wireFloatingDropdown) {
     U.wireFloatingDropdown(document.querySelector(".explorer-menu"), ".explorer-menu-panel", "left", "explorer");
     U.wireFloatingDropdown($("#local-menu"), ".panel-menu-list", "right", "explorer");
     U.wireFloatingDropdown($("#remote-menu"), ".panel-menu-list", "right", "explorer");
   }
+
+  if (state.user) refreshFavorites();
+
+  // Delegação: garante cliques mesmo se o DOM do diálogo mudar
+  document.addEventListener("click", (ev) => {
+    const t = ev.target;
+    if (t.closest?.("[data-action=sudo-cancel]")) {
+      clearSudoError();
+      $("#sudo-dialog")?.close();
+      return;
+    }
+    if (t.id === "sudo-submit" || t.closest?.("#sudo-submit")) {
+      ev.preventDefault();
+      void activateSudo();
+    }
+  });
+
+  document.addEventListener("keydown", (ev) => {
+    const dlg = $("#sudo-dialog");
+    if (!dlg?.open) return;
+    if (ev.key === "Escape") {
+      clearSudoError();
+      dlg.close();
+    }
+  });
 })();

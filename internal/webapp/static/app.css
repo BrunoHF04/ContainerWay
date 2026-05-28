@@ -1529,8 +1529,19 @@ body {
 }
 @keyframes ripple { to { transform: scale(2.5); opacity: 0; } }
 
+.sudo-error {
+  margin: 0.25rem 0 0;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.85rem;
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
+  border-radius: var(--radius-sm);
+}
+.sudo-error.hidden { display: none; }
+
 .toast-stack {
-  position: fixed; top: 1rem; right: 1rem; z-index: 9999;
+  position: fixed; top: 1rem; right: 1rem; z-index: 200000;
   display: flex; flex-direction: column; gap: 0.5rem; max-width: min(380px, calc(100vw - 2rem));
   pointer-events: none;
 }

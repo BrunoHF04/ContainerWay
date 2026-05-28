@@ -73,6 +73,23 @@ const MODULES = [
   { id: "settings", icon: "🔧", accent: "rose", title: "Configurações", desc: "Conta, utilizadores e SMTP.", kw: "configurações admin", adminOnly: true },
 ];
 
+function handleSessionExpired(message) {
+  const msg = message || "Sessão expirada — inicie sessão novamente.";
+  state.user = null;
+  state.ssh.connected = false;
+  state.ssh.host = "";
+  state.ssh.user = "";
+  $("#sudo-dialog")?.close();
+  $("#confirm-dialog")?.close();
+  showView("#view-login");
+  const err = $("#login-error");
+  if (err) {
+    err.textContent = msg;
+    err.classList.remove("hidden");
+  }
+  CWUI.toast(msg, "error", 7000);
+}
+
 async function api(path, options = {}) {
   const res = await fetch(path, {
     credentials: "same-origin",
@@ -80,6 +97,10 @@ async function api(path, options = {}) {
     ...options,
   });
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && !String(path).includes("/api/auth/login")) {
+    handleSessionExpired(data.error || "Sessão expirada — inicie sessão novamente.");
+    throw new Error(data.error || "Sessão expirada");
+  }
   if (!res.ok) throw new Error(data.error || res.statusText || "Erro");
   return data;
 }
@@ -197,6 +218,8 @@ function renderHub() {
 }
 
 async function refreshSSH() {
+  const wasConnected = state.ssh.connected;
+  const prevScreen = state.screen;
   const st = await api("/api/ssh/status");
   state.ssh.connected = !!st.connected;
   state.ssh.host = st.host || "";
@@ -218,8 +241,10 @@ async function refreshSSH() {
   }
   if (st.connected) {
     showView("#view-shell");
-    showScreen("hub");
-    renderHub();
+    if (!wasConnected || prevScreen === "connect") {
+      showScreen("hub");
+      renderHub();
+    }
   } else {
     showView("#view-shell");
     showScreen("connect");
