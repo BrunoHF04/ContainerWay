@@ -10,6 +10,8 @@ Gestor de arquivos de painel duplo (estilo WinSCP), com foco em uso prático no 
 
 Toda a interface está em **pt-BR**.
 
+> **ContainerWay Web (browser):** versão em desenvolvimento na branch `dev_browser` — servidor HTTP local + UI no browser (sem CGO/OpenGL). Ver **[docs/WEB_UI.md](docs/WEB_UI.md)**. Atalhos: `run-web.bat` / `./run-web.sh`.
+
 ## Navegacao rapida
 
 <details>
@@ -279,12 +281,33 @@ Somente o usuário **admin** vê **E-mail** na barra do explorador ou no cartão
 </details>
 
 <details>
+<summary><strong>ContainerWay Web (interface no browser)</strong></summary>
+
+Versão **experimental** (branch `dev_browser`): o mesmo motor Go (SSH/SFTP) com UI web local.
+
+| Item | Detalhe |
+|------|---------|
+| Documentação | [docs/WEB_UI.md](docs/WEB_UI.md) |
+| Executar (Windows) | `run-web.bat` ou `scripts\web\run.bat` |
+| Executar (Linux/macOS) | `./run-web.sh` |
+| Compilar | `build-web.bat` / `./build-web.sh` |
+| URL padrão | http://127.0.0.1:8765 (apenas localhost) |
+| Binário | `containerway-web.exe` (Windows) / `containerway-web` (Linux) na raiz, após build |
+
+**Já disponível:** login de acesso local, ligação SSH, explorador em painel duplo (listar pastas local e remota).
+
+**Em desenvolvimento:** transferências, hub de módulos, terminal, Docker, discos, automações.
+
+</details>
+
+<details>
 <summary><strong>Tecnologias utilizadas</strong></summary>
 
 | Área | Tecnologias / pacotes |
 |------|------------------------|
 | Linguagem | Go |
 | UI desktop | [fyne.io/fyne/v2](https://fyne.io/) |
+| UI web (MVP) | HTML/CSS/JS embutido em `internal/webapp/static/` + API HTTP Go |
 | SSH | `golang.org/x/crypto/ssh` |
 | Host key (`known_hosts`) | `golang.org/x/crypto/ssh/knownhosts` |
 | SFTP | `github.com/pkg/sftp` |
@@ -364,7 +387,14 @@ Build de validação sem GUI (CI/ambiente sem GCC para Fyne):
 go build -tags ci -o containerway_ci.exe ./cmd/containerway/
 ```
 
-**CI no GitHub:** o workflow `.github/workflows/ci.yml` executa `go test` em pacotes internos sem depender da UI Fyne (`internal/policy`, `internal/transfer`, `internal/hostfs`, `internal/session`).
+**CI no GitHub:** o workflow `.github/workflows/ci.yml` executa `go test` em pacotes internos sem depender da UI Fyne e compila `cmd/containerway-web` (sem CGO).
+
+**Build da versão web (sem CGO):**
+
+```powershell
+.\build-web.bat
+# ou: go build -o containerway-web.exe ./cmd/containerway-web/
+```
 
 
 </details>
@@ -416,8 +446,16 @@ Diagnóstico:
 
 | Caminho | Responsabilidade |
 |---------|------------------|
-| `cmd/containerway` | Ponto de entrada do app |
+| `cmd/containerway` | Ponto de entrada do app desktop |
+| `cmd/containerway-web` | Ponto de entrada do servidor web local |
+| `internal/webapp` | API HTTP, sessões e UI estática embutida (browser) |
+| `internal/connectcfg` | Perfis SSH (`connections.json`), partilhado desktop/web |
+| `internal/accessauth` | Autenticação de acesso local (browser) |
+| `internal/configdir` | Caminhos de configuração do utilizador |
 | `internal/appui` | Interface Fyne (login, explorador, ações, atalhos) |
+| `docs/WEB_UI.md` | Guia da versão web (MVP) |
+| `scripts/web/` | Scripts para compilar e executar a versão web |
+| `run-web.bat`, `build-web.bat` | Atalhos na raiz (Windows) para a versão web |
 | `internal/session` | Conexão SSH, cliente SFTP e cliente Docker |
 | `internal/hostfs` | Operações no host remoto via SFTP |
 | `internal/containerfs` | Operações em arquivos de contêiner |
@@ -435,6 +473,7 @@ Diagnóstico:
 <summary><strong>Documentação para desenvolvimento</strong></summary>
 
 - Guia rápido de manutenção e estudo: `SUMARIO_DESENVOLVEDOR.md`.
+- Versão web (browser): `docs/WEB_UI.md`.
 - Convenção adotada no código Go:
   - comentários de função em pt-BR imediatamente acima da função;
   - texto curto e objetivo, focando intenção e efeito da rotina.

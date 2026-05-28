@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ContainerWay Web</title>
+  <link rel="stylesheet" href="/app.css" />
+</head>
+<body>
+  <div id="app">
+  <section id="view-login" class="view active">
+    <div class="card login-card">
+      <header class="brand">
+        <div class="logo">CW</div>
+        <div>
+          <h1>ContainerWay</h1>
+          <p class="subtitle">Gestão de ficheiros remota — interface web</p>
+        </div>
+      </header>
+      <form id="login-form">
+        <label>
+          Utilizador
+          <input type="text" id="login-user" autocomplete="username" required />
+        </label>
+        <label>
+          Senha
+          <input type="password" id="login-pass" autocomplete="current-password" required />
+        </label>
+        <p id="login-error" class="error hidden"></p>
+        <button type="submit" class="btn primary">Entrar</button>
+      </form>
+      <p class="hint">Usa as mesmas credenciais de acesso local do app desktop (por omissão: admin).</p>
+    </div>
+  </section>
+
+  <section id="view-app" class="view">
+    <header class="topbar">
+      <div class="topbar-left">
+        <span class="logo-sm">CW</span>
+        <span id="user-label"></span>
+      </div>
+      <div class="topbar-center">
+        <form id="ssh-form" class="ssh-bar">
+          <select id="ssh-profile" title="Perfil guardado">
+            <option value="">— perfil —</option>
+          </select>
+          <input type="text" id="ssh-host" placeholder="host" required />
+          <input type="text" id="ssh-user" placeholder="utilizador" required />
+          <input type="password" id="ssh-pass" placeholder="senha (opcional com chave)" />
+          <button type="submit" class="btn primary" id="btn-ssh-connect">Conectar</button>
+          <button type="button" class="btn ghost" id="btn-ssh-disconnect" hidden>Desconectar</button>
+        </form>
+      </div>
+      <div class="topbar-right">
+        <span id="ssh-status" class="badge">SSH: offline</span>
+        <button type="button" class="btn ghost" id="btn-logout">Sair</button>
+      </div>
+    </header>
+
+    <main class="explorer">
+      <article class="panel" data-side="local">
+        <header class="panel-head">
+          <h2>Local</h2>
+          <nav class="panel-nav">
+            <button type="button" class="icon-btn" data-action="up" title="Subir">↑</button>
+            <button type="button" class="icon-btn" data-action="refresh" title="Atualizar">↻</button>
+          </nav>
+        </header>
+        <div class="path-bar" id="local-path">—</div>
+        <div class="file-list" id="local-list"></div>
+      </article>
+
+      <article class="panel" data-side="remote">
+        <header class="panel-head">
+          <h2>Remoto</h2>
+          <nav class="panel-nav">
+            <button type="button" class="icon-btn" data-action="up" title="Subir">↑</button>
+            <button type="button" class="icon-btn" data-action="refresh" title="Atualizar">↻</button>
+          </nav>
+        </header>
+        <div class="path-bar" id="remote-path">—</div>
+        <div class="file-list" id="remote-list">
+          <p class="placeholder">Ligue-se ao servidor SSH para listar ficheiros.</p>
+        </div>
+      </article>
+    </main>
+  </section>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>

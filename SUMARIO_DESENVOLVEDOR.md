@@ -5,13 +5,18 @@ Este arquivo serve como guia rapido para manutencao do projeto `ContainerWay`.
 ## Visao Geral
 
 - Aplicacao desktop em Go com interface grafica (`Fyne`) para gerenciamento e transferencia de arquivos entre host e conteineres.
-- Entrada principal da aplicacao: `cmd/containerway/main.go`.
-- Modulo com maior concentracao de regras de UI: `internal/appui/appui.go`.
+- **Versao web (MVP):** branch `dev_browser` — `cmd/containerway-web`, `internal/webapp`, documentacao em `docs/WEB_UI.md`.
+- Entrada principal desktop: `cmd/containerway/main.go`.
+- Entrada principal web: `cmd/containerway-web/main.go`.
+- Modulo com maior concentracao de regras de UI desktop: `internal/appui/appui.go`.
 
 ## Mapa de Pastas
 
-- `cmd/containerway/`: executavel principal da aplicacao.
+- `cmd/containerway/`: executavel principal da aplicacao desktop.
+- `cmd/containerway-web/`: servidor HTTP local da versao browser.
 - `cmd/iconforge/`: utilitario para gerar/converter icones da aplicacao.
+- `docs/WEB_UI.md`: guia da versao web (API, scripts, roadmap).
+- `scripts/web/`: build e execucao da versao web (`.bat` / `.sh`).
 - `internal/appui/`: telas, componentes visuais, tema e acoes de UI.
 - `internal/containerfs/`: operacoes de sistema de arquivos no lado do conteiner.
 - `internal/hostfs/`: operacoes de sistema de ficheiros no **host remoto Linux** via SFTP.
@@ -22,6 +27,10 @@ Este arquivo serve como guia rapido para manutencao do projeto `ContainerWay`.
 - `internal/tarxfer/`: transferencia de arquivos via tar/stream.
 - `internal/transfer/`: orquestracao de transferencias entre origem e destino.
 - `internal/mailnotify/`: envio de notificacoes por e-mail (SMTP).
+- `internal/webapp/`: servidor HTTP, sessoes e ficheiros estaticos da UI web.
+- `internal/connectcfg/`: perfis `connections.json` (desktop + web).
+- `internal/accessauth/`: login de acesso local para a UI web.
+- `internal/configdir/`: diretorio de configuracao ContainerWay e preferencias Fyne.
 - `assets/`: recursos estaticos (icones, imagens e afins).
 - `packaging/linux/`: arquivos de empacotamento Linux (manifesto Flatpak, entrada `.desktop`, metainfo AppStream usados no `.deb` e no bundle).
 - `SECURITY.md`: notas de seguranca e politica local (referencia para auditores e administradores).
@@ -65,9 +74,9 @@ Este arquivo serve como guia rapido para manutencao do projeto `ContainerWay`.
 
 ## Prioridade de Estudo (sugestao)
 
-1. `README.md` e `SECURITY.md`
+1. `README.md`, `docs/WEB_UI.md` e `SECURITY.md`
 2. `build.ps1` e `packaging/linux/` (releases Linux)
-3. `cmd/containerway/main.go`
+3. `cmd/containerway/main.go` (desktop) ou `cmd/containerway-web` (web)
 4. `internal/appui/appui.go`
 5. `internal/policy/policy.go`
 6. `internal/session/session.go`
