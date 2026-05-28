@@ -4,6 +4,7 @@
 containerway_ci.exe
 containerway-web.exe
 /dist/deb-web/
+cmd/containerway-web/rsrc_windows_*.syso
 *.exe
 *.exe~
 /dist/

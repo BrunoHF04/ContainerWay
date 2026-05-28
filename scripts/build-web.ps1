@@ -17,9 +17,28 @@ if ($IsWindows -or $env:OS -match "Windows") {
     $outName = "containerway-web"
 }
 
+Write-Host "==> Gerar icones (web + favicon)"
+go run ./cmd/iconforge/ -web
+
+$iconIco = Join-Path $repoRoot "assets\containerway-web-icon.ico"
+$sysoDir = Join-Path $repoRoot "cmd\containerway-web"
+Get-ChildItem $sysoDir -Filter "rsrc_windows_*.syso" -ErrorAction SilentlyContinue | Remove-Item -Force
+if (($IsWindows -or $env:OS -match "Windows") -and (Test-Path $iconIco)) {
+    $winres = Get-Command go-winres -ErrorAction SilentlyContinue
+    if ($winres) {
+        Push-Location $sysoDir
+        go-winres simply --icon $iconIco --file-description "ContainerWay Web" --product-name "ContainerWay Web"
+        Pop-Location
+        Write-Host "Icone do .exe aplicado (go-winres)"
+    } else {
+        Write-Host "Aviso: instale go-winres para icone no .exe: go install github.com/tc-hib/go-winres@latest"
+    }
+}
+
 Write-Host "==> Build ContainerWay Web -> $outName"
 $env:CGO_ENABLED = "0"
-go build -trimpath -ldflags=$ldflags -o $outName ./cmd/containerway-web/
+go build -trimpath -ldflags="$ldflags" -o $outName ./cmd/containerway-web/
+Get-ChildItem $sysoDir -Filter "rsrc_windows_*.syso" -ErrorAction SilentlyContinue | Remove-Item -Force
 Write-Host "Gerado: $repoRoot\$outName"
 Write-Host "Duplo clique abre o browser em http://127.0.0.1:8765"
 
@@ -47,7 +66,7 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dis
 cp dist/linux/containerway-web dist/deb-web/pkgroot/usr/bin/containerway-web
 chmod 0755 dist/deb-web/pkgroot/usr/bin/containerway-web
 cp packaging/linux/io.containerway.ContainerWay.Web.desktop dist/deb-web/pkgroot/usr/share/applications/
-cp assets/containerway-icon.png dist/deb-web/pkgroot/usr/share/icons/hicolor/256x256/apps/io.containerway.ContainerWay.png
+cp assets/containerway-web-icon.png dist/deb-web/pkgroot/usr/share/icons/hicolor/256x256/apps/io.containerway.ContainerWay.png
 cat > dist/deb-web/pkgroot/DEBIAN/control <<CTRL
 Package: containerway-web
 Version: __VER__

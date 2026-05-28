@@ -75,10 +75,7 @@ if (-not $SkipWindows) {
 }
 
 if (-not $SkipWeb) {
-    Write-Host "==> Build Windows Web (ContainerWay Web.exe — abre o browser)"
-    $env:CGO_ENABLED = "0"
-    go build -trimpath -ldflags="-s -w -H=windowsgui" -o "ContainerWay Web.exe" ./cmd/containerway-web/
-    Write-Host "Gerado: $repoRoot\ContainerWay Web.exe"
+    & (Join-Path $PSScriptRoot "build-web.ps1")
 }
 
 if (-not $SkipLinux) {
@@ -126,7 +123,7 @@ cp dist/linux/containerway-web dist/deb-web/pkgroot/usr/bin/containerway-web
 chmod 0755 dist/deb-web/pkgroot/usr/bin/containerway-web
 cp packaging/linux/io.containerway.ContainerWay.Web.desktop \
    dist/deb-web/pkgroot/usr/share/applications/io.containerway.ContainerWay.Web.desktop
-cp assets/containerway-icon.png \
+cp assets/containerway-web-icon.png \
    dist/deb-web/pkgroot/usr/share/icons/hicolor/256x256/apps/io.containerway.ContainerWay.png
 
 cat > dist/deb/pkgroot/DEBIAN/control <<'CONTROL'

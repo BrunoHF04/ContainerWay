@@ -54,11 +54,8 @@ body {
   width: 52px;
   height: 52px;
   border-radius: 12px;
-  background: linear-gradient(135deg, var(--accent), #6366f1);
-  display: grid;
-  place-items: center;
-  font-weight: 700;
-  font-size: 1.1rem;
+  object-fit: cover;
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.35);
 }
 
 .brand h1 { font-size: 1.35rem; font-weight: 600; }
@@ -132,11 +129,7 @@ form input:focus, .ssh-bar input:focus, .ssh-bar select:focus {
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  background: var(--accent);
-  display: grid;
-  place-items: center;
-  font-size: 0.7rem;
-  font-weight: 700;
+  object-fit: cover;
 }
 
 #user-label { font-size: 0.9rem; color: var(--muted); }

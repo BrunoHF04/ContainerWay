@@ -1,3 +1,5 @@
+//go:generate go run ../../cmd/iconforge -web
+
 package main
 
 import (

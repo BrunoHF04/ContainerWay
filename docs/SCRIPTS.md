@@ -27,9 +27,14 @@ Compila o app **Fyne** (Windows) e, opcionalmente, pacotes **Linux** (`.deb`, `.
 
 Gera o executável **`ContainerWay Web.exe`** na raiz (Windows). Ao executar, abre o browser automaticamente. **Sem CGO.**
 
+Regenera ícones (`.exe`, favicon, UI) e aplica ícone Windows via [go-winres](https://github.com/tc-hib/go-winres) se estiver instalado:
+
 ```powershell
+go install github.com/tc-hib/go-winres@latest
 .\scripts\build-web.ps1
 ```
+
+Ícones: `go run ./cmd/iconforge/ -web` → `assets/containerway-web-icon.*` e `internal/webapp/static/favicon*`.
 
 Incluído também em `.\scripts\build.ps1` (use `-SkipWeb` para omitir).
 
