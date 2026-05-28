@@ -2,33 +2,20 @@ package webapp
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
-	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
+	"containerway/internal/automation"
 	"containerway/internal/configdir"
 )
 
-type automationRuleJSON struct {
-	ID          string `json:"id"`
-	Kind        string `json:"kind"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Trigger     string `json:"trigger"`
-	Action      string `json:"action"`
-	Target      string `json:"target"`
-	CooldownSec int    `json:"cooldownSec"`
-	Enabled     bool   `json:"enabled"`
-	WebhookURL  string `json:"webhookURL,omitempty"`
-}
+var errDockerUnavailable = errors.New("Docker/Podman indisponível nesta ligação")
 
-// handleAutomationsRules devolve regras guardadas para o host da sessão.
+// handleAutomationsRules GET lista regras; PUT grava conjunto completo.
 func (s *Server) handleAutomationsRules(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "método não permitido"})
-		return
-	}
 	_, b, ok := s.requireSSH(w, r)
 	if !ok {
 		return
@@ -38,20 +25,38 @@ func (s *Server) handleAutomationsRules(w http.ResponseWriter, r *http.Request) 
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	rules, err := loadAutomationRulesFile(path)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
+	switch r.Method {
+	case http.MethodGet:
+		rules, err := automation.LoadRules(path)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"rules": rules})
+	case http.MethodPut:
+		var body struct {
+			Rules []automation.Rule `json:"rules"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "corpo inválido"})
+			return
+		}
+		if err := validateAutomationRules(body.Rules); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		if err := automation.SaveRules(path, body.Rules); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"rules": body.Rules})
+	default:
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "método não permitido"})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"rules": rules})
 }
 
-// handleAutomationsHistory devolve histórico persistido do host.
+// handleAutomationsHistory GET histórico; DELETE limpa.
 func (s *Server) handleAutomationsHistory(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "método não permitido"})
-		return
-	}
 	_, b, ok := s.requireSSH(w, r)
 	if !ok {
 		return
@@ -61,23 +66,96 @@ func (s *Server) handleAutomationsHistory(w http.ResponseWriter, r *http.Request
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	bb, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			writeJSON(w, http.StatusOK, map[string]any{"events": []any{}})
+	switch r.Method {
+	case http.MethodGet:
+		lines, err := automation.LoadHistory(path)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusOK, map[string]any{"lines": lines})
+	case http.MethodDelete:
+		if err := automation.ClearHistory(path); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	default:
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "método não permitido"})
+	}
+}
+
+// handleAutomationsEngine GET estado; POST inicia ou para o motor.
+func (s *Server) handleAutomationsEngine(w http.ResponseWriter, r *http.Request) {
+	_, b, ok := s.requireSSH(w, r)
+	if !ok {
 		return
 	}
-	var lines []string
-	if len(strings.TrimSpace(string(bb))) > 0 {
-		_ = json.Unmarshal(bb, &lines)
+	switch r.Method {
+	case http.MethodGet:
+		writeJSON(w, http.StatusOK, map[string]any{
+			"running": b.automationEngineRunning(),
+		})
+	case http.MethodPost:
+		var body struct {
+			Action string `json:"action"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "corpo inválido"})
+			return
+		}
+		switch strings.ToLower(strings.TrimSpace(body.Action)) {
+		case "start":
+			if b.Sess == nil || b.Sess.Docker == nil {
+				writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": errDockerUnavailable.Error()})
+				return
+			}
+			if err := b.startAutomationEngine(b.Host); err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+			_ = automation.AppendHistory(mustHistoryPath(b.Host), "Motor iniciado pela interface web.")
+			writeJSON(w, http.StatusOK, map[string]any{"running": true})
+		case "stop":
+			b.stopAutomationEngine()
+			writeJSON(w, http.StatusOK, map[string]any{"running": false})
+		default:
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "action deve ser start ou stop"})
+		}
+	default:
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "método não permitido"})
 	}
-	if lines == nil {
-		lines = []string{}
+}
+
+func mustHistoryPath(host string) string {
+	p, _ := automationHistoryPath(host)
+	return p
+}
+
+// validateAutomationRules valida IDs únicos e campos mínimos.
+func validateAutomationRules(rules []automation.Rule) error {
+	seen := map[string]bool{}
+	for i, r := range rules {
+		id := strings.TrimSpace(r.ID)
+		if id == "" {
+			return errors.New("cada regra precisa de id")
+		}
+		if seen[id] {
+			return errors.New("ids de regras duplicados: " + id)
+		}
+		seen[id] = true
+		if strings.TrimSpace(r.Name) == "" {
+			return errors.New("regra sem nome na posição " + ruleIndexLabel(i))
+		}
+		if r.CooldownSec < 0 {
+			return errors.New("cooldownSec inválido em " + id)
+		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"lines": lines})
+	return nil
+}
+
+func ruleIndexLabel(i int) string {
+	return strconv.Itoa(i + 1)
 }
 
 // automationConfigPath resolve ficheiro de regras por host.
@@ -109,23 +187,4 @@ func sanitizeHost(host string) string {
 		return "host-desconhecido"
 	}
 	return h
-}
-
-// loadAutomationRulesFile lê regras do JSON em disco.
-func loadAutomationRulesFile(path string) ([]automationRuleJSON, error) {
-	bb, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return []automationRuleJSON{}, nil
-		}
-		return nil, err
-	}
-	if len(strings.TrimSpace(string(bb))) == 0 {
-		return []automationRuleJSON{}, nil
-	}
-	var out []automationRuleJSON
-	if err := json.Unmarshal(bb, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
 }

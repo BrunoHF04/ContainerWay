@@ -96,6 +96,7 @@ func (st *sessionStore) clearSSH(webTok string) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	if b, ok := st.ssh[webTok]; ok {
+		b.stopAutomationEngine()
 		b.Sess.Close()
 		delete(st.ssh, webTok)
 	}

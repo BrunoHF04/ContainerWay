@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"containerway/internal/accessauth"
-	"containerway/internal/connectcfg"
 	"containerway/internal/fsutil"
 	"containerway/internal/hostfs"
 	"containerway/internal/localfs"
@@ -115,6 +114,9 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("/api/disks/summary", s.handleDisksSummary)
 	mux.HandleFunc("/api/automations/rules", s.handleAutomationsRules)
 	mux.HandleFunc("/api/automations/history", s.handleAutomationsHistory)
+	mux.HandleFunc("/api/automations/engine", s.handleAutomationsEngine)
+	mux.HandleFunc("/api/admin/users", s.handleAdminUsers)
+	mux.HandleFunc("/api/admin/mail", s.handleAdminMail)
 	mux.HandleFunc("/api/ssh/terminal/ws", s.handleTerminalWS)
 
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -138,6 +140,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{
 		"status":  "ok",
 		"product": "ContainerWay Web",
+		"version": Version,
 	})
 }
 
@@ -201,35 +204,6 @@ func (s *Server) handleAuthMe(w http.ResponseWriter, r *http.Request) {
 		"displayName": ws.DisplayName,
 		"isAdmin":     isAdminUser(ws.Username),
 	})
-}
-
-// handleConnections lista perfis SSH guardados (sem segredos).
-func (s *Server) handleConnections(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "método não permitido"})
-		return
-	}
-	if _, _, ok := s.requireWebAuth(w, r); !ok {
-		return
-	}
-	list, err := connectcfg.LoadAll()
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
-	}
-	out := make([]map[string]any, 0, len(list))
-	for _, c := range list {
-		out = append(out, map[string]any{
-			"name":            c.Name,
-			"host":            c.Host,
-			"user":            c.User,
-			"hasPassword":     strings.TrimSpace(c.Password) != "",
-			"hasKey":          strings.TrimSpace(c.KeyPath) != "",
-			"insecureHostKey": c.InsecureHostKey,
-			"dockerSocket":    c.DockerSocket,
-		})
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"connections": out})
 }
 
 // handleSSHConnect abre sessão SSH/SFTP para o utilizador web autenticado.

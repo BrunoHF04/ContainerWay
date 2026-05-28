@@ -1,96 +1,171 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ContainerWay Web</title>
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/app.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
 </head>
 <body>
+  <div id="theme-veil" class="theme-veil" aria-hidden="true"></div>
+
+  <div class="ambient" aria-hidden="true">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+    <div class="grid-overlay"></div>
+    <div class="noise-overlay"></div>
+  </div>
+
   <div id="app">
     <section id="view-login" class="view active">
-      <div class="card login-card">
-        <header class="brand">
-          <img class="logo" src="/icon-192.png" width="52" height="52" alt="ContainerWay" />
-          <div>
-            <h1>ContainerWay</h1>
-            <p class="subtitle">Gestão de ficheiros remota — interface web</p>
+      <div class="login-wrap animate-in">
+        <div class="glass-card login-card">
+          <header class="brand">
+            <div class="logo-ring">
+              <img class="logo" src="/icon-192.png" width="56" height="56" alt="ContainerWay" />
+            </div>
+            <div>
+              <p class="eyebrow">Interface web local</p>
+              <h1>ContainerWay</h1>
+              <p class="subtitle">SSH · SFTP · Docker · Automações</p>
+            </div>
+          </header>
+          <form id="login-form" class="login-form">
+            <label class="field">
+              <span>Utilizador</span>
+              <input type="text" id="login-user" autocomplete="username" required placeholder="admin" />
+            </label>
+            <label class="field">
+              <span>Senha</span>
+              <input type="password" id="login-pass" autocomplete="current-password" required />
+            </label>
+            <p id="login-error" class="error hidden"></p>
+            <button type="submit" class="btn btn-primary btn-glow">
+              <span>Entrar</span>
+              <svg class="btn-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </button>
+          </form>
+          <div class="login-footer">
+            <button type="button" class="theme-toggle" id="btn-theme-login" aria-label="Alternar tema">
+              <span class="theme-icon theme-icon-dark" aria-hidden="true">☀</span>
+              <span class="theme-icon theme-icon-light" aria-hidden="true">☽</span>
+              <span class="theme-label">Tema</span>
+            </button>
           </div>
-        </header>
-        <form id="login-form">
-          <label>Utilizador<input type="text" id="login-user" autocomplete="username" required /></label>
-          <label>Senha<input type="password" id="login-pass" autocomplete="current-password" required /></label>
-          <p id="login-error" class="error hidden"></p>
-          <button type="submit" class="btn primary">Entrar</button>
-        </form>
+        </div>
       </div>
     </section>
 
     <section id="view-shell" class="view">
-      <header class="topbar">
+      <header class="topbar glass-bar">
         <div class="topbar-left">
-          <img class="logo-sm" src="/favicon-32x32.png" width="32" height="32" alt="" />
-          <span id="user-label"></span>
+          <button type="button" class="brand-mini" id="btn-hub" hidden title="Início">
+            <img class="logo-sm" src="/favicon-32x32.png" width="28" height="28" alt="" />
+          </button>
+          <div class="user-chip">
+            <span class="user-dot"></span>
+            <span id="user-label">—</span>
+          </div>
         </div>
         <div class="topbar-center">
-          <span id="session-host" class="session-host"></span>
+          <span id="session-host" class="session-host host-accent-text"></span>
         </div>
         <div class="topbar-right">
-          <span id="ssh-status" class="badge">SSH: offline</span>
-          <button type="button" class="btn ghost" id="btn-hub" hidden>Início</button>
-          <button type="button" class="btn ghost" id="btn-disconnect" hidden>Desconectar SSH</button>
-          <button type="button" class="btn ghost" id="btn-logout">Sair</button>
+          <span id="ssh-status" class="badge badge-pulse">SSH: offline</span>
+          <span id="ssh-latency" class="badge latency-badge hidden" title="Latência SSH (listagem remota)">—</span>
+          <button type="button" class="btn btn-ghost btn-icon-text" id="btn-shortcuts" title="Atalhos de teclado">?</button>
+          <button type="button" class="theme-toggle compact" id="btn-theme" aria-label="Alternar tema">
+            <span class="theme-icon theme-icon-dark">☀</span>
+            <span class="theme-icon theme-icon-light">☽</span>
+          </button>
+          <button type="button" class="btn btn-ghost" id="btn-disconnect" hidden>Desconectar</button>
+          <button type="button" class="btn btn-ghost" id="btn-logout">Sair</button>
         </div>
       </header>
 
+      <div class="shell-body">
       <div id="view-connect" class="subview active">
-        <div class="card page-card">
-          <h2>Ligação SSH/SFTP</h2>
-          <p class="muted">Ligue-se ao servidor Linux para aceder aos módulos.</p>
-          <form id="ssh-form" class="form-grid">
-            <label>Perfil<select id="ssh-profile"><option value="">— manual —</option></select></label>
-            <label>Host<input type="text" id="ssh-host" required /></label>
-            <label>Utilizador<input type="text" id="ssh-user" required /></label>
-            <label>Senha<input type="password" id="ssh-pass" /></label>
-            <div class="form-actions">
-              <button type="submit" class="btn primary">Conectar</button>
+        <div class="page-center animate-in">
+          <div class="glass-card page-card">
+            <div class="page-card-head">
+              <h2>Ligação SSH/SFTP</h2>
+              <p class="muted">Ligue-se ao servidor para aceder aos módulos.</p>
             </div>
-          </form>
+            <form id="ssh-form" class="form-stack ssh-form">
+              <label class="field">Perfil<select id="ssh-profile"><option value="">— novo / manual —</option></select></label>
+              <label class="field">Nome do perfil<input type="text" id="ssh-name" placeholder="ex.: VM 63" required /></label>
+              <div class="field-row">
+                <label class="field">Host<input type="text" id="ssh-host" required placeholder="10.0.1.63" /></label>
+                <label class="field">Utilizador<input type="text" id="ssh-user" required /></label>
+              </div>
+              <label class="field">Senha<input type="password" id="ssh-pass" autocomplete="current-password" /></label>
+              <label class="checkbox-row"><input type="checkbox" id="ssh-save-secrets" checked /> Guardar senha no perfil</label>
+              <p id="ssh-conn-status" class="status-line muted"></p>
+              <div class="btn-row">
+                <button type="submit" class="btn btn-primary btn-glow">Conectar</button>
+                <button type="button" class="btn btn-ghost" id="ssh-save-profile">Guardar perfil</button>
+                <button type="button" class="btn btn-ghost btn-danger-text" id="ssh-delete-profile">Apagar</button>
+              </div>
+            </form>
+          </div>
         </div>
       </div>
 
       <div id="view-hub" class="subview">
-        <div class="page-head">
-          <h2>Início da sessão</h2>
-          <p id="hub-connected" class="muted"></p>
-          <input type="search" id="hub-search" class="search" placeholder="Pesquisar módulos…" />
+        <div class="hub-hero animate-in">
+          <p class="eyebrow">Sessão ativa</p>
+          <h2 class="hub-title">O que pretende fazer?</h2>
+          <p id="hub-connected" class="hub-sub muted"></p>
+          <div class="search-wrap">
+            <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input type="search" id="hub-search" class="search" placeholder="Pesquisar módulos…" />
+          </div>
         </div>
         <div id="hub-grid" class="hub-grid"></div>
       </div>
 
       <div id="view-explorer" class="subview">
-        <div class="module-toolbar">
-          <button type="button" class="btn" id="btn-send">Enviar →</button>
-          <button type="button" class="btn" id="btn-receive">← Receber</button>
+        <div class="module-toolbar glass-bar-inline">
+          <button type="button" class="btn btn-primary" id="btn-send">Enviar →</button>
+          <button type="button" class="btn btn-primary" id="btn-receive">← Receber</button>
+          <button type="button" class="btn btn-ghost" id="btn-refresh-panels">↻ Atualizar</button>
           <span id="transfer-status" class="muted"></span>
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-toggle-xfer-panel">Progresso</button>
         </div>
+        <aside id="transfer-progress-panel" class="transfer-progress glass-card hidden">
+          <strong>Transferências em curso</strong>
+          <div id="transfer-progress-inner"></div>
+        </aside>
+        <aside id="transfer-log" class="transfer-log glass-card hidden">
+          <div class="transfer-log-head">
+            <strong>Transferências</strong>
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-transfer-log-close">×</button>
+          </div>
+          <ul id="transfer-log-list"></ul>
+        </aside>
         <main class="explorer">
-          <article class="panel" data-side="local">
+          <article class="panel glass-panel" data-side="local">
             <header class="panel-head"><h2>Local</h2><nav class="panel-nav">
               <button type="button" class="icon-btn" data-side="local" data-action="up">↑</button>
               <button type="button" class="icon-btn" data-side="local" data-action="refresh">↻</button>
             </nav></header>
+            <div id="local-bc" class="bc-bar"></div>
             <div class="path-bar" id="local-path">—</div>
             <div class="file-list selectable" id="local-list"></div>
           </article>
-          <article class="panel" data-side="remote">
+          <article class="panel glass-panel" data-side="remote">
             <header class="panel-head"><h2>Remoto</h2><nav class="panel-nav">
               <button type="button" class="icon-btn" data-side="remote" data-action="up">↑</button>
               <button type="button" class="icon-btn" data-side="remote" data-action="refresh">↻</button>
             </nav></header>
+            <div id="remote-bc" class="bc-bar"></div>
             <div class="path-bar" id="remote-path">—</div>
             <div class="file-list selectable" id="remote-list"></div>
           </article>
@@ -98,47 +173,176 @@
       </div>
 
       <div id="view-docker" class="subview">
-        <div class="page-head"><h2>Contêineres Docker</h2>
-          <button type="button" class="btn ghost" id="docker-refresh">Atualizar</button></div>
-        <div id="docker-list" class="data-list"></div>
+        <div class="page-head glass-bar-inline"><h2>Contêineres Docker</h2>
+          <button type="button" class="btn btn-ghost" id="docker-refresh">Atualizar</button></div>
+        <div id="docker-list" class="data-list content-pad"></div>
       </div>
 
       <div id="view-disks" class="subview">
-        <div class="page-head"><h2>Discos e armazenamento</h2>
-          <button type="button" class="btn ghost" id="disks-refresh">Atualizar</button></div>
-        <div id="disks-table-wrap" class="table-wrap"></div>
-        <pre id="disks-df" class="code-block"></pre>
+        <div class="page-head glass-bar-inline"><h2>Discos e armazenamento</h2>
+          <button type="button" class="btn btn-ghost" id="disks-refresh">Atualizar</button></div>
+        <div class="content-pad">
+          <div id="disks-table-wrap" class="table-wrap glass-card"></div>
+          <pre id="disks-df" class="code-block"></pre>
+        </div>
       </div>
 
       <div id="view-terminal" class="subview">
-        <div class="page-head"><h2>Terminal SSH</h2>
-          <button type="button" class="btn ghost" id="terminal-reconnect">Reconectar</button></div>
+        <div class="page-head glass-bar-inline"><h2>Terminal SSH</h2>
+          <button type="button" class="btn btn-ghost" id="terminal-reconnect">Reconectar</button></div>
         <div id="terminal" class="terminal-box"></div>
       </div>
 
       <div id="view-automations" class="subview">
-        <div class="page-head"><h2>Central de automações</h2></div>
-        <div class="split-panels">
-          <div><h3>Regras</h3><div id="auto-rules" class="data-list"></div></div>
-          <div><h3>Histórico</h3><pre id="auto-history" class="code-block"></pre></div>
+        <div class="page-head glass-bar-inline">
+          <div><h2>Central de automações</h2>
+          <p class="muted auto-hint">Motor verifica Docker a cada 8s · regras partilhadas com o desktop</p></div>
+          <div class="page-head-actions">
+            <span id="auto-engine-status" class="badge">Motor parado</span>
+            <button type="button" class="btn btn-ghost" id="auto-engine-toggle">Iniciar motor</button>
+            <button type="button" class="btn btn-ghost" id="auto-refresh">Atualizar</button>
+          </div>
         </div>
+        <div class="split-panels content-pad">
+          <div class="glass-card split-card">
+            <div class="panel-head"><h3>Regras</h3>
+              <button type="button" class="btn btn-sm btn-primary" id="auto-save-rules" hidden>Guardar</button></div>
+            <div id="auto-rules" class="data-list"></div>
+          </div>
+          <div class="glass-card split-card">
+            <div class="panel-head"><h3>Histórico</h3>
+              <button type="button" class="btn btn-ghost btn-sm" id="auto-clear-history">Limpar</button></div>
+            <pre id="auto-history" class="code-block"></pre>
+          </div>
+        </div>
+        <dialog id="auto-rule-dialog" class="modal-dialog">
+          <form id="auto-rule-form" method="dialog" class="modal-form">
+            <h3 id="auto-dialog-title">Editar regra</h3>
+            <label class="field">Nome <input name="name" required /></label>
+            <label class="field">Descrição <input name="description" /></label>
+            <label class="field">Tipo <input name="kind" readonly /></label>
+            <label class="field">Gatilho <input name="trigger" /></label>
+            <label class="field">Ação <input name="action" /></label>
+            <label class="field">Alvo <input name="target" placeholder="ex: nginx" /></label>
+            <label class="field">Cooldown (s) <input name="cooldownSec" type="number" min="10" value="20" /></label>
+            <label class="field">Webhook <input name="webhookURL" type="url" placeholder="https://…" /></label>
+            <label class="checkbox-row"><input name="enabled" type="checkbox" /> Regra ativa</label>
+            <div class="btn-row end">
+              <button type="button" class="btn btn-ghost" id="auto-dialog-cancel">Cancelar</button>
+              <button type="submit" class="btn btn-primary">Aplicar</button>
+            </div>
+          </form>
+        </dialog>
       </div>
 
       <div id="view-settings" class="subview">
-        <div class="page-head"><h2>Configurações</h2></div>
-        <div class="card page-card">
-          <p>Gestão de utilizadores e e-mail SMTP está disponível na aplicação desktop Fyne.</p>
-          <p class="muted">Na versão web pode consultar o manual em <code>docs/GUIA.md</code> e políticas em <code>docs/SECURITY.md</code>.</p>
+        <div class="page-head glass-bar-inline"><h2>Configurações</h2></div>
+        <nav class="settings-tabs content-pad" id="settings-tabs">
+          <button type="button" class="settings-tab active" data-tab="account">Conta</button>
+          <button type="button" class="settings-tab" data-tab="users" id="settings-tab-users">Utilizadores</button>
+          <button type="button" class="settings-tab" data-tab="mail" id="settings-tab-mail">E-mail SMTP</button>
+        </nav>
+
+        <div id="settings-panel-account" class="settings-panel active glass-card content-pad">
           <ul class="settings-list">
             <li>Conta atual: <strong id="settings-user"></strong></li>
             <li>Perfil: <strong id="settings-role"></strong></li>
+            <li>Versão: <strong id="settings-version">—</strong></li>
           </ul>
+          <p class="muted">Partilhado com a app desktop (mesmo ficheiro de preferências).</p>
         </div>
+
+        <div id="settings-panel-users" class="settings-panel glass-card content-pad">
+          <p class="muted">O utilizador <code>admin</code> mantém a senha padrão do produto ao guardar.</p>
+          <div id="settings-users-list" class="data-list"></div>
+          <div class="btn-row">
+            <button type="button" class="btn btn-ghost" id="settings-user-add">Adicionar</button>
+            <button type="button" class="btn btn-primary" id="settings-users-save">Guardar utilizadores</button>
+          </div>
+        </div>
+
+        <div id="settings-panel-mail" class="settings-panel glass-card content-pad">
+          <form id="settings-mail-form" class="form-stack">
+            <label class="checkbox-row"><input type="checkbox" name="enabled" /> Ativar alertas por e-mail</label>
+            <div class="field-row">
+              <label class="field">Servidor SMTP <input name="host" placeholder="smtp.office365.com" /></label>
+              <label class="field">Porta <input name="port" type="number" value="587" /></label>
+              <label class="field">Utilizador <input name="user" autocomplete="username" /></label>
+              <label class="field">Senha <input name="password" type="password" autocomplete="new-password" placeholder="vazio = manter" /></label>
+              <label class="field">From <input name="from" type="email" /></label>
+            </div>
+            <label class="field">Destinatários <input name="recipientsText" placeholder="a@x.com, b@y.com" /></label>
+            <p class="muted" id="settings-mail-status"></p>
+            <div class="btn-row">
+              <button type="submit" class="btn btn-primary">Guardar SMTP</button>
+              <button type="button" class="btn btn-ghost" id="settings-mail-test-self">Teste remetente</button>
+              <button type="button" class="btn btn-ghost" id="settings-mail-test-all">Teste destinatários</button>
+            </div>
+          </form>
+        </div>
+
+        <dialog id="settings-user-dialog" class="modal-dialog">
+          <form id="settings-user-form" method="dialog" class="modal-form">
+            <h3>Editar utilizador</h3>
+            <label class="field">Utilizador <input name="username" required pattern="[a-zA-Z0-9._-]+" /></label>
+            <label class="field">Nome <input name="displayName" /></label>
+            <label class="field">Senha <input name="password" type="password" /></label>
+            <div class="btn-row end">
+              <button type="button" class="btn btn-ghost" id="settings-user-cancel">Cancelar</button>
+              <button type="submit" class="btn btn-primary">Aplicar</button>
+            </div>
+          </form>
+        </dialog>
       </div>
+      </div><!-- shell-body -->
     </section>
   </div>
+
+  <div id="toast-stack" class="toast-stack" aria-live="polite"></div>
+
+  <div id="splash-overlay" class="splash hidden" aria-busy="false">
+    <div class="splash-card glass-card">
+      <img src="/icon-192.png" width="64" height="64" alt="" class="splash-logo" />
+      <p class="splash-label">A ligar SSH…</p>
+      <div class="progress-track splash-track"><div class="progress-fill indeterminate"></div></div>
+    </div>
+  </div>
+
+  <dialog id="confirm-dialog" class="modal-dialog confirm-dialog">
+    <div class="modal-form">
+      <h3 id="confirm-title">Confirmar</h3>
+      <p id="confirm-body"></p>
+      <div class="btn-row end">
+        <button type="button" class="btn btn-ghost" id="confirm-cancel">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="confirm-ok">Confirmar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="cmd-palette" class="modal-dialog cmd-palette">
+    <div class="cmd-wrap">
+      <input type="search" id="cmd-input" class="cmd-input" placeholder="Ir para módulo ou ação…  (Ctrl+K)" autocomplete="off" />
+      <ul id="cmd-results" class="cmd-results"></ul>
+      <p class="muted cmd-hint">↑↓ navegar · Enter executar · Esc fechar</p>
+    </div>
+  </dialog>
+
+  <dialog id="shortcuts-dialog" class="modal-dialog">
+    <div class="modal-form">
+      <h3>Atalhos de teclado</h3>
+      <ul class="shortcut-list">
+        <li><kbd>Ctrl</kbd>+<kbd>K</kbd> Paleta de comandos</li>
+        <li><kbd>?</kbd> Esta ajuda</li>
+        <li><kbd>Esc</kbd> Fechar diálogos</li>
+      </ul>
+      <div class="btn-row end"><button type="button" class="btn btn-primary" onclick="document.getElementById('shortcuts-dialog').close()">Fechar</button></div>
+    </div>
+  </dialog>
+
   <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+  <script src="/ui.js"></script>
   <script src="/app.js"></script>
+  <script src="/app-ui.js"></script>
 </body>
 </html>

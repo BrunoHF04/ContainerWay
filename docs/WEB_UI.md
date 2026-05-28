@@ -67,7 +67,10 @@ Flags: `-addr 127.0.0.1:9000`, `-no-browser` (não abrir o navegador).
 | POST | `/api/auth/login` | Login local |
 | POST | `/api/auth/logout` | Logout |
 | GET | `/api/auth/me` | Utilizador atual |
-| GET | `/api/connections` | Perfis SSH (sem segredos) |
+| GET | `/api/connections` | Lista de perfis SSH |
+| GET | `/api/connections?name=` | Detalhe de um perfil (para preencher o formulário) |
+| POST | `/api/connections` | Guardar/atualizar perfil |
+| DELETE | `/api/connections?name=` | Apagar perfil |
 | POST | `/api/ssh/connect` | Ligação SSH/SFTP |
 | POST | `/api/ssh/disconnect` | Desligar SSH |
 | GET | `/api/ssh/status` | SSH ativo? |
@@ -79,8 +82,11 @@ Flags: `-addr 127.0.0.1:9000`, `-no-browser` (não abrir o navegador).
 | GET | `/api/docker/containers` | Contêineres em execução |
 | POST | `/api/docker/restart` | Reiniciar contêiner (`{"id"}`) |
 | GET | `/api/disks/summary` | Discos (lsblk + df) |
-| GET | `/api/automations/rules` | Regras do host |
-| GET | `/api/automations/history` | Histórico de automações |
+| GET / PUT | `/api/automations/rules` | Listar / gravar regras do host |
+| GET / DELETE | `/api/automations/history` | Histórico / limpar |
+| GET / POST | `/api/automations/engine` | Estado do motor (`{"action":"start"|"stop"}`) |
+| GET / PUT | `/api/admin/users` | Utilizadores de acesso (só admin) |
+| GET / PUT / POST | `/api/admin/mail` | SMTP e teste (`{"mode":"self"|"recipients"}`) |
 | WS | `/api/ssh/terminal/ws` | Terminal interativo |
 
 ## Estado atual (telas)
@@ -90,21 +96,26 @@ Flags: `-addr 127.0.0.1:9000`, `-no-browser` (não abrir o navegador).
 | Login de acesso local | Sim |
 | Ligação SSH | Sim |
 | Hub / menu da sessão (cartões) | Sim |
-| Explorador dual + enviar/receber ficheiro | Sim |
+| Explorador dual + enviar/receber (ficheiro ou pasta) | Sim |
 | Contêineres Docker (lista + reiniciar) | Sim |
 | Discos (lsblk + df) | Sim |
 | Terminal SSH (WebSocket + xterm) | Sim |
-| Automações (regras + histórico leitura) | Sim |
+| Automações (editar regras, motor, histórico) | Sim |
 | Configurações (info admin) | Sim |
-| Edição de regras / e-mail / utilizadores | Só desktop |
-| Transferência de pastas / contêineres | Em desenvolvimento |
+| Gestão de utilizadores e SMTP (admin) | Sim |
+| Transferência para contêineres | Só desktop |
+| Painel de histórico de transferências (web) | Sim |
+
+## Interface
+
+- Tema **escuro** / **claro** (botão no login e na barra superior; preferência em `localStorage`)
+- Fundo animado (gradientes, grelha, glassmorphism)
+- Transições entre ecrãs e cartões do hub com entrada escalonada
 
 ## Próximas fases
 
-1. Transferências (enviar/receber) e fila de progresso
-2. Terminal SSH (WebSocket + xterm.js)
-3. Docker, discos, automações
-4. Tema claro/escuro e i18n
+1. Comparar pastas, favoritos, contêineres no explorador
+2. i18n (PT / EN / ES)
 
 ## Estrutura
 
