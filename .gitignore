@@ -1,7 +1,9 @@
 /containerway.exe
+/ContainerWay Web.exe
 /containerway-web
 containerway_ci.exe
 containerway-web.exe
+/dist/deb-web/
 *.exe
 *.exe~
 /dist/

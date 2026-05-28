@@ -2,12 +2,7 @@
 setlocal EnableExtensions
 cd /d "%~dp0..\.."
 
-echo [ContainerWay Web] A compilar...
-go build -o containerway-web.exe ./cmd/containerway-web/
-if errorlevel 1 (
-  echo [ContainerWay Web] Falha na compilacao.
-  exit /b 1
-)
-
-echo [ContainerWay Web] OK: %CD%\containerway-web.exe
+echo [ContainerWay Web] A compilar executavel (abre o browser ao iniciar)...
+call "%~dp0..\build-web.ps1"
+exit /b %ERRORLEVEL%
 exit /b 0

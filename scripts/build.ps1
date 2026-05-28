@@ -8,7 +8,8 @@
 param(
     [string]$Version,
     [switch]$SkipWindows,
-    [switch]$SkipLinux
+    [switch]$SkipLinux,
+    [switch]$SkipWeb
 )
 
 $ErrorActionPreference = "Stop"
@@ -73,6 +74,13 @@ if (-not $SkipWindows) {
     Write-Host "Gerado: $repoRoot\ContainerWay.exe"
 }
 
+if (-not $SkipWeb) {
+    Write-Host "==> Build Windows Web (ContainerWay Web.exe — abre o browser)"
+    $env:CGO_ENABLED = "0"
+    go build -trimpath -ldflags="-s -w -H=windowsgui" -o "ContainerWay Web.exe" ./cmd/containerway-web/
+    Write-Host "Gerado: $repoRoot\ContainerWay Web.exe"
+}
+
 if (-not $SkipLinux) {
     Write-Host "==> Build Linux (.deb e .flatpak) via Docker"
     Test-CommandAvailable -Name "docker" -Hint "Instale o Docker Desktop e inicie o serviço."
@@ -91,7 +99,10 @@ mkdir -p dist/linux dist/deb dist/flatpak
 CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
   go build -trimpath -ldflags="-s -w" -o dist/linux/containerway ./cmd/containerway/
 
-rm -rf dist/deb/pkgroot
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+  go build -trimpath -ldflags="-s -w" -o dist/linux/containerway-web ./cmd/containerway-web/
+
+rm -rf dist/deb/pkgroot dist/deb-web/pkgroot
 mkdir -p dist/deb/pkgroot/DEBIAN
 mkdir -p dist/deb/pkgroot/usr/bin
 mkdir -p dist/deb/pkgroot/usr/share/applications
@@ -106,6 +117,17 @@ cp packaging/linux/io.containerway.ContainerWay.metainfo.xml \
    dist/deb/pkgroot/usr/share/metainfo/io.containerway.ContainerWay.metainfo.xml
 cp assets/containerway-icon.png \
    dist/deb/pkgroot/usr/share/icons/hicolor/256x256/apps/io.containerway.ContainerWay.png
+
+mkdir -p dist/deb-web/pkgroot/DEBIAN
+mkdir -p dist/deb-web/pkgroot/usr/bin
+mkdir -p dist/deb-web/pkgroot/usr/share/applications
+mkdir -p dist/deb-web/pkgroot/usr/share/icons/hicolor/256x256/apps
+cp dist/linux/containerway-web dist/deb-web/pkgroot/usr/bin/containerway-web
+chmod 0755 dist/deb-web/pkgroot/usr/bin/containerway-web
+cp packaging/linux/io.containerway.ContainerWay.Web.desktop \
+   dist/deb-web/pkgroot/usr/share/applications/io.containerway.ContainerWay.Web.desktop
+cp assets/containerway-icon.png \
+   dist/deb-web/pkgroot/usr/share/icons/hicolor/256x256/apps/io.containerway.ContainerWay.png
 
 cat > dist/deb/pkgroot/DEBIAN/control <<'CONTROL'
 Package: containerway
@@ -122,6 +144,20 @@ CONTROL
 sed -i "s/__DEB_VERSION__/__DEB_VERSION_VALUE__/g" dist/deb/pkgroot/DEBIAN/control
 
 dpkg-deb --build dist/deb/pkgroot "dist/deb/containerway___DEB_VERSION_VALUE___amd64.deb"
+
+cat > dist/deb-web/pkgroot/DEBIAN/control <<'WEBCONTROL'
+Package: containerway-web
+Version: __DEB_VERSION__
+Section: utils
+Priority: optional
+Architecture: amd64
+Maintainer: ContainerWay Team <noreply@containerway.local>
+Depends: ca-certificates, xdg-utils
+Description: ContainerWay Web - gestão de ficheiros no browser
+ Servidor local com interface web; abre o navegador ao iniciar (SSH/SFTP).
+WEBCONTROL
+sed -i "s/__DEB_VERSION__/__DEB_VERSION_VALUE__/g" dist/deb-web/pkgroot/DEBIAN/control
+dpkg-deb --build dist/deb-web/pkgroot "dist/deb-web/containerway-web___DEB_VERSION_VALUE___amd64.deb"
 
 flatpak --system remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 flatpak --system install -y flathub org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.08
@@ -150,6 +186,7 @@ flatpak build-bundle dist/flatpak/repo \
     }
 
     Write-Host "Gerado: $repoRoot\dist\deb\containerway-$debVersion`_amd64.deb"
+    Write-Host "Gerado: $repoRoot\dist\deb-web\containerway-web-$debVersion`_amd64.deb"
     Write-Host "Gerado: $repoRoot\dist\flatpak\containerway-$debVersion.flatpak"
 }
 

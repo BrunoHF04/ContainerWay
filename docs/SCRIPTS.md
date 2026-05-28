@@ -21,7 +21,23 @@ Compila o app **Fyne** (Windows) e, opcionalmente, pacotes **Linux** (`.deb`, `.
 
 ---
 
-## Versão web (browser)
+## Versão web (browser) — utilizador final
+
+### `scripts/build-web.ps1`
+
+Gera o executável **`ContainerWay Web.exe`** na raiz (Windows). Ao executar, abre o browser automaticamente. **Sem CGO.**
+
+```powershell
+.\scripts\build-web.ps1
+```
+
+Incluído também em `.\scripts\build.ps1` (use `-SkipWeb` para omitir).
+
+**Linux:** `.\scripts\build.ps1 -SkipWindows` gera `dist/deb-web/containerway-web_*_amd64.deb` (menu de aplicações **ContainerWay Web**).
+
+---
+
+## Versão web — desenvolvimento
 
 ### `scripts/web/run.bat` / `scripts/web/run.sh`
 
@@ -38,19 +54,11 @@ chmod +x scripts/web/*.sh
 ./scripts/web/run.sh 127.0.0.1:9000
 ```
 
-Usa `containerway-web.exe` / `containerway-web` na raiz se existir; senão `go run`.
+Prefere `ContainerWay Web.exe`, depois `containerway-web.exe`; senão `go run`.
 
 ### `scripts/web/build.bat` / `scripts/web/build.sh`
 
-Compila o binário web na raiz do repo.
-
-```bat
-.\scripts\web\build.bat
-```
-
-```sh
-./scripts/web/build.sh
-```
+Atalhos para `build-web.ps1` (Windows) ou `go build` (Unix).
 
 Documentação da UI web: [WEB_UI.md](WEB_UI.md).
 

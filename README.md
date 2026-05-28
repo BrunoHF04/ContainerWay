@@ -9,7 +9,7 @@ Gestor de ficheiros em painel duplo (estilo WinSCP) para **Windows desktop** e, 
 | Objetivo | Comando |
 |----------|---------|
 | **App desktop** (Windows) | `.\scripts\build.ps1` → `.\ContainerWay.exe` |
-| **App web** (browser, branch `dev_browser`) | `.\scripts\web\run.bat` → http://127.0.0.1:8765 |
+| **App web** (browser, branch `dev_browser`) | Duplo clique em **`ContainerWay Web.exe`** (ou `.deb` Linux) — abre o browser sozinho |
 | **Documentação completa** | [docs/GUIA.md](docs/GUIA.md) |
 
 ## Documentação
@@ -28,8 +28,8 @@ Gestor de ficheiros em painel duplo (estilo WinSCP) para **Windows desktop** e, 
 | Script | Descrição |
 |--------|-----------|
 | `scripts/build.ps1` | Compila desktop (`ContainerWay.exe`) e pacotes Linux |
-| `scripts/web/run.bat` / `run.sh` | Inicia servidor web local |
-| `scripts/web/build.bat` / `build.sh` | Compila `containerway-web` |
+| `scripts/build-web.ps1` | Compila **`ContainerWay Web.exe`** (utilizador final) |
+| `scripts/web/run.bat` / `run.sh` | Desenvolvimento: servidor sem empacotar |
 | `scripts/release/publish-github-release.ps1` | Publica release no GitHub |
 
 Detalhes: [docs/SCRIPTS.md](docs/SCRIPTS.md).
@@ -67,7 +67,7 @@ ContainerWay/
 └── .github/workflows/        # CI
 ```
 
-Binários gerados na **raiz** (não versionados): `ContainerWay.exe`, `containerway-web.exe`, pasta `dist/`.
+Binários gerados (não versionados): `ContainerWay.exe`, **`ContainerWay Web.exe`**, `dist/deb/`, `dist/deb-web/`, `dist/flatpak/`.
 
 ## Créditos
 

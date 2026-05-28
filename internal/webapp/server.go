@@ -4,7 +4,6 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
-	"fmt"
 	"io/fs"
 	"log"
 	"net"
@@ -26,7 +25,8 @@ var staticEmbed embed.FS
 
 // Options parâmetros de arranque do servidor web.
 type Options struct {
-	Addr string
+	Addr        string
+	OpenBrowser bool
 }
 
 // Run inicia o servidor HTTP do ContainerWay Web.
@@ -35,6 +35,18 @@ func Run(opts Options) error {
 	if addr == "" {
 		addr = "127.0.0.1:8765"
 	}
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		host = addr
+		port = "8765"
+	}
+	baseURL := formatBaseURL(host, port)
+
+	if opts.OpenBrowser && tryReuseRunningInstance(baseURL) {
+		log.Printf("ContainerWay Web já em execução — browser reaberto (%s)", baseURL)
+		return nil
+	}
+
 	srv := &Server{
 		httpServer: &http.Server{
 			Addr:              addr,
@@ -46,12 +58,27 @@ func Run(opts Options) error {
 
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
+		if opts.OpenBrowser && isAddrInUse(err) && tryReuseRunningInstance(baseURL) {
+			log.Printf("porta ocupada — reutilizando instância (%s)", baseURL)
+			return nil
+		}
 		return err
 	}
-	host, port, _ := net.SplitHostPort(ln.Addr().String())
-	url := fmt.Sprintf("http://%s:%s", host, port)
-	log.Printf("ContainerWay Web em %s (SO=%s/%s)", url, runtime.GOOS, runtime.GOARCH)
-	log.Printf("Abra no browser: %s", url)
+	host, port, _ = net.SplitHostPort(ln.Addr().String())
+	baseURL = formatBaseURL(host, port)
+	log.Printf("ContainerWay Web em %s (SO=%s/%s)", baseURL, runtime.GOOS, runtime.GOARCH)
+
+	if opts.OpenBrowser {
+		go func() {
+			time.Sleep(400 * time.Millisecond)
+			if err := OpenBrowser(baseURL); err != nil {
+				log.Printf("não foi possível abrir o browser: %v — abra manualmente: %s", err, baseURL)
+			}
+		}()
+	} else {
+		log.Printf("Abra no browser: %s", baseURL)
+	}
+
 	return srv.httpServer.Serve(ln)
 }
 

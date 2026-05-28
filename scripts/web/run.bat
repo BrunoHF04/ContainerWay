@@ -5,10 +5,14 @@ cd /d "%~dp0..\.."
 set "ADDR=127.0.0.1:8765"
 if not "%~1"=="" set "ADDR=%~1"
 
+if exist "ContainerWay Web.exe" (
+  echo [ContainerWay Web] A iniciar %ADDR% ^(ContainerWay Web.exe^)
+  "ContainerWay Web.exe" -addr %ADDR%
+  exit /b %ERRORLEVEL%
+)
+
 if exist "containerway-web.exe" (
-  echo [ContainerWay Web] A iniciar %ADDR% ^(executavel^)
-  echo Abra no browser: http://%ADDR%
-  echo.
+  echo [ContainerWay Web] A iniciar %ADDR% ^(containerway-web.exe^)
   containerway-web.exe -addr %ADDR%
   exit /b %ERRORLEVEL%
 )

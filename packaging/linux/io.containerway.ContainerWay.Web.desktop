@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=ContainerWay Web
+Comment=Gestão remota de ficheiros via browser (SSH/SFTP)
+Exec=containerway-web
+Icon=io.containerway.ContainerWay
+Terminal=false
+Categories=Utility;System;Network;
+StartupNotify=true
+Keywords=ssh;sftp;files;docker;

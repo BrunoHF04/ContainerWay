@@ -4,44 +4,54 @@ Interface web local que reutiliza o motor Go do ContainerWay (SSH/SFTP, listagen
 
 > Desenvolvimento ativo na branch **`dev_browser`**. Quando estiver estável, merge manual para `main`.
 
-## Executar
+## Para utilizadores finais (recomendado)
 
-**Windows:**
+O browser é só a **interface**. O programa real é um **executável local** que levanta o servidor e abre o navegador sozinho.
+
+| Plataforma | O que instalar / executar |
+|------------|---------------------------|
+| **Windows** | Duplo clique em **`ContainerWay Web.exe`** (na raiz, após build) |
+| **Linux (Debian/Ubuntu)** | `sudo dpkg -i dist/deb-web/containerway-web_*_amd64.deb` → menu **ContainerWay Web** |
+| **Linux (manual)** | Comando `containerway-web` no PATH |
+
+Comportamento ao iniciar:
+
+1. Sobe o servidor em **http://127.0.0.1:8765** (só neste PC).
+2. Abre o navegador predefinido na página de login.
+3. Se já estiver a correr, um segundo clique **reabre o browser** (não duplica o servidor).
+
+**Encerrar:** feche o processo `ContainerWay Web` / `containerway-web` no Gestor de Tarefas (Windows) ou termine o processo no Linux. Log em `%LocalAppData%\ContainerWay\web.log` (Windows sem consola).
+
+## Compilar o executável
+
+```powershell
+.\scripts\build-web.ps1
+# ou, com build completo do repo:
+.\scripts\build.ps1 -SkipLinux
+```
+
+Gera **`ContainerWay Web.exe`** na raiz (Windows, sem janela de consola).
+
+Pacote Linux só web:
+
+```powershell
+.\scripts\build.ps1 -SkipWindows
+# inclui dist/deb-web/containerway-web_<versão>_amd64.deb
+```
+
+## Desenvolvimento (scripts / go run)
+
+Para quem trabalha no código — [SCRIPTS.md](SCRIPTS.md):
 
 ```bat
 .\scripts\web\run.bat
 ```
 
-**Linux / macOS:**
-
-```sh
-chmod +x scripts/web/*.sh
-./scripts/web/run.sh
-```
-
-Porta personalizada: `.\scripts\web\run.bat 127.0.0.1:9000` ou `./scripts/web/run.sh 127.0.0.1:9000`.
-
-Ver também [SCRIPTS.md](SCRIPTS.md).
-
-Por omissão escuta em **http://127.0.0.1:8765** (só localhost). Se existir `containerway-web.exe` / `containerway-web` na raiz, usa o executável; senão faz `go run`.
-
-**Compilar:**
-
-```bat
-.\scripts\web\build.bat
-```
-
-```sh
-./scripts/web/build.sh
-```
-
-**Go direto (sem scripts):**
-
 ```powershell
 go run ./cmd/containerway-web/
-go run ./cmd/containerway-web/ -addr 127.0.0.1:9000
-go build -o containerway-web.exe ./cmd/containerway-web/
 ```
+
+Flags: `-addr 127.0.0.1:9000`, `-no-browser` (não abrir o navegador).
 
 ## Autenticação
 
