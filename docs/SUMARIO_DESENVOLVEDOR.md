@@ -31,7 +31,12 @@ Este arquivo serve como guia rapido para manutencao do projeto `ContainerWay`.
 - `internal/tarxfer/`: transferencia de arquivos via tar/stream.
 - `internal/transfer/`: orquestracao de transferencias entre origem e destino.
 - `internal/mailnotify/`: envio de notificacoes por e-mail (SMTP).
-- `internal/webapp/`: servidor HTTP, sessoes e ficheiros estaticos da UI web.
+- `internal/webapp/`: servidor HTTP, sessoes e ficheiros estaticos da UI web (`static/explorer.js`, `app-ui.js`, etc.).
+- `internal/webapp/api_editor.go`: GET/PUT ficheiros local/remoto para editor (texto UTF-8, imagens base64).
+- `internal/webapp/api_open_external.go`: abrir local/remoto no Windows e sincronizar edicao remota.
+- `internal/webapp/api_sudo.go`: activar/desactivar sudo na sessao SFTP.
+- `internal/webapp/shellopen.go`: abrir ficheiro com app predefinida ou Notepad++ (Windows).
+- `internal/webapp/sudo.go`: elevacao sudo no bundle SSH (listagem/escrita host).
 - `internal/connectcfg/`: perfis `connections.json` (desktop + web).
 - `internal/accessauth/`: login de acesso local para a UI web.
 - `internal/configdir/`: diretorio de configuracao ContainerWay e preferencias Fyne.
@@ -65,7 +70,7 @@ Este arquivo serve como guia rapido para manutencao do projeto `ContainerWay`.
 - `internal/appui/window_maximize_darwin.go`: comportamento de maximizar janela no macOS.
 - `internal/appui/window_maximize_windows.go`: comportamento de maximizar janela no Windows.
 - `internal/appui/window_maximize_stub.go`: fallback para plataformas sem implementacao especifica.
-- `internal/containerfs/containerfs.go`: leitura/listagem e operacoes de arquivos no conteiner.
+- `internal/containerfs/containerfs.go`: listagem via `docker exec ls`, leitura via `exec cat` (evita API Archive antiga em pastas).
 - `internal/hostfs/hostfs.go`: leitura/listagem, `Stat`, criacao/remocao no host remoto via SFTP.
 - `internal/localfs/localfs.go`: operacoes locais auxiliares de arquivo.
 - `internal/fsutil/entry.go`: estrutura padrao de entrada de arquivo/diretorio.
@@ -95,6 +100,7 @@ Este arquivo serve como guia rapido para manutencao do projeto `ContainerWay`.
 
 ## Notas recentes de manutencao
 
+- **Web (`dev_browser`):** explorador com toggle SFTP/Docker; reset para `/` ao mudar contêiner ou modo remoto; editor + open-external + sudo; listagem de contêineres por `exec` em `containerfs`.
 - **Politica local:** `internal/policy` + ficheiro `%APPDATA%\\ContainerWay\\policy.json` (ou equivalente) com `forbidInsecureHostKey`, ou env `CONTAINERWAY_FORBID_INSECURE_HOSTKEY`; UI em login e botao **Políticas** na central de automacoes (`securityui.go`).
 - **Docker/Podman remoto:** campo de socket na ligacao (`connections.json` / `savedConnection.dockerSocket`) → `session.Credentials.DockerUnixSocket`.
 - **Explorador:** botao **Comparar** (`foldercompare.go`); favoritos do painel direito por host/contexto em preferencias (`remoteFavoritesPreferenceKey` em `appui.go`); fila de transferencias mostra `Queued`/`Running` (`internal/transfer/transfer.go`); upload SFTP ficheiro unico pode omitir se destino ja tem mesmo tamanho (`hostfs.Stat` + `appui.go`).

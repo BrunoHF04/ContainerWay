@@ -160,10 +160,10 @@ func (s *Server) drainTransfers(webTok string, b *sshBundle) {
 		func(j transfer.Job, err error) {
 			b.clearTransferProgress()
 			if err != nil {
-				b.addTransferLog(j.Name, "error", err.Error())
+				b.finishTransferLog(j.Name, "error", err.Error())
 				return
 			}
-			b.addTransferLog(j.Name, "ok", "")
+			b.finishTransferLog(j.Name, "ok", "")
 		},
 		func(done, total int64) {
 			b.updateTransferProgress(done, total)

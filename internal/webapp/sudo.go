@@ -214,6 +214,105 @@ func (b *sshBundle) listHostWithSudo(ctx context.Context, dir string) ([]fsutil.
 	return out, nil
 }
 
+// readHostFileWithSudo lê ficheiro do host via cat com sudo.
+func (b *sshBundle) readHostFileWithSudo(ctx context.Context, remotePath string) ([]byte, error) {
+	if err := b.ensureSudoSession(ctx); err != nil {
+		return nil, err
+	}
+	b.sudoMu.Lock()
+	user := b.sudoUser
+	pass := b.sudoPass
+	b.sudoMu.Unlock()
+
+	clean := path.Clean(strings.TrimSpace(remotePath))
+	cmd := fmt.Sprintf(
+		"sudo -S -p '' -u %s sh -lc %s",
+		shellQuote(user),
+		shellQuote("cat -- "+shellQuote(clean)),
+	)
+	stdout, stderr, err := b.runSSHCommand(ctx, cmd, pass)
+	if err != nil {
+		msg := strings.TrimSpace(stderr)
+		if msg == "" {
+			msg = err.Error()
+		}
+		return nil, fmt.Errorf("%s", msg)
+	}
+	data := []byte(stdout)
+	if int64(len(data)) > maxEditorFileBytes {
+		return nil, fmt.Errorf("ficheiro demasiado grande (máx. %d MB)", maxEditorFileBytes/(1<<20))
+	}
+	if !isTextContent(data) {
+		return nil, fmt.Errorf("ficheiro binário — não pode ser editado como texto")
+	}
+	return data, nil
+}
+
+// writeHostFileWithSudo grava ficheiro no host via cat com sudo.
+func (b *sshBundle) writeHostFileWithSudo(ctx context.Context, remotePath string, data []byte) error {
+	if err := b.ensureSudoSession(ctx); err != nil {
+		return err
+	}
+	b.sudoMu.Lock()
+	user := b.sudoUser
+	pass := b.sudoPass
+	b.sudoMu.Unlock()
+	if b.Sess == nil || b.Sess.SSH == nil {
+		return fmt.Errorf("sessão SSH indisponível")
+	}
+
+	sess, err := b.Sess.SSH.NewSession()
+	if err != nil {
+		return err
+	}
+	defer sess.Close()
+
+	var errBuf strings.Builder
+	sess.Stderr = &errBuf
+	stdin, err := sess.StdinPipe()
+	if err != nil {
+		return err
+	}
+
+	clean := path.Clean(strings.TrimSpace(remotePath))
+	cmd := fmt.Sprintf(
+		"sudo -S -p '' -u %s sh -lc %s",
+		shellQuote(user),
+		shellQuote("cat > "+shellQuote(clean)),
+	)
+	if err := sess.Start(cmd); err != nil {
+		return err
+	}
+	if _, err := io.WriteString(stdin, pass+"\n"); err != nil {
+		return err
+	}
+	if _, err := stdin.Write(data); err != nil {
+		return err
+	}
+	if err := stdin.Close(); err != nil {
+		return err
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- sess.Wait() }()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-done:
+		if err != nil {
+			msg := strings.TrimSpace(errBuf.String())
+			if msg == "" {
+				msg = err.Error()
+			}
+			return fmt.Errorf("%s", msg)
+		}
+	}
+	b.sudoMu.Lock()
+	b.sudoValidatedAt = time.Now()
+	b.sudoMu.Unlock()
+	return nil
+}
+
 // isPermissionDenied indica erro de permissão SFTP/SSH.
 func isPermissionDenied(err error) bool {
 	if err == nil {

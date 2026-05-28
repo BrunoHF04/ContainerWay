@@ -132,31 +132,34 @@
       </div>
 
       <div id="view-explorer" class="subview">
-        <div class="explorer-topbar glass-bar-inline">
-          <details class="explorer-menu" data-menu-prefer="down">
-            <summary class="btn btn-ghost btn-sm explorer-menu-trigger">Ações ▾</summary>
-            <div class="explorer-menu-panel">
-              <button type="button" class="btn btn-ghost btn-sm" id="btn-new-folder">Nova pasta</button>
-              <button type="button" class="btn btn-ghost btn-sm" id="btn-rename-item">Renomear</button>
-              <button type="button" class="btn btn-ghost btn-sm" id="btn-delete-item">Apagar</button>
-              <button type="button" class="btn btn-ghost btn-sm" id="btn-copy-item">Copiar</button>
-              <button type="button" class="btn btn-ghost btn-sm" id="btn-paste-item">Colar</button>
+        <div class="explorer-toolbar glass-bar-inline">
+          <div class="explorer-toolbar-start">
+            <details class="explorer-menu" data-menu-prefer="down">
+              <summary class="btn btn-ghost btn-sm explorer-menu-trigger" title="Operações de ficheiros">Ações</summary>
+              <div class="explorer-menu-panel">
+                <button type="button" class="btn btn-ghost btn-sm" id="btn-new-folder">Nova pasta</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="btn-rename-item">Renomear</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="btn-delete-item">Apagar</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="btn-copy-item">Copiar</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="btn-paste-item">Colar</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="btn-edit-file">Abrir / editar</button>
               <button type="button" class="btn btn-ghost btn-sm" id="btn-compare-folders">Comparar pastas</button>
+              </div>
+            </details>
+            <span class="toolbar-sep" aria-hidden="true"></span>
+            <div class="explorer-xfer-btns">
+              <button type="button" class="btn btn-primary btn-sm" id="btn-send" title="Enviar seleção para o remoto">Enviar</button>
+              <button type="button" class="btn btn-primary btn-sm btn-receive" id="btn-receive" title="Receber seleção do remoto">Receber</button>
+              <button type="button" class="btn btn-ghost btn-sm btn-icon" id="btn-batch-send" title="Enviar itens visíveis (lote)">Lote→</button>
+              <button type="button" class="btn btn-ghost btn-sm btn-icon" id="btn-batch-receive" title="Receber itens visíveis (lote)">←Lote</button>
             </div>
-          </details>
-          <div class="explorer-topbar-group explorer-topbar-meta">
-            <button type="button" class="btn btn-ghost btn-sm" id="btn-refresh-panels" title="Atualizar painéis">↻</button>
-            <span id="transfer-status" class="transfer-status-pill muted"></span>
-            <button type="button" class="btn btn-ghost btn-sm" id="btn-toggle-xfer-panel">Progresso</button>
           </div>
-        </div>
-        <div class="explorer-transfer-bar glass-bar-inline">
-          <button type="button" class="btn btn-primary" id="btn-send">Enviar →</button>
-          <button type="button" class="btn btn-primary btn-receive" id="btn-receive">← Receber</button>
-          <button type="button" class="btn btn-ghost btn-sm" id="btn-batch-send" title="Enviar itens visíveis">Lote →</button>
-          <button type="button" class="btn btn-ghost btn-sm" id="btn-batch-receive" title="Receber itens visíveis">← Lote</button>
-          <span class="transfer-bar-sep" aria-hidden="true"></span>
-          <button type="button" class="btn btn-ghost btn-sm btn-sudo" id="btn-sudo" title="Activar sudo/root no host SFTP">Sudo: inativo</button>
+          <div class="explorer-toolbar-end">
+            <button type="button" class="btn btn-ghost btn-sm btn-sudo" id="btn-sudo" title="Activar sudo/root no host SFTP">Sudo</button>
+            <button type="button" class="btn btn-ghost btn-sm btn-icon" id="btn-refresh-panels" title="Atualizar painéis">↻</button>
+            <span id="transfer-status" class="transfer-status-pill muted hidden" title="Fila de transferências"></span>
+            <button type="button" class="btn btn-ghost btn-sm btn-icon" id="btn-toggle-xfer-panel" title="Painel de progresso">▤</button>
+          </div>
         </div>
         <aside id="transfer-progress-panel" class="transfer-progress glass-card hidden">
           <strong>Transferências em curso</strong>
@@ -173,8 +176,9 @@
           <div class="explorer-panels">
           <article class="panel glass-panel" data-side="local">
             <header class="panel-head">
-              <h2>Local</h2>
-              <nav class="panel-nav">
+              <h2 class="panel-title">Local</h2>
+              <div class="panel-head-mid" aria-hidden="true"></div>
+              <nav class="panel-nav panel-nav-tools">
                 <details class="panel-menu" id="local-menu">
                   <summary class="icon-btn panel-menu-btn" title="Atalhos e favoritos" aria-label="Atalhos e favoritos">
                     <svg class="ico ico-pin" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>
@@ -201,8 +205,15 @@
           </article>
           <article class="panel glass-panel" data-side="remote">
             <header class="panel-head">
-              <h2>Remoto</h2>
-              <nav class="panel-nav">
+              <h2 class="panel-title">Remoto</h2>
+              <div class="panel-head-mid">
+                <div class="remote-target-toggle" role="tablist" aria-label="Destino remoto">
+                  <button type="button" class="remote-target-btn active" data-target="host" id="remote-target-host" title="Ficheiros no host via SFTP">SFTP</button>
+                  <button type="button" class="remote-target-btn" data-target="container" id="remote-target-container" title="Ficheiros dentro do contêiner">Docker</button>
+                </div>
+                <select id="remote-container" class="panel-select remote-container-select hidden" size="1" title="Seleccionar contêiner" aria-label="Contêiner"></select>
+              </div>
+              <nav class="panel-nav panel-nav-tools">
                 <details class="panel-menu" id="remote-menu">
                   <summary class="icon-btn panel-menu-btn" title="Favoritos" aria-label="Favoritos">
                     <svg class="ico ico-pin" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>
@@ -220,16 +231,6 @@
                 </button>
               </nav>
             </header>
-            <div class="panel-remote-ctx">
-              <div class="remote-target-toggle" role="tablist" aria-label="Destino remoto">
-                <button type="button" class="remote-target-btn active" data-target="host" id="remote-target-host">Host SFTP</button>
-                <button type="button" class="remote-target-btn" data-target="container" id="remote-target-container">Contêiner</button>
-              </div>
-              <div id="remote-container-wrap" class="remote-container-wrap hidden">
-                <label class="remote-container-label" for="remote-container">Contêiner</label>
-                <select id="remote-container" class="panel-select remote-container-select" size="1"></select>
-              </div>
-            </div>
             <div id="remote-bc" class="bc-bar"></div>
             <div class="path-bar" id="remote-path" title="">—</div>
             <div class="panel-search">
@@ -411,7 +412,9 @@
   <div id="explorer-menu-backdrop" class="explorer-menu-backdrop hidden" aria-hidden="true"></div>
 
   <menu id="explorer-ctx-menu" class="ctx-menu hidden">
-    <button type="button" data-action="open">Abrir</button>
+    <button type="button" data-action="open">Abrir pasta</button>
+    <button type="button" data-action="edit">Abrir / editar</button>
+    <button type="button" data-action="open-external">Abrir no Notepad++</button>
     <button type="button" data-action="send">Enviar →</button>
     <button type="button" data-action="receive">← Receber</button>
     <hr />
@@ -428,6 +431,29 @@
       <pre id="compare-report" class="compare-pre"></pre>
       <div class="btn-row"><button type="submit" class="btn btn-primary">Fechar</button></div>
     </form>
+  </dialog>
+
+  <dialog id="file-editor-dialog" class="modal-dialog file-editor-dialog">
+    <div class="modal-form file-editor-form">
+      <div class="file-editor-head">
+        <h3 id="file-editor-title">Editar ficheiro</h3>
+        <p id="file-editor-path" class="muted file-editor-path"></p>
+      </div>
+      <div id="file-editor-image-wrap" class="file-editor-image-wrap hidden">
+        <img id="file-editor-preview" class="file-editor-preview" alt="" />
+      </div>
+      <textarea id="file-editor-content" class="file-editor-content" spellcheck="false"></textarea>
+      <p id="file-editor-hint" class="muted file-editor-hint hidden"></p>
+      <p id="file-editor-error" class="sudo-error hidden" role="alert"></p>
+      <div class="file-editor-actions btn-row">
+        <button type="button" class="btn btn-ghost btn-sm" id="file-editor-open-default" title="Abrir com a aplicação predefinida do Windows">Programa predefinido</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="file-editor-open-npp" title="Abrir no Notepad++">Notepad++</button>
+        <button type="button" class="btn btn-ghost btn-sm hidden" id="file-editor-sync-external">Sincronizar remoto</button>
+        <span class="file-editor-actions-spacer"></span>
+        <button type="button" class="btn btn-ghost" id="file-editor-cancel">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="file-editor-save">Guardar</button>
+      </div>
+    </div>
   </dialog>
 
   <dialog id="sudo-dialog" class="modal-dialog">

@@ -294,9 +294,20 @@ Versão **experimental** (branch `dev_browser`): o mesmo motor Go (SSH/SFTP) com
 | URL padrão | http://127.0.0.1:8765 (apenas localhost) |
 | Binário | `containerway-web.exe` (Windows) / `containerway-web` (Linux) na raiz, após build |
 
-**Já disponível:** login de acesso local, ligação SSH, explorador em painel duplo (listar pastas local e remota).
+**Já disponível:**
 
-**Em desenvolvimento:** transferências, hub de módulos, terminal, Docker, discos, automações.
+- Login de acesso local e perfis SSH;
+- Hub com cartões (explorador, Docker, discos, terminal, automações, admin);
+- Explorador em painel duplo: local + remoto (**SFTP** ou ficheiros no **contêiner** Docker);
+- Transferências (enviar/receber, lote, fila e histórico);
+- Sudo no host SFTP; editor de texto e pré-visualização de imagens; abrir com programa predefinido / Notepad++ (Windows);
+- Favoritos, comparar pastas, copiar/colar entre painéis;
+- Ao mudar de contêiner ou de SFTP para Docker, a pasta remota **reinicia em `/`**;
+- Módulos Docker (lista, logs, stats), discos, terminal WebSocket, automações e gestão de utilizadores/SMTP (admin).
+
+**Ainda só no desktop (ou planeado na web):** i18n completo, assistente LVM, multi-seleção e drag-and-drop no explorador web.
+
+Documentação detalhada da API e UI: [WEB_UI.md](WEB_UI.md).
 
 </details>
 

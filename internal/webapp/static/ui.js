@@ -302,7 +302,8 @@ const CWUI = (() => {
         <div class="progress-track"><div class="progress-fill ${pct == null ? "indeterminate" : ""}" style="width:${pct != null ? pct : 30}%"></div></div>`;
       inner.appendChild(bar);
     }
-    panel.classList.toggle("hidden", !inner.children.length && !(active && active.name));
+    const show = inner.children.length > 0;
+    panel.classList.toggle("hidden", !show);
   }
 
   const _floatMenus = new Set();

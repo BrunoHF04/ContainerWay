@@ -10,6 +10,7 @@
     ctxSide: null,
     ctxEntry: null,
     sudo: { enabled: false, user: "" },
+    fileEdit: null,
   });
 
   function remoteSource() {
@@ -29,12 +30,13 @@
     btn.disabled = !state.ssh.connected || !hostMode;
     btn.classList.toggle("is-active", on && hostMode);
     if (!hostMode) {
-      btn.textContent = "Sudo: contêiner";
+      btn.textContent = "—";
       btn.title = "Sudo só está disponível no modo Host SFTP";
       return;
     }
-    btn.title = on ? "Desactivar sudo" : "Activar sudo/root no host";
-    btn.textContent = on ? `Sudo: ${state.sudo.user || "root"}` : "Sudo: inativo";
+    const user = state.sudo.user || "root";
+    btn.title = on ? `Sudo activo (${user}) — clique para desactivar` : "Activar sudo/root no host";
+    btn.textContent = on ? user : "Sudo";
   }
 
   window.refreshSudoUI = async function refreshSudoUI() {
@@ -56,6 +58,23 @@
     const hay = (q || "").trim().toLowerCase();
     if (!hay) return entries || [];
     return (entries || []).filter((e) => e.name === ".." || e.name.toLowerCase().includes(hay));
+  }
+
+  function normExplorerPath(p) {
+    const s = String(p || "").replace(/\\/g, "/").replace(/\/+$/, "");
+    return s || "/";
+  }
+
+  function clearPanelFilter(side) {
+    if (side === "local") {
+      state.localFilter = "";
+      const el = $("#local-filter");
+      if (el) el.value = "";
+    } else {
+      state.remoteFilter = "";
+      const el = $("#remote-filter");
+      if (el) el.value = "";
+    }
   }
 
   window.renderEntries = function renderEntries(container, entries, side) {
@@ -91,6 +110,8 @@
         if (e.isDir) {
           if (side === "local") loadLocal(e.path);
           else loadRemote(e.path);
+        } else if (e.name !== "..") {
+          openFileEditor(side, e);
         }
       });
       row.addEventListener("contextmenu", (ev) => {
@@ -103,6 +124,8 @@
   };
 
   window.loadLocal = async function loadLocal(path) {
+    const nextPath = normExplorerPath(path);
+    if (nextPath !== normExplorerPath(state.localPath)) clearPanelFilter("local");
     CWUI.skeletonList($("#local-list"), 8);
     const q = path ? `?path=${encodeURIComponent(path)}` : "";
     const data = await api("/api/local/list" + q);
@@ -121,23 +144,36 @@
       CWUI.toast("Selecione um contêiner.", "error");
       return;
     }
-    CWUI.skeletonList($("#remote-list"), 8);
-    const data = await api(`/api/remote/list?path=${encodeURIComponent(path || "/")}${remoteApiExtra()}`);
-    state.remotePath = data.path;
-    state.selRemote = null;
-    const rp = $("#remote-path");
-    rp.textContent = data.path;
-    rp.title = data.path;
-    renderEntries($("#remote-list"), data.entries, "remote");
-    if (typeof updateExplorerBreadcrumbs === "function") updateExplorerBreadcrumbs();
+    const nextPath = normExplorerPath(path || "/");
+    if (nextPath !== normExplorerPath(state.remotePath)) clearPanelFilter("remote");
+    const listEl = $("#remote-list");
+    CWUI.skeletonList(listEl, 8);
+    try {
+      const data = await api(`/api/remote/list?path=${encodeURIComponent(path || "/")}${remoteApiExtra()}`);
+      state.remotePath = data.path;
+      state.selRemote = null;
+      const rp = $("#remote-path");
+      rp.textContent = data.path;
+      rp.title = data.path;
+      renderEntries(listEl, data.entries, "remote");
+      if (typeof updateExplorerBreadcrumbs === "function") updateExplorerBreadcrumbs();
+    } catch (e) {
+      state.remoteEntries = [];
+      CWUI.emptyState(listEl, {
+        icon: "⚠️",
+        title: "Não foi possível listar",
+        desc: e.message || "Erro ao ler o diretório remoto.",
+      });
+      CWUI.toast(e.message || "Erro ao listar remoto", "error");
+    }
   };
 
   function shortContainerLabel(c) {
     const name = (c.name || c.id || "").replace(/^\//, "");
-    const short = name.length > 28 ? name.slice(0, 26) + "…" : name;
+    const short = name.length > 18 ? name.slice(0, 16) + "…" : name;
     const img = (c.image || "").split(":")[0];
-    const imgShort = img.length > 20 ? img.slice(0, 18) + "…" : img;
-    return imgShort ? `${short} · ${imgShort}` : short;
+    const imgShort = img.length > 14 ? img.slice(0, 12) + "…" : img;
+    return imgShort ? `${short}` : short;
   }
 
   async function loadContainersSelect() {
@@ -217,21 +253,31 @@
     fillPanelMenu($("#remote-menu-list"), rightItems, (p) => loadRemote(p));
   }
 
+  function resetRemoteToRoot() {
+    state.remotePath = "/";
+    state.selRemote = null;
+    clearPanelFilter("remote");
+  }
+
   function setRemoteTarget(mode) {
+    const prev = state.remoteTarget;
     state.remoteTarget = mode;
+    if (prev !== mode) {
+      resetRemoteToRoot();
+    }
     $$(".remote-target-btn").forEach((b) => {
       b.classList.toggle("active", b.dataset.target === mode);
     });
     const showC = mode === "container";
-    $("#remote-container-wrap")?.classList.toggle("hidden", !showC);
+    $("#remote-container")?.classList.toggle("hidden", !showC);
     if (!state.ssh.connected) return;
     if (showC) {
       loadContainersSelect().then(() => {
-        if (state.remoteContainerId) loadRemote(state.remotePath || "/");
+        if (state.remoteContainerId) loadRemote("/");
       });
     } else {
       state.remoteContainerId = "";
-      loadRemote(state.remotePath || "/");
+      loadRemote("/");
     }
     updateSudoButton();
   }
@@ -346,6 +392,7 @@
       }),
     });
     CWUI.toast("Operação enfileirada", "success");
+    state.transferLogPinned = false;
     showTransferLog();
     refreshTransferStatus();
   }
@@ -380,6 +427,7 @@
         items: items.map((e) => ({ name: e.name, path: e.path, isDir: !!e.isDir })),
       }),
     });
+    state.transferLogPinned = false;
     showTransferLog();
     refreshTransferStatus();
     CWUI.toast(`Lote enfileirado (${items.length} itens)`, "success");
@@ -412,8 +460,8 @@
       if (!(await CWConfirm(`Enviar para ${state.remotePath}?`))) return;
       try {
         await api("/api/transfer/push", { method: "POST", body: JSON.stringify(pushPayload()) });
+        state.transferLogPinned = false;
         showTransferLog();
-        $("#transfer-progress-panel")?.classList.remove("hidden");
         refreshTransferStatus();
         CWUI.toast("Transferência enfileirada", "success");
       } catch (e) { CWUI.toast(e.message, "error"); }
@@ -431,19 +479,144 @@
       if (!(await CWConfirm(`Receber para ${state.localPath}?`))) return;
       try {
         await api("/api/transfer/pull", { method: "POST", body: JSON.stringify(pullPayload()) });
+        state.transferLogPinned = false;
         showTransferLog();
-        $("#transfer-progress-panel")?.classList.remove("hidden");
         refreshTransferStatus();
         CWUI.toast("Transferência enfileirada", "success");
       } catch (e) { CWUI.toast(e.message, "error"); }
     });
   }
 
+  function fileEditApiUrl(side, filePath) {
+    const q = encodeURIComponent(filePath);
+    if (side === "local") return `/api/local/file?path=${q}`;
+    let u = `/api/remote/file?path=${q}`;
+    if (state.remoteTarget === "container" && state.remoteContainerId) {
+      u += `&containerId=${encodeURIComponent(state.remoteContainerId)}`;
+    }
+    return u;
+  }
+
+  function showFileEditorError(msg) {
+    const el = $("#file-editor-error");
+    if (!el) return;
+    if (msg) {
+      el.textContent = msg;
+      el.classList.remove("hidden");
+    } else {
+      el.textContent = "";
+      el.classList.add("hidden");
+    }
+  }
+
+  function setFileEditorMode(mode) {
+    const ta = $("#file-editor-content");
+    const imgWrap = $("#file-editor-image-wrap");
+    const img = $("#file-editor-preview");
+    const hint = $("#file-editor-hint");
+    const saveBtn = $("#file-editor-save");
+    const syncBtn = $("#file-editor-sync-external");
+    if (mode === "image") {
+      ta?.classList.add("hidden");
+      imgWrap?.classList.remove("hidden");
+      saveBtn?.classList.add("hidden");
+      hint?.classList.remove("hidden");
+      if (hint) hint.textContent = "Pré-visualização. Para editar a imagem, use um programa externo abaixo.";
+    } else if (mode === "text") {
+      ta?.classList.remove("hidden");
+      imgWrap?.classList.add("hidden");
+      saveBtn?.classList.remove("hidden");
+      hint?.classList.add("hidden");
+      if (img) img.removeAttribute("src");
+    } else {
+      ta?.classList.add("hidden");
+      imgWrap?.classList.add("hidden");
+      saveBtn?.classList.add("hidden");
+      hint?.classList.remove("hidden");
+      if (hint) hint.textContent = "Ficheiro binário ou não suportado no editor web. Abra com um programa no seu PC.";
+    }
+    syncBtn?.classList.toggle("hidden", !state.fileEdit?.externalSessionId);
+  }
+
+  async function openFileExternal(editor) {
+    const edit = state.fileEdit;
+    if (!edit) return;
+    showFileEditorError("");
+    try {
+      if (edit.side === "local") {
+        const res = await api("/api/local/open-external", {
+          method: "POST",
+          body: JSON.stringify({ path: edit.path, editor }),
+        });
+        CWUI.toast(res.message || "Programa aberto.", "success");
+        return;
+      }
+      const body = { path: edit.path, editor };
+      if (state.remoteTarget === "container" && state.remoteContainerId) {
+        body.containerId = state.remoteContainerId;
+      }
+      const res = await api("/api/remote/open-external", { method: "POST", body: JSON.stringify(body) });
+      state.fileEdit.externalSessionId = res.sessionId || "";
+      setFileEditorMode(state.fileEdit.mode || "binary");
+      CWUI.toast(res.message || "Aberto no programa externo.", "success");
+    } catch (e) {
+      showFileEditorError(e.message || "Falha ao abrir externamente.");
+    }
+  }
+
+  window.openFileEditor = async function openFileEditor(side, entry) {
+    if (!entry || entry.isDir || entry.name === "..") return;
+    if (side === "remote" && !state.ssh.connected) {
+      CWUI.toast("Ligue-se ao SSH primeiro.", "error");
+      return;
+    }
+    if (side === "remote" && state.remoteTarget === "container" && !state.remoteContainerId) {
+      CWUI.toast("Selecione um contêiner.", "error");
+      return;
+    }
+    const dlg = $("#file-editor-dialog");
+    const ta = $("#file-editor-content");
+    if (!dlg || !ta) return;
+
+    state.fileEdit = { side, path: entry.path, name: entry.name, mode: "loading", externalSessionId: "" };
+    $("#file-editor-title").textContent = entry.name;
+    $("#file-editor-path").textContent = entry.path;
+    ta.value = "";
+    ta.disabled = true;
+    showFileEditorError("");
+    setFileEditorMode("text");
+    dlg.showModal();
+
+    try {
+      const data = await api(fileEditApiUrl(side, entry.path));
+      if (data.encoding === "base64" && (data.mimeType || "").startsWith("image/")) {
+        state.fileEdit.mode = "image";
+        const img = $("#file-editor-preview");
+        if (img) img.src = `data:${data.mimeType};base64,${data.content}`;
+        setFileEditorMode("image");
+        return;
+      }
+      state.fileEdit.mode = "text";
+      ta.value = data.content ?? "";
+      ta.disabled = false;
+      setFileEditorMode("text");
+      ta.focus();
+    } catch (e) {
+      state.fileEdit.mode = "binary";
+      setFileEditorMode("binary");
+      showFileEditorError(e.message || "Não foi possível abrir como texto.");
+    }
+  };
+
   function showCtxMenu(ev, side, entry) {
     state.ctxSide = side;
     state.ctxEntry = entry;
     const menu = $("#explorer-ctx-menu");
     if (!menu) return;
+    const openBtn = menu.querySelector('[data-action="open"]');
+    const editBtn = menu.querySelector('[data-action="edit"]');
+    if (openBtn) openBtn.hidden = !entry?.isDir;
+    if (editBtn) editBtn.hidden = !entry || entry.isDir || entry.name === "..";
     menu.classList.remove("hidden");
     menu.style.left = `${ev.clientX}px`;
     menu.style.top = `${ev.clientY}px`;
@@ -470,6 +643,15 @@
     if (act === "open" && entry.isDir) {
       if (side === "local") loadLocal(entry.path);
       else loadRemote(entry.path);
+      return;
+    }
+    if (act === "edit" && !entry.isDir) {
+      openFileEditor(side, entry);
+      return;
+    }
+    if (act === "open-external" && !entry.isDir) {
+      state.fileEdit = { side, path: entry.path, name: entry.name, mode: "binary", externalSessionId: "" };
+      openFileExternal("notepad++");
       return;
     }
     if (act === "send" && side === "local") {
@@ -515,6 +697,15 @@
   $("#btn-delete-item")?.addEventListener("click", () => deleteActive(state.selRemote ? "remote" : "local"));
   $("#btn-copy-item")?.addEventListener("click", () => copyActive(state.selRemote ? "remote" : "local"));
   $("#btn-paste-item")?.addEventListener("click", () => pasteActive(state.selLocal ? "local" : "remote"));
+  $("#btn-edit-file")?.addEventListener("click", () => {
+    const side = state.selRemote && !state.selLocal ? "remote" : "local";
+    const entry = side === "local" ? state.selLocal : state.selRemote;
+    if (!entry || entry.isDir) {
+      CWUI.toast("Selecione um ficheiro para editar.", "error");
+      return;
+    }
+    openFileEditor(side, entry);
+  });
   $("#btn-compare-folders")?.addEventListener("click", compareFolders);
   $("#btn-batch-send")?.addEventListener("click", () => batchTransfer("push"));
   $("#btn-batch-receive")?.addEventListener("click", () => batchTransfer("pull"));
@@ -620,9 +811,89 @@
 
   $("#remote-target-host")?.addEventListener("click", () => setRemoteTarget("host"));
   $("#remote-target-container")?.addEventListener("click", () => setRemoteTarget("container"));
+  $("#file-editor-cancel")?.addEventListener("click", () => {
+    showFileEditorError("");
+    $("#file-editor-dialog")?.close();
+    state.fileEdit = null;
+    $("#file-editor-preview")?.removeAttribute("src");
+  });
+
+  $("#file-editor-open-default")?.addEventListener("click", () => openFileExternal("default"));
+  $("#file-editor-open-npp")?.addEventListener("click", () => openFileExternal("notepad++"));
+
+  $("#file-editor-sync-external")?.addEventListener("click", async () => {
+    const sid = state.fileEdit?.externalSessionId;
+    if (!sid) return;
+    try {
+      const res = await api("/api/remote/sync-external", {
+        method: "POST",
+        body: JSON.stringify({ sessionId: sid }),
+      });
+      state.fileEdit.externalSessionId = "";
+      setFileEditorMode(state.fileEdit.mode || "binary");
+      CWUI.toast(res.message || "Sincronizado.", "success");
+      await loadRemote(state.remotePath);
+    } catch (e) {
+      showFileEditorError(e.message || "Falha ao sincronizar.");
+    }
+  });
+
+  $("#file-editor-save")?.addEventListener("click", async () => {
+    const edit = state.fileEdit;
+    const ta = $("#file-editor-content");
+    const btn = $("#file-editor-save");
+    if (!edit || !ta || ta.disabled) return;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "A guardar…";
+    }
+    showFileEditorError("");
+    try {
+      const body = { path: edit.path, content: ta.value };
+      if (edit.side === "remote" && state.remoteTarget === "container" && state.remoteContainerId) {
+        body.containerId = state.remoteContainerId;
+      }
+      await api(edit.side === "local" ? "/api/local/file" : "/api/remote/file", {
+        method: "PUT",
+        body: JSON.stringify(body),
+      });
+      CWUI.toast("Ficheiro guardado", "success");
+      $("#file-editor-dialog")?.close();
+      state.fileEdit = null;
+      if (edit.side === "local") await loadLocal(state.localPath);
+      else await loadRemote(state.remotePath);
+    } catch (e) {
+      showFileEditorError(e.message || "Falha ao guardar.");
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Guardar";
+      }
+    }
+  });
+
+  $("#file-editor-content")?.addEventListener("keydown", (ev) => {
+    if ((ev.ctrlKey || ev.metaKey) && ev.key === "s") {
+      ev.preventDefault();
+      $("#file-editor-save")?.click();
+    }
+  });
+
   $("#remote-container")?.addEventListener("change", (e) => {
     state.remoteContainerId = e.target.value;
-    if (state.remoteContainerId) loadRemote(state.remotePath || "/");
+    resetRemoteToRoot();
+    if (state.remoteContainerId) loadRemote("/");
+    else {
+      const listEl = $("#remote-list");
+      if (listEl) {
+        state.remoteEntries = [];
+        CWUI.emptyState(listEl, {
+          icon: "🐳",
+          title: "Selecione um contêiner",
+          desc: "Escolha um contêiner em execução na lista acima.",
+        });
+      }
+    }
   });
 
   $$(".icon-btn[data-action=fav-add]").forEach((btn) => {

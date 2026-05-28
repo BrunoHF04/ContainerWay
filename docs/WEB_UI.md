@@ -1,6 +1,6 @@
 # ContainerWay Web (MVP)
 
-Interface web local que reutiliza o motor Go do ContainerWay (SSH/SFTP, listagens local/remota).
+Interface web local que reutiliza o motor Go do ContainerWay (SSH/SFTP, listagens local/remota, Docker).
 
 > Desenvolvimento ativo na branch **`dev_browser`**. Quando estiver estável, merge manual para `main`.
 
@@ -21,6 +21,8 @@ Comportamento ao iniciar:
 3. Se já estiver a correr, um segundo clique **reabre o browser** (não duplica o servidor).
 
 **Encerrar:** feche o processo `ContainerWay Web` / `containerway-web` no Gestor de Tarefas (Windows) ou termine o processo no Linux. Log em `%LocalAppData%\ContainerWay\web.log` (Windows sem consola).
+
+Após alterações ao código, recompile o executável e faça **Ctrl+F5** no browser (ficheiros estáticos vêm embutidos no binário).
 
 ## Compilar o executável
 
@@ -59,7 +61,24 @@ Flags: `-addr 127.0.0.1:9000`, `-no-browser` (não abrir o navegador).
 - Lê `access.users` de `%AppData%\io.containerway.app\preferences.json` quando existir.
 - Conta padrão: `admin` / `!q1w2e3r4$` (altere no app desktop em produção).
 
-## API (MVP)
+## Explorador (painel duplo)
+
+| Funcionalidade | Detalhe |
+|----------------|---------|
+| Painel **Local** | Pastas do PC onde corre o `ContainerWay Web` (Windows) |
+| Painel **Remoto** | Toggle **SFTP** (host) ou **Docker** (ficheiros dentro do contêiner) |
+| Navegação | Breadcrumbs, subir, favoritos, atalhos (Home, Desktop, …), filtro por nome |
+| Mudança de contexto | Ao trocar SFTP↔Docker ou contêiner, a vista **reinicia em `/`** |
+| Operações | Nova pasta, renomear, apagar, copiar/colar entre painéis, comparar pastas |
+| Transferências | Enviar / Receber, lote dos itens visíveis, fila com painel de progresso e histórico |
+| **Sudo** | Só em modo **SFTP**: eleva privilégios para pastas/ficheiros protegidos no host |
+| **Editor** | Abrir/editar texto (até 2 MB); pré-visualização de imagens (até 8 MB) |
+| **Abrir externamente** | Programa predefinido do Windows ou Notepad++; remoto grava cópia local temporária com opção **Sincronizar remoto** |
+| Toolbar | Ações, Enviar/Receber/Lote, Sudo, atualizar, indicador de fila |
+
+Listagem dentro de contêineres: `docker exec ls` (sem depender de `CopyFromContainer` para pastas); leitura de ficheiros para edição via `exec cat`.
+
+## API
 
 | Método | Rota | Descrição |
 |--------|------|-----------|
@@ -68,40 +87,46 @@ Flags: `-addr 127.0.0.1:9000`, `-no-browser` (não abrir o navegador).
 | POST | `/api/auth/logout` | Logout |
 | GET | `/api/auth/me` | Utilizador atual |
 | GET | `/api/connections` | Lista de perfis SSH |
-| GET | `/api/connections?name=` | Detalhe de um perfil (para preencher o formulário) |
+| GET | `/api/connections?name=` | Detalhe de um perfil |
 | POST | `/api/connections` | Guardar/atualizar perfil |
 | DELETE | `/api/connections?name=` | Apagar perfil |
 | POST | `/api/ssh/connect` | Ligação SSH/SFTP |
 | POST | `/api/ssh/disconnect` | Desligar SSH |
 | GET | `/api/ssh/status` | SSH ativo? |
+| GET/POST | `/api/ssh/sudo` | Estado e activação de sudo no host SFTP |
 | GET | `/api/local/list?path=` | Listagem local |
-| GET | `/api/remote/list?path=` | Listagem remota (SFTP) |
-| GET | `/api/transfer/status` | Fila de transferências |
-| POST | `/api/transfer/push` | Enviar ficheiro/pasta local → remoto (ou contêiner com `containerId`) |
-| POST | `/api/transfer/pull` | Receber ficheiro/pasta remoto → local (ou de contêiner) |
+| GET/PUT | `/api/local/file?path=` | Ler/gravar ficheiro local (texto ou imagem base64) |
+| POST | `/api/local/open-external` | Abrir ficheiro local no Windows (`editor`: `default` \| `notepad++`) |
+| GET | `/api/remote/list?path=` | Listagem remota SFTP |
+| GET | `/api/remote/list?path=&containerId=` | Listagem dentro do contêiner |
+| GET/PUT | `/api/remote/file?path=` | Ler/gravar remoto (SFTP ou contêiner) |
+| POST | `/api/remote/open-external` | Copiar remoto para temp local e abrir no Windows |
+| POST | `/api/remote/sync-external` | Enviar ficheiro editado local de volta ao remoto |
+| POST | `/api/transfer/push` | Enviar local → remoto (opcional `containerId`) |
+| POST | `/api/transfer/pull` | Receber remoto → local |
 | POST | `/api/transfer/batch` | Lote push/pull dos itens visíveis |
+| GET | `/api/transfer/status` | Fila de transferências |
 | POST | `/api/local/mkdir` | Criar pasta local |
 | POST | `/api/local/rename` | Renomear local |
 | POST/DELETE | `/api/local/delete` | Apagar local |
 | GET | `/api/local/shortcuts` | Atalhos Home/Desktop/… |
-| POST | `/api/remote/mkdir` | Criar pasta remota (host ou `containerId`) |
+| POST | `/api/remote/mkdir` | Criar pasta remota |
 | POST | `/api/remote/rename` | Renomear remoto |
 | POST/DELETE | `/api/remote/delete` | Apagar remoto |
 | GET | `/api/explorer/compare` | Comparar pastas dos dois painéis |
 | GET/PUT | `/api/explorer/favorites` | Favoritos (partilhados com desktop) |
 | GET/POST/DELETE | `/api/explorer/clipboard` | Copiar metadados para colar |
 | POST | `/api/explorer/paste` | Colar / mover entre painéis |
-| GET | `/api/remote/list?containerId=` | Listar dentro de contêiner |
 | GET | `/api/docker/containers` | Contêineres em execução |
-| POST | `/api/docker/restart` | Reiniciar contêiner (`{"id"}`) |
+| POST | `/api/docker/restart` | Reiniciar contêiner |
 | GET | `/api/docker/logs?id=` | Logs do contêiner |
 | GET | `/api/docker/stats?id=` | Estatísticas do contêiner |
 | GET | `/api/disks/summary` | Discos (lsblk + df) |
-| GET / PUT | `/api/automations/rules` | Listar / gravar regras do host |
+| GET / PUT | `/api/automations/rules` | Regras do host |
 | GET / DELETE | `/api/automations/history` | Histórico / limpar |
-| GET / POST | `/api/automations/engine` | Estado do motor (`{"action":"start"|"stop"}`) |
-| GET / PUT | `/api/admin/users` | Utilizadores de acesso (só admin) |
-| GET / PUT / POST | `/api/admin/mail` | SMTP e teste (`{"mode":"self"|"recipients"}`) |
+| GET / POST | `/api/automations/engine` | Motor (`start` \| `stop`) |
+| GET / PUT | `/api/admin/users` | Utilizadores (só admin) |
+| GET / PUT / POST | `/api/admin/mail` | SMTP e teste |
 | WS | `/api/ssh/terminal/ws` | Terminal interativo |
 
 ## Estado atual (telas)
@@ -109,39 +134,44 @@ Flags: `-addr 127.0.0.1:9000`, `-no-browser` (não abrir o navegador).
 | Tela | Disponível |
 |------|------------|
 | Login de acesso local | Sim |
-| Ligação SSH | Sim |
-| Hub / menu da sessão (cartões) | Sim |
-| Explorador dual (renomear, apagar, nova pasta, copiar/colar, comparar, favoritos, lote, contêiner) | Sim |
+| Ligação SSH (perfis) | Sim |
+| Hub / menu da sessão | Sim |
+| Explorador dual (SFTP + Docker, sudo, editor, externo, favoritos, lote, comparar) | Sim |
 | Contêineres Docker (lista, reiniciar, logs, stats) | Sim |
 | Discos (lsblk + df) | Sim |
 | Terminal SSH (WebSocket + xterm) | Sim |
-| Automações (editar regras, motor, histórico) | Sim |
-| Configurações (info admin) | Sim |
-| Gestão de utilizadores e SMTP (admin) | Sim |
-| Transferência para contêineres | Sim (painel remoto → Contêiner) |
-| Painel de histórico de transferências (web) | Sim |
-| Editor remoto / modo sudo / i18n / LVM completo | Só desktop (fase seguinte) |
+| Automações (regras, motor, histórico) | Sim |
+| Admin: utilizadores e SMTP | Sim |
+| i18n (PT / EN / ES) na web | Planeado |
+| Assistente LVM completo | Só desktop |
+| Multi-seleção, drag-and-drop, atalhos F5/F2 no explorador | Planeado (ver roadmap abaixo) |
 
 ## Interface
 
-- Tema **escuro** / **claro** (botão no login e na barra superior; preferência em `localStorage`)
+- Tema **escuro** / **claro** (`localStorage`)
 - Fundo animado (gradientes, grelha, glassmorphism)
-- Transições entre ecrãs e cartões do hub com entrada escalonada
+- Cabeçalho Remoto: toggle **SFTP** / **Docker** + selector de contêiner compacto
+- Toolbar do explorador numa única barra (Ações \| transferências \| Sudo / fila)
+- Diálogos centrados; editor com pré-visualização de imagens
 
-## Próximas fases
+## Próximas fases (explorador web)
 
-1. Editor remoto integrado, modo sudo, teste de ligação SSH na UI
-2. i18n (PT / EN / ES)
-3. Assistente LVM completo (como no desktop)
+1. Multi-seleção e atalhos de teclado (F5, F2, Delete, copiar/colar)
+2. Arrastar entre painéis e upload por drop do Windows
+3. Comparar pastas com tabela acionável (enviar/receber por diferença)
+4. i18n (PT / EN / ES)
+5. Assistente LVM completo (paridade desktop)
 
 ## Estrutura
 
 | Caminho | Responsabilidade |
 |---------|------------------|
-| `cmd/containerway-web/` | Ponto de entrada do servidor HTTP |
-| `internal/webapp/` | API, sessões, UI embutida em `static/` |
-| `internal/connectcfg/` | Perfis `connections.json` (partilhado com desktop) |
-| `internal/accessauth/` | Autenticação local |
-| `internal/configdir/` | Caminhos de configuração |
-| `scripts/web/` | Scripts `build` e `run` (`.bat` / `.sh`) |
-| `docs/` | Documentação (este ficheiro, [SCRIPTS.md](SCRIPTS.md), etc.) |
+| `cmd/containerway-web/` | Entrada do servidor HTTP |
+| `internal/webapp/` | API, sessões, UI em `static/` |
+| `internal/webapp/api_editor.go` | Leitura/gravação de ficheiros para editor |
+| `internal/webapp/api_open_external.go` | Abrir no Windows e sincronizar remoto |
+| `internal/webapp/api_sudo.go` | API sudo |
+| `internal/webapp/shellopen.go` | `shellopen` / Notepad++ no Windows |
+| `internal/containerfs/` | Listagem/leitura no contêiner (`exec`) |
+| `internal/connectcfg/` | `connections.json` |
+| `scripts/web/` | Scripts build/run |

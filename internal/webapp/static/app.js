@@ -13,6 +13,7 @@ const state = {
   autoRulesDirty: false,
   autoEditIndex: -1,
   autoPollTimer: null,
+  transferLogPinned: false,
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -448,12 +449,26 @@ $("#btn-refresh-panels")?.addEventListener("click", () => {
 });
 
 function showTransferLog() {
-  $("#transfer-log").classList.remove("hidden");
+  $("#transfer-log")?.classList.remove("hidden");
+}
+
+function hideTransferPanels() {
+  $("#transfer-progress-panel")?.classList.add("hidden");
+  const inner = $("#transfer-progress-inner");
+  if (inner) inner.innerHTML = "";
 }
 
 $("#btn-transfer-log-close").addEventListener("click", () => {
-  $("#transfer-log").classList.add("hidden");
+  $("#transfer-log")?.classList.add("hidden");
+  state.transferLogPinned = false;
 });
+
+function transferIsBusy(st) {
+  if (!st) return false;
+  if ((st.queued || 0) > 0 || (st.running || 0) > 0) return true;
+  if (st.active && st.active.name) return true;
+  return (st.recent || []).some((r) => r.status === "running");
+}
 
 function renderTransferLog(recent) {
   const ul = $("#transfer-log-list");
@@ -476,14 +491,24 @@ async function refreshTransferStatus() {
   if (!state.ssh.connected) return;
   try {
     const st = await api("/api/transfer/status");
-    $("#transfer-status").textContent = `[fila:${st.queued} exec:${st.running}]`;
-    if (st.queued > 0 || st.running > 0 || (st.recent && st.recent.length)) {
+    const busy = transferIsBusy(st);
+    const pill = $("#transfer-status");
+    if (pill) {
+      pill.textContent = busy ? `${st.queued || 0}/${st.running || 0}` : "";
+      pill.classList.toggle("hidden", !busy);
+      pill.title = busy ? `Fila: ${st.queued} · Em execução: ${st.running}` : "Sem transferências";
+    }
+    if (busy) {
       showTransferLog();
-    }
-    if (st.active || st.running > 0) {
       $("#transfer-progress-panel")?.classList.remove("hidden");
+      CWUI.renderTransferProgress(st.active, st.recent);
+    } else {
+      hideTransferPanels();
+      if (!state.transferLogPinned) {
+        $("#transfer-log")?.classList.add("hidden");
+      }
+      CWUI.renderTransferProgress(null, []);
     }
-    CWUI.renderTransferProgress(st.active, st.recent);
     renderTransferLog(st.recent);
   } catch { /* ignore */ }
 }

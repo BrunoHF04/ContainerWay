@@ -54,9 +54,18 @@ type sshBundle struct {
 	sudoUser        string
 	sudoPass        string
 	sudoValidatedAt time.Time
+
+	externalMu     sync.Mutex
+	externalEdits  map[string]*externalEditSession
 }
 
 const sudoSessionTTL = 10 * time.Minute
+
+type externalEditSession struct {
+	TempPath    string
+	RemotePath  string
+	ContainerID string
+}
 
 
 
@@ -107,6 +116,44 @@ func (b *sshBundle) addTransferLog(name, status, errMsg string) {
 		Error:     errMsg,
 
 		UpdatedAt: time.Now(),
+
+	})
+
+	if len(b.transferLog) > 50 {
+
+		b.transferLog = b.transferLog[len(b.transferLog)-50:]
+
+	}
+
+}
+
+// finishTransferLog marca a entrada «running» do mesmo nome como concluída (evita duplicados).
+
+func (b *sshBundle) finishTransferLog(name, status, errMsg string) {
+
+	b.transferMu.Lock()
+
+	defer b.transferMu.Unlock()
+
+	for i := len(b.transferLog) - 1; i >= 0; i-- {
+
+		if b.transferLog[i].Name == name && b.transferLog[i].Status == "running" {
+
+			b.transferLog[i].Status = status
+
+			b.transferLog[i].Error = errMsg
+
+			b.transferLog[i].UpdatedAt = time.Now()
+
+			return
+
+		}
+
+	}
+
+	b.transferLog = append(b.transferLog, transferRecord{
+
+		Name: name, Status: status, Error: errMsg, UpdatedAt: time.Now(),
 
 	})
 
