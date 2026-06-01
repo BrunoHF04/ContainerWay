@@ -35,7 +35,7 @@ Antes da tela de conexão SSH/SFTP, o app pede **login de acesso local** (usuár
 Depois de **Conectar** com sucesso, abre-se primeiro a **tela inicial da sessão** (janela compacta e centralizada), com:
 
 - **Pesquisar módulos** (filtro por palavra-chave);
-- **Gerenciador de arquivos** — abre o explorador em painel duplo (no Windows/macOS a janela tende a **maximizar**);
+- **Gerenciador de arquivos** — abre o explorador em painel duplo (no Windows/macOS a janela tende a **maximizar**); ver também **[ARQUIVOS.md](ARQUIVOS.md)**;
 - **Contêineres Docker** — lista e ações no host remoto;
 - **Discos e armazenamento** — visão de `lsblk`, uso por `df`, LVM e assistente para ampliar LV (com sudo no host);
 - **Central de automações** — regras com gatilho/ação, motor de execução e histórico operacional;
@@ -307,7 +307,7 @@ Versão **experimental** (branch `dev_browser`): o mesmo motor Go (SSH/SFTP) com
 
 **Ainda só no desktop (ou planeado na web):** i18n completo, assistente LVM, multi-seleção e drag-and-drop no explorador web.
 
-Documentação detalhada da API e UI: [WEB_UI.md](WEB_UI.md).
+Documentação do explorador: [ARQUIVOS.md](ARQUIVOS.md). API e UI web: [WEB_UI.md](WEB_UI.md).
 
 </details>
 

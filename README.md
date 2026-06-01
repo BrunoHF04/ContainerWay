@@ -17,6 +17,7 @@ Gestor de ficheiros em painel duplo (estilo WinSCP) para **Windows desktop** e *
 | Documento | Conteúdo |
 |-----------|----------|
 | [docs/GUIA.md](docs/GUIA.md) | Manual do utilizador (funcionalidades, build, execução) |
+| [docs/ARQUIVOS.md](docs/ARQUIVOS.md) | Gerenciador de arquivos (explorador desktop e web) |
 | [docs/WEB_UI.md](docs/WEB_UI.md) | Versão browser (MVP, API, roadmap) |
 | [docs/SUMARIO_DESENVOLVEDOR.md](docs/SUMARIO_DESENVOLVEDOR.md) | Mapa do código e manutenção |
 | [docs/SECURITY.md](docs/SECURITY.md) | Política local e notas de segurança |
@@ -47,6 +48,7 @@ ContainerWay/
 │   └── iconforge/            # Utilitário de ícones
 ├── docs/                     # Toda a documentação (.md)
 │   ├── GUIA.md
+│   ├── ARQUIVOS.md
 │   ├── WEB_UI.md
 │   ├── SUMARIO_DESENVOLVEDOR.md
 │   ├── SECURITY.md
