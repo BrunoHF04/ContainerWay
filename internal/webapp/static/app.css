@@ -1082,14 +1082,75 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.screen-help-dialog { max-width: min(560px, 94vw); }
-.screen-help-body { max-height: min(70vh, 520px); overflow: auto; margin: 0.5rem 0 0.75rem; font-size: 0.88rem; line-height: 1.45; }
-.screen-help-body h4 { margin: 0.85rem 0 0.35rem; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); }
-.screen-help-body h4:first-of-type { margin-top: 0.25rem; }
-.screen-help-body ul { margin: 0.2rem 0 0.5rem 1.1rem; padding: 0; }
+/* Ajuda (?) — um único scroll no corpo; o dialog não rola */
+.modal-dialog.screen-help-dialog {
+  max-width: min(560px, 94vw);
+  width: min(560px, 94vw);
+  max-height: min(88vh, 720px);
+  overflow: hidden;
+  padding: 0;
+}
+
+.modal-dialog.screen-help-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-dialog.screen-help-dialog .modal-form {
+  display: flex;
+  flex-direction: column;
+  max-height: min(88vh, 720px);
+  overflow: hidden;
+  padding: 1.25rem 1.35rem 1rem;
+  gap: 0;
+}
+
+.modal-dialog.screen-help-dialog .modal-form > h3 {
+  flex-shrink: 0;
+  margin: 0 0 0.35rem;
+}
+
+.screen-help-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  margin: 0 0 0.75rem;
+  padding-right: 0.15rem;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.screen-help-body h4 {
+  margin: 0.85rem 0 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+
+.screen-help-body h4:first-of-type { margin-top: 0.15rem; }
+.screen-help-body p { margin: 0 0 0.5rem; }
+.screen-help-body ul { margin: 0.2rem 0 0.55rem 1.1rem; padding: 0; }
 .screen-help-body .shortcut-list { list-style: none; margin-left: 0; }
 .screen-help-body .shortcut-list li { line-height: 1.75; }
-.screen-help-body code { font-family: var(--mono); font-size: 0.82em; }
+.screen-help-body code {
+  font-family: var(--mono);
+  font-size: 0.82em;
+  padding: 0.1rem 0.3rem;
+  background: var(--surface2);
+  border-radius: 4px;
+}
+
+.modal-dialog.screen-help-dialog .btn-row.end {
+  flex-shrink: 0;
+  margin: 0;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--border);
+}
 .panel-alert {
   display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
   margin: 0.25rem 0.65rem; padding: 0.4rem 0.55rem; border-radius: var(--radius-sm);
