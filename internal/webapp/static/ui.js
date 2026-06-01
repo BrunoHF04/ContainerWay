@@ -24,6 +24,53 @@ const CWUI = (() => {
     return d.innerHTML;
   }
 
+  function nameInputDialog({ title = "Nome", label = "Nome", value = "", ok = "OK" } = {}) {
+    return new Promise((resolve) => {
+      const dlg = $("#name-input-dialog");
+      const field = $("#name-input-field");
+      const errEl = $("#name-input-error");
+      if (!dlg || !field) {
+        resolve(window.prompt(label, value)?.trim() || null);
+        return;
+      }
+      $("#name-input-title").textContent = title;
+      $("#name-input-label").textContent = label;
+      field.value = value || "";
+      if (errEl) {
+        errEl.textContent = "";
+        errEl.classList.add("hidden");
+      }
+      const done = (v) => {
+        dlg.close();
+        resolve(v);
+      };
+      $("#name-input-ok").onclick = () => {
+        const v = field.value.trim();
+        if (!v) {
+          if (errEl) {
+            errEl.textContent = "Indique um nome válido.";
+            errEl.classList.remove("hidden");
+          }
+          return;
+        }
+        done(v);
+      };
+      $("#name-input-cancel").onclick = () => done(null);
+      dlg.onclose = () => resolve(null);
+      dlg.showModal();
+      setTimeout(() => {
+        field.focus();
+        field.select();
+      }, 50);
+      field.onkeydown = (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          $("#name-input-ok")?.click();
+        }
+      };
+    });
+  }
+
   function confirmDialog(message, { title = "Confirmar", ok = "Confirmar", cancel = "Cancelar", danger = false } = {}) {
     return new Promise((resolve) => {
       const dlg = $("#confirm-dialog");
@@ -425,6 +472,7 @@ const CWUI = (() => {
   return {
     toast,
     confirmDialog,
+    nameInputDialog,
     skeletonList,
     emptyState,
     fileIcon,

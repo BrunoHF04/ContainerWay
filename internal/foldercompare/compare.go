@@ -10,12 +10,21 @@ import (
 	"containerway/internal/fsutil"
 )
 
+// NamedEntry identifica um item na comparação (para acções na UI web).
+type NamedEntry struct {
+	Name  string `json:"name"`
+	IsDir bool   `json:"isDir"`
+}
+
 // Report texto legível da comparação entre dois painéis.
 type Report struct {
-	OnlyLeft  []string `json:"onlyLeft"`
-	OnlyRight []string `json:"onlyRight"`
-	Mismatch  []string `json:"mismatch"`
-	Text      string   `json:"text"`
+	OnlyLeft       []string     `json:"onlyLeft"`
+	OnlyRight      []string     `json:"onlyRight"`
+	Mismatch       []string     `json:"mismatch"`
+	OnlyLeftItems  []NamedEntry `json:"onlyLeftItems"`
+	OnlyRightItems []NamedEntry `json:"onlyRightItems"`
+	MismatchItems  []NamedEntry `json:"mismatchItems"`
+	Text           string       `json:"text"`
 }
 
 // Build compara entradas de dois lados e devolve relatório.
@@ -35,19 +44,23 @@ func Build(leftTitle, rightTitle, leftPath, rightPath string, leftRows, rightRow
 		rightMap[strings.ToLower(e.Name)] = e
 	}
 	var onlyLeft, onlyRight, mismatch []string
+	var onlyLeftItems, onlyRightItems, mismatchItems []NamedEntry
 	for k, le := range leftMap {
 		re, ok := rightMap[k]
 		if !ok {
 			onlyLeft = append(onlyLeft, formatLine(le, true))
+			onlyLeftItems = append(onlyLeftItems, NamedEntry{Name: le.Name, IsDir: le.IsDir})
 			continue
 		}
 		if le.IsDir != re.IsDir || le.Size != re.Size || !le.ModTime.Equal(re.ModTime) {
 			mismatch = append(mismatch, fmtMismatch(le, re))
+			mismatchItems = append(mismatchItems, NamedEntry{Name: le.Name, IsDir: le.IsDir || re.IsDir})
 		}
 	}
 	for k, re := range rightMap {
 		if _, ok := leftMap[k]; !ok {
 			onlyRight = append(onlyRight, formatLine(re, false))
+			onlyRightItems = append(onlyRightItems, NamedEntry{Name: re.Name, IsDir: re.IsDir})
 		}
 	}
 	var b strings.Builder
@@ -94,7 +107,10 @@ func Build(leftTitle, rightTitle, leftPath, rightPath string, leftRows, rightRow
 		}
 	}
 	b.WriteString("\nNota: compara nomes, tipo (ficheiro/pasta), tamanho e data de modificação na listagem atual.\n")
-	return Report{OnlyLeft: onlyLeft, OnlyRight: onlyRight, Mismatch: mismatch, Text: b.String()}
+	return Report{
+		OnlyLeft: onlyLeft, OnlyRight: onlyRight, Mismatch: mismatch, Text: b.String(),
+		OnlyLeftItems: onlyLeftItems, OnlyRightItems: onlyRightItems, MismatchItems: mismatchItems,
+	}
 }
 
 func formatLine(e fsutil.DirEntry, left bool) string {

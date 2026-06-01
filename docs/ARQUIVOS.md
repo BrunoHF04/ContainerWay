@@ -176,9 +176,11 @@ Rotas principais do explorador — detalhe completo em [WEB_UI.md](WEB_UI.md):
 | Funcionalidade | Estado na web |
 |----------------|---------------|
 | Painel duplo, SFTP, Docker, favoritos, lote, sudo, editor | Disponível |
-| Comparar (relatório texto) | Disponível |
-| Multi-seleção, drag-and-drop, atalhos F5/F2 | Planeado |
-| Comparar com ações por ficheiro | Planeado |
+| Atalhos F5/F2/Del/Tab/F6, diálogos de nome, indicador de destino | Disponível |
+| Multi-seleção, drag-and-drop, upload por drop | Disponível |
+| Comparar com acções (enviar/receber por diferença) | Disponível |
+| Colunas nome/tamanho/data, filtro de contêineres | Disponível |
+| Pré-visualização lateral, dock de transferências, splitter | Disponível |
 | i18n PT/EN/ES | Planeado |
 
 ---

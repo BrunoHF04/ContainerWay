@@ -161,20 +161,11 @@
             <button type="button" class="btn btn-ghost btn-sm btn-icon" id="btn-toggle-xfer-panel" title="Painel de progresso">▤</button>
           </div>
         </div>
-        <aside id="transfer-progress-panel" class="transfer-progress glass-card hidden">
-          <strong>Transferências em curso</strong>
-          <div id="transfer-progress-inner"></div>
-        </aside>
-        <aside id="transfer-log" class="transfer-log glass-card hidden">
-          <div class="transfer-log-head">
-            <strong>Transferências</strong>
-            <button type="button" class="btn btn-ghost btn-sm" id="btn-transfer-log-close">×</button>
-          </div>
-          <ul id="transfer-log-list"></ul>
-        </aside>
-        <main class="explorer">
-          <div class="explorer-panels">
-          <article class="panel glass-panel" data-side="local">
+        <main class="explorer explorer-layout">
+          <div class="explorer-body">
+          <div class="explorer-panels-wrap" id="explorer-panels-wrap">
+          <div class="explorer-panels" id="explorer-panels">
+          <article class="panel glass-panel explorer-panel-active" data-side="local">
             <header class="panel-head">
               <h2 class="panel-title">Local</h2>
               <div class="panel-head-mid" aria-hidden="true"></div>
@@ -198,11 +189,19 @@
             </header>
             <div id="local-bc" class="bc-bar"></div>
             <div class="path-bar" id="local-path" title="">—</div>
+            <div id="local-panel-alert" class="panel-alert hidden" role="alert"></div>
             <div class="panel-search">
               <input type="search" id="local-filter" class="panel-filter" placeholder="Filtrar ficheiros…" />
             </div>
-            <div class="file-list selectable" id="local-list"></div>
+            <div class="file-list-head" data-side="local">
+              <button type="button" class="file-col-btn active" data-col="name">Nome</button>
+              <button type="button" class="file-col-btn" data-col="size">Tamanho</button>
+              <button type="button" class="file-col-btn" data-col="modTime">Data</button>
+            </div>
+            <div class="file-list selectable drop-zone" id="local-list" data-drop-side="local"></div>
+            <footer class="panel-status" id="local-status">—</footer>
           </article>
+          <div class="explorer-splitter-v" id="explorer-splitter-v" title="Redimensionar painéis" aria-hidden="true"></div>
           <article class="panel glass-panel" data-side="remote">
             <header class="panel-head">
               <h2 class="panel-title">Remoto</h2>
@@ -211,6 +210,7 @@
                   <button type="button" class="remote-target-btn active" data-target="host" id="remote-target-host" title="Ficheiros no host via SFTP">SFTP</button>
                   <button type="button" class="remote-target-btn" data-target="container" id="remote-target-container" title="Ficheiros dentro do contêiner">Docker</button>
                 </div>
+                <input type="search" id="remote-container-filter" class="remote-container-filter hidden" placeholder="Filtrar contêiner…" aria-label="Filtrar contêineres" />
                 <select id="remote-container" class="panel-select remote-container-select hidden" size="1" title="Seleccionar contêiner" aria-label="Contêiner"></select>
               </div>
               <nav class="panel-nav panel-nav-tools">
@@ -232,14 +232,53 @@
               </nav>
             </header>
             <div id="remote-bc" class="bc-bar"></div>
+            <p id="remote-target-hint" class="remote-target-hint muted">SFTP · /</p>
             <div class="path-bar" id="remote-path" title="">—</div>
+            <div id="remote-panel-alert" class="panel-alert hidden" role="alert">
+              <span id="remote-panel-alert-text"></span>
+              <button type="button" class="btn btn-primary btn-sm" id="remote-panel-alert-sudo">Activar sudo</button>
+            </div>
             <div class="panel-search">
               <input type="search" id="remote-filter" class="panel-filter" placeholder="Filtrar ficheiros…" />
             </div>
-            <div class="file-list selectable" id="remote-list"></div>
+            <div class="file-list-head" data-side="remote">
+              <button type="button" class="file-col-btn active" data-col="name">Nome</button>
+              <button type="button" class="file-col-btn" data-col="size">Tamanho</button>
+              <button type="button" class="file-col-btn" data-col="modTime">Data</button>
+            </div>
+            <div class="file-list selectable drop-zone" id="remote-list" data-drop-side="remote"></div>
+            <footer class="panel-status" id="remote-status">—</footer>
           </article>
           </div>
+          <div class="explorer-splitter-h" id="explorer-splitter-preview" title="Pré-visualização" aria-hidden="true"></div>
+          <aside class="explorer-preview glass-panel hidden" id="explorer-preview" aria-label="Pré-visualização">
+            <header class="preview-head"><strong>Pré-visualização</strong>
+              <button type="button" class="btn btn-ghost btn-sm" id="btn-preview-close" title="Fechar">×</button>
+            </header>
+            <div id="preview-content" class="preview-content muted">Selecione um ficheiro</div>
+          </aside>
+          </div>
+          <div class="explorer-xfer-dock glass-card" id="explorer-xfer-dock">
+            <div class="explorer-xfer-dock-head">
+              <strong>Transferências</strong>
+              <div class="explorer-xfer-dock-actions">
+                <span id="transfer-status-dock" class="transfer-status-pill muted hidden"></span>
+                <button type="button" class="btn btn-ghost btn-sm btn-icon" id="btn-xfer-dock-toggle" title="Recolher">▾</button>
+              </div>
+            </div>
+            <div class="explorer-xfer-dock-body" id="explorer-xfer-dock-body">
+              <div id="transfer-progress-inner"></div>
+              <ul id="transfer-log-list" class="transfer-log-list-compact"></ul>
+            </div>
+          </div>
+          </div>
         </main>
+        <aside id="transfer-log" class="transfer-log glass-card hidden" aria-hidden="true">
+          <div class="transfer-log-head">
+            <strong>Transferências (legado)</strong>
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-transfer-log-close">×</button>
+          </div>
+        </aside>
       </div>
 
       <div id="view-docker" class="subview">
@@ -404,6 +443,16 @@
         <li><kbd>Ctrl</kbd>+<kbd>K</kbd> Paleta de comandos</li>
         <li><kbd>?</kbd> Esta ajuda</li>
         <li><kbd>Esc</kbd> Fechar diálogos</li>
+        <li class="shortcut-section">Explorador</li>
+        <li><kbd>F5</kbd> Atualizar painel activo</li>
+        <li><kbd>F2</kbd> Renomear</li>
+        <li><kbd>Del</kbd> Apagar</li>
+        <li><kbd>Backspace</kbd> Subir pasta</li>
+        <li><kbd>Enter</kbd> Abrir pasta / editar ficheiro</li>
+        <li><kbd>Tab</kbd> Alternar painel Local / Remoto</li>
+        <li><kbd>F6</kbd> Enviar ou receber (conforme painel)</li>
+        <li><kbd>Ctrl</kbd>+clique — seleccionar vários</li>
+        <li><kbd>Shift</kbd>+clique — intervalo</li>
       </ul>
       <div class="btn-row end"><button type="button" class="btn btn-primary" onclick="document.getElementById('shortcuts-dialog').close()">Fechar</button></div>
     </div>
@@ -425,12 +474,32 @@
     <button type="button" data-action="mkdir">Nova pasta aqui</button>
   </menu>
 
-  <dialog id="compare-dialog" class="modal-dialog">
-    <form method="dialog">
-      <h3>Comparar pastas</h3>
-      <pre id="compare-report" class="compare-pre"></pre>
-      <div class="btn-row"><button type="submit" class="btn btn-primary">Fechar</button></div>
+  <dialog id="name-input-dialog" class="modal-dialog">
+    <form id="name-input-form" class="modal-form" onsubmit="return false;">
+      <h3 id="name-input-title">Nome</h3>
+      <label class="field">
+        <span id="name-input-label">Nome</span>
+        <input type="text" id="name-input-field" autocomplete="off" required />
+      </label>
+      <p id="name-input-error" class="sudo-error hidden" role="alert"></p>
+      <div class="btn-row end">
+        <button type="button" class="btn btn-ghost" id="name-input-cancel">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="name-input-ok">OK</button>
+      </div>
     </form>
+  </dialog>
+
+  <dialog id="compare-dialog" class="modal-dialog compare-dialog-wide">
+    <div class="modal-form">
+      <h3>Comparar pastas</h3>
+      <p id="compare-summary" class="muted compare-summary"></p>
+      <div class="compare-sections" id="compare-sections"></div>
+      <details class="compare-raw-details">
+        <summary>Relatório completo</summary>
+        <pre id="compare-report" class="compare-pre"></pre>
+      </details>
+      <div class="btn-row end"><button type="button" class="btn btn-primary" id="compare-dialog-close">Fechar</button></div>
+    </div>
   </dialog>
 
   <dialog id="file-editor-dialog" class="modal-dialog file-editor-dialog">
@@ -481,6 +550,7 @@
   <script src="/ui.js"></script>
   <script src="/app.js"></script>
   <script src="/explorer.js"></script>
+  <script src="/explorer-enhanced.js"></script>
   <script src="/app-ui.js"></script>
 </body>
 </html>

@@ -159,12 +159,16 @@
       if (typeof updateExplorerBreadcrumbs === "function") updateExplorerBreadcrumbs();
     } catch (e) {
       state.remoteEntries = [];
+      const msg = e.message || "Erro ao ler o diretório remoto.";
       CWUI.emptyState(listEl, {
         icon: "⚠️",
         title: "Não foi possível listar",
-        desc: e.message || "Erro ao ler o diretório remoto.",
+        desc: msg,
       });
-      CWUI.toast(e.message || "Erro ao listar remoto", "error");
+      CWUI.toast(msg, "error");
+      if (typeof window.showRemotePermissionAlert === "function") {
+        window.showRemotePermissionAlert(msg);
+      }
     }
   };
 
@@ -187,6 +191,9 @@
     try {
       const data = await api("/api/docker/containers");
       const list = data.containers || [];
+      if (typeof window.onExplorerContainersLoaded === "function") {
+        window.onExplorerContainersLoaded(list);
+      }
       if (!list.length) {
         ph.textContent = "Nenhum contêiner em execução";
         return;
@@ -270,6 +277,7 @@
     });
     const showC = mode === "container";
     $("#remote-container")?.classList.toggle("hidden", !showC);
+    $("#remote-container-filter")?.classList.toggle("hidden", !showC);
     if (!state.ssh.connected) return;
     if (showC) {
       loadContainersSelect().then(() => {
@@ -280,6 +288,7 @@
       loadRemote("/");
     }
     updateSudoButton();
+    if (typeof window.updateRemoteTargetHint === "function") window.updateRemoteTargetHint();
   }
 
   async function addFavorite(side) {
@@ -608,7 +617,7 @@
     }
   };
 
-  function showCtxMenu(ev, side, entry) {
+  window.showCtxMenu = function showCtxMenu(ev, side, entry) {
     state.ctxSide = side;
     state.ctxEntry = entry;
     const menu = $("#explorer-ctx-menu");
@@ -620,7 +629,7 @@
     menu.classList.remove("hidden");
     menu.style.left = `${ev.clientX}px`;
     menu.style.top = `${ev.clientY}px`;
-  }
+  };
 
   function hideCtxMenu() {
     $("#explorer-ctx-menu")?.classList.add("hidden");

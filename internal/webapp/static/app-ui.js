@@ -57,7 +57,9 @@
 
   $("#btn-shortcuts")?.addEventListener("click", () => $("#shortcuts-dialog")?.showModal());
   $("#btn-toggle-xfer-panel")?.addEventListener("click", () => {
-    $("#transfer-progress-panel")?.classList.toggle("hidden");
+    const dock = $("#explorer-xfer-dock");
+    if (dock) dock.classList.toggle("collapsed");
+    else $("#transfer-progress-panel")?.classList.toggle("hidden");
     refreshTransferStatus();
   });
 

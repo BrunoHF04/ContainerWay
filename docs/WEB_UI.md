@@ -146,7 +146,7 @@ Listagem dentro de contêineres: `docker exec ls` (sem depender de `CopyFromCont
 | Admin: utilizadores e SMTP | Sim |
 | i18n (PT / EN / ES) na web | Planeado |
 | Assistente LVM completo | Só desktop |
-| Multi-seleção, drag-and-drop, atalhos F5/F2 no explorador | Planeado (ver roadmap abaixo) |
+| Multi-seleção, drag-and-drop, atalhos, comparar acionável, preview, dock | Disponível (`explorer-enhanced.js`) |
 
 ## Interface
 
@@ -158,11 +158,9 @@ Listagem dentro de contêineres: `docker exec ls` (sem depender de `CopyFromCont
 
 ## Próximas fases (explorador web)
 
-1. Multi-seleção e atalhos de teclado (F5, F2, Delete, copiar/colar)
-2. Arrastar entre painéis e upload por drop do Windows
-3. Comparar pastas com tabela acionável (enviar/receber por diferença)
-4. i18n (PT / EN / ES)
-5. Assistente LVM completo (paridade desktop)
+1. i18n (PT / EN / ES)
+2. Assistente LVM completo (paridade desktop)
+3. Sincronização espelhada de pastas
 
 ## Estrutura
 

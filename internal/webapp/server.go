@@ -111,6 +111,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("/api/transfer/push", s.handleTransferPush)
 	mux.HandleFunc("/api/transfer/pull", s.handleTransferPull)
 	mux.HandleFunc("/api/transfer/batch", s.handleTransferBatch)
+	mux.HandleFunc("/api/transfer/upload", s.handleTransferUpload)
 	mux.HandleFunc("/api/local/mkdir", s.handleLocalMkdir)
 	mux.HandleFunc("/api/local/rename", s.handleLocalRename)
 	mux.HandleFunc("/api/local/delete", s.handleLocalDelete)

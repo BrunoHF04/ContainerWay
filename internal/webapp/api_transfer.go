@@ -464,3 +464,84 @@ func (s *Server) handleTransferBatch(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusAccepted, map[string]string{"status": "enfileirado", "count": fmt.Sprintf("%d", len(body.Items))})
 }
+
+// handleTransferUpload recebe ficheiros do browser (multipart) e enfileira envio para o remoto.
+func (s *Server) handleTransferUpload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "método não permitido"})
+		return
+	}
+	tok, b, ok := s.requireSSH(w, r)
+	if !ok {
+		return
+	}
+	const maxForm = 512 << 20 // 512 MiB
+	if err := r.ParseMultipartForm(maxForm); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "upload inválido: " + err.Error()})
+		return
+	}
+	remoteDir := strings.TrimSpace(r.FormValue("remoteDir"))
+	if remoteDir == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "remoteDir obrigatório"})
+		return
+	}
+	cid := strings.TrimSpace(r.FormValue("containerId"))
+	files := r.MultipartForm.File["files"]
+	if len(files) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "nenhum ficheiro enviado"})
+		return
+	}
+	uploadRoot := filepath.Join(os.TempDir(), "containerway-upload", tok)
+	if err := os.MkdirAll(uploadRoot, 0o700); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	enqueued := 0
+	for _, fh := range files {
+		base := filepath.Base(fh.Filename)
+		if base == "" || base == "." {
+			continue
+		}
+		localPath := filepath.Join(uploadRoot, base)
+		src, err := fh.Open()
+		if err != nil {
+			continue
+		}
+		dst, err := os.Create(localPath)
+		if err != nil {
+			src.Close()
+			continue
+		}
+		if _, err := io.Copy(dst, src); err != nil {
+			dst.Close()
+			src.Close()
+			os.Remove(localPath)
+			continue
+		}
+		dst.Close()
+		src.Close()
+		st, err := os.Stat(localPath)
+		if err != nil {
+			continue
+		}
+		name := fmt.Sprintf("Upload %s", base)
+		lp := localPath
+		if cid != "" {
+			s.enqueueTransfer(tok, b, name, func(ctx context.Context, on transfer.Progress) error {
+				return pasteLocalFileToContainer(ctx, b, cid, lp, remoteDir)
+			})
+		} else {
+			remoteFile := joinRemotePath(remoteDir, base)
+			size := st.Size()
+			s.enqueueTransfer(tok, b, name, func(ctx context.Context, on transfer.Progress) error {
+				return pushOneFile(ctx, b, lp, remoteFile, size, on)
+			})
+		}
+		enqueued++
+	}
+	if enqueued == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "não foi possível gravar os ficheiros"})
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{"status": "enfileirado", "count": enqueued})
+}

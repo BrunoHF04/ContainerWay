@@ -449,11 +449,11 @@ $("#btn-refresh-panels")?.addEventListener("click", () => {
 });
 
 function showTransferLog() {
+  $("#explorer-xfer-dock")?.classList.remove("collapsed");
   $("#transfer-log")?.classList.remove("hidden");
 }
 
 function hideTransferPanels() {
-  $("#transfer-progress-panel")?.classList.add("hidden");
   const inner = $("#transfer-progress-inner");
   if (inner) inner.innerHTML = "";
 }
@@ -492,21 +492,21 @@ async function refreshTransferStatus() {
   try {
     const st = await api("/api/transfer/status");
     const busy = transferIsBusy(st);
-    const pill = $("#transfer-status");
-    if (pill) {
-      pill.textContent = busy ? `${st.queued || 0}/${st.running || 0}` : "";
-      pill.classList.toggle("hidden", !busy);
-      pill.title = busy ? `Fila: ${st.queued} · Em execução: ${st.running}` : "Sem transferências";
+    const pillText = busy ? `${st.queued || 0}/${st.running || 0}` : "";
+    const pillTitle = busy ? `Fila: ${st.queued} · Em execução: ${st.running}` : "Sem transferências";
+    for (const id of ["#transfer-status", "#transfer-status-dock"]) {
+      const pill = $(id);
+      if (pill) {
+        pill.textContent = pillText;
+        pill.classList.toggle("hidden", !busy);
+        pill.title = pillTitle;
+      }
     }
     if (busy) {
-      showTransferLog();
-      $("#transfer-progress-panel")?.classList.remove("hidden");
+      $("#explorer-xfer-dock")?.classList.remove("collapsed");
       CWUI.renderTransferProgress(st.active, st.recent);
     } else {
       hideTransferPanels();
-      if (!state.transferLogPinned) {
-        $("#transfer-log")?.classList.add("hidden");
-      }
       CWUI.renderTransferProgress(null, []);
     }
     renderTransferLog(st.recent);
