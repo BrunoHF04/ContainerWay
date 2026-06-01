@@ -498,11 +498,14 @@ func (s *Server) handleTransferUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	enqueued := 0
 	for _, fh := range files {
-		base := filepath.Base(fh.Filename)
-		if base == "" || base == "." {
+		rel := strings.TrimPrefix(strings.ReplaceAll(fh.Filename, "\\", "/"), "/")
+		if rel == "" || rel == "." {
 			continue
 		}
-		localPath := filepath.Join(uploadRoot, base)
+		localPath := filepath.Join(uploadRoot, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(localPath), 0o700); err != nil {
+			continue
+		}
 		src, err := fh.Open()
 		if err != nil {
 			continue
@@ -524,14 +527,18 @@ func (s *Server) handleTransferUpload(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			continue
 		}
-		name := fmt.Sprintf("Upload %s", base)
+		name := fmt.Sprintf("Upload %s", rel)
 		lp := localPath
 		if cid != "" {
+			dest := joinRemotePath(remoteDir, filepath.ToSlash(rel))
 			s.enqueueTransfer(tok, b, name, func(ctx context.Context, on transfer.Progress) error {
-				return pasteLocalFileToContainer(ctx, b, cid, lp, remoteDir)
+				if st.IsDir() {
+					return tarxfer.UploadLocalDirToContainer(ctx, b.Sess.Docker, cid, lp, dest)
+				}
+				return pasteLocalFileToContainer(ctx, b, cid, lp, path.Dir(dest))
 			})
 		} else {
-			remoteFile := joinRemotePath(remoteDir, base)
+			remoteFile := joinRemotePath(remoteDir, filepath.ToSlash(rel))
 			size := st.Size()
 			s.enqueueTransfer(tok, b, name, func(ctx context.Context, on transfer.Progress) error {
 				return pushOneFile(ctx, b, lp, remoteFile, size, on)
@@ -544,4 +551,68 @@ func (s *Server) handleTransferUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusAccepted, map[string]any{"status": "enfileirado", "count": enqueued})
+}
+
+// handleTransferCancel remove jobs pendentes da fila (não cancela transferência em curso).
+func (s *Server) handleTransferCancel(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "método não permitido"})
+		return
+	}
+	_, b, ok := s.requireSSH(w, r)
+	if !ok {
+		return
+	}
+	n := b.TM.ClearQueue()
+	b.addOperation("Fila de transferências cancelada ("+fmt.Sprintf("%d", n)+" pendente(s))", "info")
+	writeJSON(w, http.StatusOK, map[string]any{"cleared": n})
+}
+
+func copyHostFileToContainer(ctx context.Context, b *sshBundle, hostPath, containerID, destDir string) error {
+	hfs := &hostfs.FS{Client: b.Sess.SFTP}
+	if _, err := hfs.Stat(hostPath); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp("", "cw-paste-*")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	_ = tmp.Close()
+	defer os.Remove(tmpPath)
+	if err := pullOneFile(ctx, b, tmpPath, hostPath, nil); err != nil {
+		return err
+	}
+	return pasteLocalFileToContainer(ctx, b, containerID, tmpPath, destDir)
+}
+
+func copyHostDirToContainer(ctx context.Context, b *sshBundle, hostPath, containerID, destDir string) error {
+	tmpRoot, err := os.MkdirTemp("", "cw-paste-dir-*")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmpRoot)
+	localTree := filepath.Join(tmpRoot, filepath.Base(hostPath))
+	if err := pullDir(ctx, b, localTree, hostPath, nil); err != nil {
+		return err
+	}
+	return tarxfer.UploadLocalDirToContainer(ctx, b.Sess.Docker, containerID, localTree, joinRemotePath(destDir, filepath.Base(hostPath)))
+}
+
+func copyContainerFileToHost(ctx context.Context, b *sshBundle, containerID, remotePath, destHostPath string) error {
+	tmp, err := os.CreateTemp("", "cw-paste-*")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	_ = tmp.Close()
+	defer os.Remove(tmpPath)
+	if err := pullContainerFileToLocal(ctx, b, containerID, remotePath, tmpPath); err != nil {
+		return err
+	}
+	st, err := os.Stat(tmpPath)
+	if err != nil {
+		return err
+	}
+	return pushOneFile(ctx, b, tmpPath, destHostPath, st.Size(), nil)
 }

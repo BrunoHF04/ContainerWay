@@ -159,6 +159,7 @@
   function visibleList(side) {
     const entries = side === "local" ? state.localEntries : state.remoteEntries;
     const q = side === "local" ? state.localFilter : state.remoteFilter;
+    if (typeof window.cwPanelFilter === "function") return window.cwPanelFilter(entries || [], q);
     const hay = (q || "").trim().toLowerCase();
     let list = entries || [];
     if (hay) list = list.filter((e) => e.name === ".." || e.name.toLowerCase().includes(hay));
@@ -194,11 +195,13 @@
     if (side === "local") state.localEntries = entries || [];
     else state.remoteEntries = entries || [];
     const q = side === "local" ? state.localFilter : state.remoteFilter;
-    const list = (() => {
-      const hay = (q || "").trim().toLowerCase();
-      if (!hay) return sorted;
-      return sorted.filter((e) => e.name === ".." || e.name.toLowerCase().includes(hay));
-    })();
+    const list = typeof window.cwPanelFilter === "function"
+      ? window.cwPanelFilter(sorted, q)
+      : (() => {
+          const hay = (q || "").trim().toLowerCase();
+          if (!hay) return sorted;
+          return sorted.filter((e) => e.name === ".." || e.name.toLowerCase().includes(hay));
+        })();
     if (!list.length) {
       CWUI.emptyState(container, {
         icon: "📂",
@@ -502,19 +505,61 @@
       CWUI.toast(`Receber ${it.name} enfileirado`, "success");
       refreshTransferStatus();
     });
-    addSection("Diferentes", rep.mismatchItems || [], "Enviar →", async (it) => {
-      const path = joinPath(state.localPath, it.name, "local");
-      await api("/api/transfer/push", {
-        method: "POST",
-        body: JSON.stringify({
-          localPath: path,
-          remotePath: joinPath(state.remotePath, it.name, "remote"),
-          containerId: state.remoteTarget === "container" ? state.remoteContainerId : undefined,
-        }),
+    addSectionMismatch(rep.mismatchItems || []);
+  }
+
+  function addSectionMismatch(items) {
+    if (!items?.length) return;
+    const box = $("#compare-sections");
+    if (!box) return;
+    const sec = document.createElement("section");
+    sec.className = "compare-section";
+    sec.innerHTML = `<h4>${escapeHtml(window.CWI18n?.t?.("compare.diff") || "Diferentes")} (${items.length})</h4>`;
+    const ul = document.createElement("ul");
+    ul.className = "compare-item-list";
+    for (const it of items) {
+      const li = document.createElement("li");
+      li.innerHTML = `<span>${escapeHtml(it.name)}${it.isDir ? " /" : ""}</span>`;
+      const push = document.createElement("button");
+      push.type = "button";
+      push.className = "btn btn-ghost btn-sm";
+      push.textContent = "Enviar →";
+      push.addEventListener("click", async () => {
+        const path = joinPath(state.localPath, it.name, "local");
+        await api("/api/transfer/push", {
+          method: "POST",
+          body: JSON.stringify({
+            localPath: path,
+            remotePath: joinPath(state.remotePath, it.name, "remote"),
+            containerId: state.remoteTarget === "container" ? state.remoteContainerId : undefined,
+          }),
+        });
+        CWUI.toast(`Enviar ${it.name} enfileirado`, "success");
+        refreshTransferStatus();
       });
-      CWUI.toast(`Sincronizar ${it.name} (enviar)`, "success");
-      refreshTransferStatus();
-    });
+      const pull = document.createElement("button");
+      pull.type = "button";
+      pull.className = "btn btn-ghost btn-sm";
+      pull.textContent = "← Receber";
+      pull.addEventListener("click", async () => {
+        const path = joinPath(state.remotePath, it.name, "remote");
+        await api("/api/transfer/pull", {
+          method: "POST",
+          body: JSON.stringify({
+            localPath: joinPath(state.localPath, it.name, "local"),
+            remotePath: path,
+            containerId: state.remoteTarget === "container" ? state.remoteContainerId : undefined,
+          }),
+        });
+        CWUI.toast(`Receber ${it.name} enfileirado`, "success");
+        refreshTransferStatus();
+      });
+      li.appendChild(push);
+      li.appendChild(pull);
+      ul.appendChild(li);
+    }
+    sec.appendChild(ul);
+    box.appendChild(sec);
   }
 
   $("#compare-dialog-close")?.addEventListener("click", () => $("#compare-dialog")?.close());
@@ -628,12 +673,20 @@
         if (state.remoteTarget === "container" && state.remoteContainerId) {
           form.append("containerId", state.remoteContainerId);
         }
-        for (const f of e.dataTransfer.files) form.append("files", f);
         try {
-          const res = await fetch("/api/transfer/upload", { method: "POST", body: form, credentials: "same-origin" });
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error(data.error || res.statusText);
-          CWUI.toast(`Upload enfileirado (${data.count || "?"})`, "success");
+          const fileList = window.cwCollectDropFiles
+            ? await window.cwCollectDropFiles(e.dataTransfer)
+            : [...e.dataTransfer.files];
+          const data = window.cwUploadToRemote
+            ? await window.cwUploadToRemote(fileList)
+            : await (async () => {
+                for (const f of fileList) form.append("files", f);
+                const res = await fetch("/api/transfer/upload", { method: "POST", body: form, credentials: "same-origin" });
+                const d = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(d.error || res.statusText);
+                return d;
+              })();
+          CWUI.toast(`Upload enfileirado (${data.count || fileList.length || "?"})`, "success");
           showTransferLog();
           refreshTransferStatus();
           loadRemote(state.remotePath);

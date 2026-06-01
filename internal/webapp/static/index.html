@@ -108,8 +108,10 @@
               <label class="field">Senha<input type="password" id="ssh-pass" autocomplete="current-password" /></label>
               <label class="checkbox-row"><input type="checkbox" id="ssh-save-secrets" checked /> Guardar senha no perfil</label>
               <p id="ssh-conn-status" class="status-line muted"></p>
+              <p id="ssh-test-result" class="status-line muted hidden"></p>
               <div class="btn-row">
                 <button type="submit" class="btn btn-primary btn-glow">Conectar</button>
+                <button type="button" class="btn btn-ghost" id="btn-ssh-test" data-i18n="ssh.test">Testar ligação</button>
                 <button type="button" class="btn btn-ghost" id="ssh-save-profile">Guardar perfil</button>
                 <button type="button" class="btn btn-ghost btn-danger-text" id="ssh-delete-profile">Apagar</button>
               </div>
@@ -144,17 +146,28 @@
                 <button type="button" class="btn btn-ghost btn-sm" id="btn-paste-item">Colar</button>
                 <button type="button" class="btn btn-ghost btn-sm" id="btn-edit-file">Abrir / editar</button>
               <button type="button" class="btn btn-ghost btn-sm" id="btn-compare-folders">Comparar pastas</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="btn-sync-mirror">Sync espelhada</button>
               </div>
             </details>
             <span class="toolbar-sep" aria-hidden="true"></span>
             <div class="explorer-xfer-btns">
-              <button type="button" class="btn btn-primary btn-sm" id="btn-send" title="Enviar seleção para o remoto">Enviar</button>
-              <button type="button" class="btn btn-primary btn-sm btn-receive" id="btn-receive" title="Receber seleção do remoto">Receber</button>
+              <button type="button" class="btn btn-primary btn-sm" id="btn-send" data-i18n="explorer.send" title="Enviar seleção para o remoto">Enviar</button>
+              <button type="button" class="btn btn-primary btn-sm btn-receive" id="btn-receive" data-i18n="explorer.receive" title="Receber seleção do remoto">Receber</button>
               <button type="button" class="btn btn-ghost btn-sm btn-icon" id="btn-batch-send" title="Enviar itens visíveis (lote)">Lote→</button>
               <button type="button" class="btn btn-ghost btn-sm btn-icon" id="btn-batch-receive" title="Receber itens visíveis (lote)">←Lote</button>
             </div>
           </div>
           <div class="explorer-toolbar-end">
+            <label class="explorer-lang-wrap" title="Idioma da interface">
+              <span class="sr-only">Idioma</span>
+              <select id="explorer-lang" class="panel-select explorer-lang-select" aria-label="Idioma">
+                <option value="pt">PT</option>
+                <option value="en">EN</option>
+                <option value="es">ES</option>
+              </select>
+            </label>
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-compact-explorer" title="Modo compacto">Compacto</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-cancel-xfer" title="Cancelar fila pendente">Cancelar fila</button>
             <button type="button" class="btn btn-ghost btn-sm btn-sudo" id="btn-sudo" title="Activar sudo/root no host SFTP">Sudo</button>
             <button type="button" class="btn btn-ghost btn-sm btn-icon" id="btn-refresh-panels" title="Atualizar painéis">↻</button>
             <span id="transfer-status" class="transfer-status-pill muted hidden" title="Fila de transferências"></span>
@@ -167,7 +180,7 @@
           <div class="explorer-panels" id="explorer-panels">
           <article class="panel glass-panel explorer-panel-active" data-side="local">
             <header class="panel-head">
-              <h2 class="panel-title">Local</h2>
+              <h2 class="panel-title" data-i18n="explorer.local">Local</h2>
               <div class="panel-head-mid" aria-hidden="true"></div>
               <nav class="panel-nav panel-nav-tools">
                 <details class="panel-menu" id="local-menu">
@@ -203,7 +216,7 @@
           <div class="explorer-splitter-v" id="explorer-splitter-v" title="Redimensionar painéis" aria-hidden="true"></div>
           <article class="panel glass-panel" data-side="remote">
             <header class="panel-head">
-              <h2 class="panel-title">Remoto</h2>
+              <h2 class="panel-title" data-i18n="explorer.remote">Remoto</h2>
               <div class="panel-head-mid">
                 <div class="remote-target-toggle" role="tablist" aria-label="Destino remoto">
                   <button type="button" class="remote-target-btn active" data-target="host" id="remote-target-host" title="Ficheiros no host via SFTP">SFTP</button>
@@ -266,6 +279,13 @@
             <div class="explorer-xfer-dock-body" id="explorer-xfer-dock-body">
               <div id="transfer-progress-inner"></div>
               <ul id="transfer-log-list" class="transfer-log-list-compact"></ul>
+              <div class="explorer-op-log-wrap">
+                <div class="explorer-op-log-head">
+                  <strong>Operações recentes</strong>
+                  <button type="button" class="btn btn-ghost btn-sm" id="btn-clear-op-log" title="Limpar histórico">Limpar</button>
+                </div>
+                <ul id="explorer-op-log" class="explorer-op-log" aria-live="polite"></ul>
+              </div>
             </div>
           </div>
           </div>
@@ -433,6 +453,21 @@
     </div>
   </dialog>
 
+  <dialog id="sync-mirror-dialog" class="modal-dialog">
+    <div class="modal-form">
+      <h3>Sincronização espelhada</h3>
+      <p class="muted">Compara as pastas abertas e enfileira transferências para igualar conteúdos.</p>
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary btn-sm" id="sync-mirror-both">Ambos</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="sync-mirror-push">Só enviar →</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="sync-mirror-pull">Só receber ←</button>
+      </div>
+      <div class="btn-row end">
+        <button type="button" class="btn btn-ghost" id="sync-mirror-cancel">Cancelar</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="screen-help-dialog" class="modal-dialog screen-help-dialog">
     <div class="modal-form">
       <h3 id="screen-help-title">Ajuda</h3>
@@ -534,6 +569,8 @@
   <script src="/app.js"></script>
   <script src="/explorer.js"></script>
   <script src="/explorer-enhanced.js"></script>
+  <script src="/i18n.js"></script>
+  <script src="/explorer-complete.js"></script>
   <script src="/screen-help.js"></script>
   <script src="/app-ui.js"></script>
 </body>

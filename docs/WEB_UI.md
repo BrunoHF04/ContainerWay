@@ -76,7 +76,14 @@ Guia completo (desktop + web, atalhos, paridade): **[ARQUIVOS.md](ARQUIVOS.md)**
 | **Sudo** | Só em modo **SFTP**: eleva privilégios para pastas/ficheiros protegidos no host |
 | **Editor** | Abrir/editar texto (até 2 MB); pré-visualização de imagens (até 8 MB) |
 | **Abrir externamente** | Programa predefinido do Windows ou Notepad++; remoto grava cópia local temporária com opção **Sincronizar remoto** |
-| Toolbar | Ações, Enviar/Receber/Lote, Sudo, atualizar, indicador de fila |
+| Toolbar | Ações, Enviar/Receber/Lote, sync espelhada, cancelar fila, modo compacto, idioma PT/EN/ES, Sudo, atualizar, indicador de fila |
+| Filtro avançado | `ext:pdf`, `tipo:dir` / `type:file` além de texto livre |
+| Atalhos | `Ctrl+C` / `Ctrl+V` copiar/colar; `F5` atualizar; `F2` renomear; `Del` apagar; `Tab` alternar painel |
+| Comparar | Secções com Enviar e Receber; itens «Diferentes» com ambas as direcções |
+| Upload | Arrastar ficheiros ou pastas para o painel Remoto (estrutura preservada) |
+| Ligação | **Testar ligação** no ecrã SSH (sem manter sessão) |
+| Histórico | Operações recentes no dock de transferências (`GET/DELETE /api/explorer/operations`) |
+| Edição externa | Poll de alterações (`GET /api/remote/external-status`) e botão **Sincronizar remoto** |
 
 Listagem dentro de contêineres: `docker exec ls` (sem depender de `CopyFromContainer` para pastas); leitura de ficheiros para edição via `exec cat`.
 

@@ -136,6 +136,7 @@ func (s *Server) handleRemoteMkdir(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
+		b.addOperation("Pasta criada (contêiner): "+body.Path, "info")
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 		return
 	}
@@ -144,6 +145,7 @@ func (s *Server) handleRemoteMkdir(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
+	b.addOperation("Pasta criada (remoto): "+body.Path, "info")
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -180,6 +182,7 @@ func (s *Server) handleRemoteRename(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
+		b.addOperation("Renomeado (contêiner): "+filepath.Base(body.NewPath), "info")
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 		return
 	}
@@ -188,6 +191,7 @@ func (s *Server) handleRemoteRename(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
+	b.addOperation("Renomeado (remoto): "+filepath.Base(body.NewPath), "info")
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -230,6 +234,7 @@ func (s *Server) handleRemoteDelete(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
+		b.addOperation("Apagado (contêiner): "+filepath.Base(body.Path), "info")
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 		return
 	}
@@ -238,6 +243,7 @@ func (s *Server) handleRemoteDelete(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
+	b.addOperation("Apagado (remoto): "+filepath.Base(body.Path), "info")
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 

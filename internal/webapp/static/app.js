@@ -307,6 +307,46 @@ $("#btn-hub").addEventListener("click", () => {
   renderHub();
 });
 
+$("#btn-ssh-test")?.addEventListener("click", async () => {
+  const host = $("#ssh-host")?.value?.trim();
+  const user = $("#ssh-user")?.value?.trim();
+  if (!host || !user) {
+    CWUI.toast("Preencha host e utilizador.", "error");
+    return;
+  }
+  const out = $("#ssh-test-result");
+  if (out) {
+    out.classList.remove("hidden");
+    out.textContent = window.CWI18n?.t?.("ssh.testing") || "A testar SSH…";
+  }
+  CWUI.showSplash("A testar ligação…");
+  try {
+    const data = await api("/api/ssh/test", {
+      method: "POST",
+      body: JSON.stringify({
+        profileName: $("#ssh-profile")?.value || $("#ssh-name")?.value?.trim(),
+        host,
+        user,
+        password: $("#ssh-pass")?.value || "",
+      }),
+    });
+    const steps = (data.steps || []).join(" · ");
+    if (out) {
+      out.textContent = data.ok ? `OK — ${steps}` : `Falhou — ${data.error || steps}`;
+      out.classList.toggle("error", !data.ok);
+    }
+    CWUI.toast(data.ok ? "Teste SSH concluído" : "Teste SSH falhou", data.ok ? "success" : "error");
+  } catch (e) {
+    if (out) {
+      out.textContent = e.message;
+      out.classList.add("error");
+    }
+    CWUI.toast(e.message, "error");
+  } finally {
+    CWUI.hideSplash();
+  }
+});
+
 $("#ssh-form").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   CWUI.showSplash("A estabelecer ligação SSH…");

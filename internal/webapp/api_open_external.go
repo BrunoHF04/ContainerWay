@@ -104,7 +104,7 @@ func (s *Server) handleRemoteOpenExternal(w http.ResponseWriter, r *http.Request
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
-	sid := b.registerExternalEdit(tmpPath, p, strings.TrimSpace(body.ContainerID))
+	sid := b.registerExternalEdit(tmpPath, p, strings.TrimSpace(body.ContainerID), data)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status":    "ok",
 		"sessionId": sid,
@@ -127,7 +127,7 @@ func (s *Server) handleRemoteSyncExternal(w http.ResponseWriter, r *http.Request
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "corpo inválido"})
 		return
 	}
-	sess, err := b.takeExternalEdit(strings.TrimSpace(body.SessionID))
+	sess, err := b.peekExternalEdit(strings.TrimSpace(body.SessionID))
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
@@ -143,14 +143,49 @@ func (s *Server) handleRemoteSyncExternal(w http.ResponseWriter, r *http.Request
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
-	_ = os.Remove(sess.TempPath)
+	if st, err := os.Stat(sess.TempPath); err == nil {
+		b.markExternalSynced(body.SessionID, st.ModTime())
+	}
+	b.addOperation("Sincronizado: "+sess.RemotePath, "info")
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "message": "Ficheiro sincronizado com o servidor."})
 }
 
-func (b *sshBundle) registerExternalEdit(tempPath, remotePath, containerID string) string {
+// handleRemoteExternalStatus indica se o ficheiro temp foi alterado desde a última sincronização.
+func (s *Server) handleRemoteExternalStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "método não permitido"})
+		return
+	}
+	_, b, ok := s.requireSSH(w, r)
+	if !ok {
+		return
+	}
+	sid := strings.TrimSpace(r.URL.Query().Get("sessionId"))
+	sess, err := b.peekExternalEdit(sid)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	st, err := os.Stat(sess.TempPath)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "ficheiro temp não encontrado"})
+		return
+	}
+	modified := st.ModTime().After(sess.LastSynced.Add(500 * time.Millisecond))
+	writeJSON(w, http.StatusOK, map[string]any{
+		"modified":   modified,
+		"remotePath": sess.RemotePath,
+	})
+}
+
+func (b *sshBundle) registerExternalEdit(tempPath, remotePath, containerID string, initial []byte) string {
 	buf := make([]byte, 12)
 	_, _ = rand.Read(buf)
 	id := hex.EncodeToString(buf)
+	synced := time.Now()
+	if st, err := os.Stat(tempPath); err == nil {
+		synced = st.ModTime()
+	}
 	b.externalMu.Lock()
 	if b.externalEdits == nil {
 		b.externalEdits = map[string]*externalEditSession{}
@@ -159,18 +194,28 @@ func (b *sshBundle) registerExternalEdit(tempPath, remotePath, containerID strin
 		TempPath:    tempPath,
 		RemotePath:  remotePath,
 		ContainerID: containerID,
+		LastSynced:  synced,
 	}
 	b.externalMu.Unlock()
+	_ = initial
 	return id
 }
 
-func (b *sshBundle) takeExternalEdit(id string) (*externalEditSession, error) {
+func (b *sshBundle) peekExternalEdit(id string) (*externalEditSession, error) {
 	b.externalMu.Lock()
 	defer b.externalMu.Unlock()
 	sess, ok := b.externalEdits[id]
 	if !ok {
 		return nil, fmt.Errorf("sessão de edição externa expirada ou inválida")
 	}
-	delete(b.externalEdits, id)
-	return sess, nil
+	cp := *sess
+	return &cp, nil
+}
+
+func (b *sshBundle) markExternalSynced(id string, t time.Time) {
+	b.externalMu.Lock()
+	if sess, ok := b.externalEdits[id]; ok {
+		sess.LastSynced = t
+	}
+	b.externalMu.Unlock()
 }

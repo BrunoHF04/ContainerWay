@@ -55,6 +55,7 @@
   };
 
   function filterEntries(entries, q) {
+    if (typeof window.cwPanelFilter === "function") return window.cwPanelFilter(entries, q);
     const hay = (q || "").trim().toLowerCase();
     if (!hay) return entries || [];
     return (entries || []).filter((e) => e.name === ".." || e.name.toLowerCase().includes(hay));
@@ -302,8 +303,8 @@
   }
 
   async function mkdirActive(side) {
-    const name = prompt("Nome da nova pasta:");
-    if (!name?.trim()) return;
+    const name = await CWUI.nameInputDialog({ title: "Nova pasta", label: "Nome da pasta:" });
+    if (!name) return;
     const base = side === "local" ? state.localPath : state.remotePath;
     const sep = side === "local" ? (base.includes("\\") ? "\\" : "/") : "/";
     const path = base.replace(/[/\\]+$/, "") + sep + name.trim();
@@ -326,8 +327,8 @@
       CWUI.toast("Selecione um item.", "error");
       return;
     }
-    const name = prompt("Novo nome:", sel.name);
-    if (!name?.trim() || name === sel.name) return;
+    const name = await CWUI.nameInputDialog({ title: "Renomear", label: "Novo nome:", value: sel.name });
+    if (!name || name === sel.name) return;
     const dir = sel.path.replace(/[/\\][^/\\]+$/, "");
     const sep = side === "local" ? (dir.includes("\\") ? "\\" : "/") : "/";
     const newPath = dir + sep + name.trim();

@@ -295,6 +295,28 @@ func (s *Server) enqueuePasteTransfer(webTok string, b *sshBundle, cb *clipboard
 			}
 			return pullContainerFileToLocal(ctx, b, srcCID, cb.Path, local)
 		})
+	case src == "host" && dst == "container":
+		if destCID == "" {
+			return errInvalidContainer
+		}
+		s.enqueueTransfer(webTok, b, "Colar → contêiner", func(ctx context.Context, on transfer.Progress) error {
+			if cb.IsDir {
+				return copyHostDirToContainer(ctx, b, cb.Path, destCID, destDir)
+			}
+			return copyHostFileToContainer(ctx, b, cb.Path, destCID, destDir)
+		})
+	case src == "container" && dst == "host":
+		if srcCID == "" {
+			return errInvalidContainer
+		}
+		dest := joinRemotePath(destDir, path.Base(cb.Path))
+		s.enqueueTransfer(webTok, b, "Colar → host", func(ctx context.Context, on transfer.Progress) error {
+			if cb.IsDir {
+				_, err := tarxfer.ExtractContainerDirToSFTP(ctx, b.Sess.Docker, srcCID, cb.Path, dest, b.Sess.SFTP)
+				return err
+			}
+			return copyContainerFileToHost(ctx, b, srcCID, cb.Path, dest)
+		})
 	default:
 		return errors.New("colar entre estes destinos ainda não suportado na web")
 	}

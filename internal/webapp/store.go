@@ -57,6 +57,9 @@ type sshBundle struct {
 
 	externalMu     sync.Mutex
 	externalEdits  map[string]*externalEditSession
+
+	opMu    sync.Mutex
+	opLog   []operationRecord
 }
 
 const sudoSessionTTL = 10 * time.Minute
@@ -65,6 +68,13 @@ type externalEditSession struct {
 	TempPath    string
 	RemotePath  string
 	ContainerID string
+	LastSynced  time.Time
+}
+
+type operationRecord struct {
+	Time    time.Time `json:"time"`
+	Message string    `json:"message"`
+	Level   string    `json:"level"` // info, error
 }
 
 
@@ -273,6 +283,31 @@ func (b *sshBundle) transferStatus() map[string]any {
 
 	}
 
+}
+
+func (b *sshBundle) addOperation(msg, level string) {
+	if level == "" {
+		level = "info"
+	}
+	b.opMu.Lock()
+	b.opLog = append(b.opLog, operationRecord{Time: time.Now(), Message: msg, Level: level})
+	if len(b.opLog) > 200 {
+		b.opLog = b.opLog[len(b.opLog)-200:]
+	}
+	b.opMu.Unlock()
+}
+
+func (b *sshBundle) operationHistory() []operationRecord {
+	b.opMu.Lock()
+	out := append([]operationRecord(nil), b.opLog...)
+	b.opMu.Unlock()
+	return out
+}
+
+func (b *sshBundle) clearOperationHistory() {
+	b.opMu.Lock()
+	b.opLog = nil
+	b.opMu.Unlock()
 }
 
 

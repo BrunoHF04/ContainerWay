@@ -51,6 +51,15 @@ func (m *Manager) Queued() int {
 	return len(m.queue)
 }
 
+// ClearQueue remove jobs pendentes (não interrompe o que já está a correr).
+func (m *Manager) ClearQueue() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	n := len(m.queue)
+	m.queue = nil
+	return n
+}
+
 // Running devolve quantos jobs estão a ser executados neste momento.
 func (m *Manager) Running() int {
 	return int(m.running.Load())

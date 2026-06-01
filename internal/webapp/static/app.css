@@ -2137,3 +2137,73 @@ body {
   border-radius: var(--radius-sm);
 }
 .data-row-actions { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.explorer-lang-select {
+  min-width: 3.2rem;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.35rem;
+}
+.explorer-compact .file-row {
+  padding: 0.2rem 0.45rem;
+  font-size: 0.78rem;
+}
+.explorer-compact .file-list-head .file-col-btn {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.35rem;
+}
+.explorer-compact .panel-head {
+  padding: 0.35rem 0.5rem;
+}
+.explorer-op-log-wrap {
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.4rem;
+}
+.explorer-op-log-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  margin-bottom: 0.25rem;
+}
+.explorer-op-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 5.5rem;
+  overflow: auto;
+  font-size: 0.72rem;
+  font-family: var(--mono);
+  color: var(--muted);
+}
+.explorer-op-log li {
+  padding: 0.12rem 0;
+  border-bottom: 1px solid var(--border-subtle, transparent);
+}
+.explorer-op-log li.op-error { color: var(--danger, #e55); }
+.compare-item-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+.pulse-hint {
+  animation: pulse-hint 1.2s ease-in-out infinite;
+}
+@keyframes pulse-hint {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent); }
+}
+#ssh-test-result.error { color: var(--danger, #e55); }
