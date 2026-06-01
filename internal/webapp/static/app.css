@@ -32,6 +32,10 @@
   --screen-transition: 0.65s var(--ease-smooth);
   --theme-duration: 1.15s;
   --theme-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --scrollbar-size: 7px;
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: color-mix(in srgb, var(--text-secondary) 42%, transparent);
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--accent) 75%, var(--text-secondary));
 }
 
 [data-theme="light"] {
@@ -54,6 +58,8 @@
   --orb-2: rgba(79, 70, 229, 0.15);
   --orb-3: rgba(5, 150, 105, 0.12);
   --grid-line: rgba(15, 23, 42, 0.05);
+  --scrollbar-thumb: color-mix(in srgb, var(--text-secondary) 50%, transparent);
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--accent) 65%, var(--text-secondary));
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1962,24 +1968,117 @@ body {
 
 .confirm-dialog .btn-danger { background: var(--danger); color: #fff; }
 
+/* Scrollbars — finos, sem setas, alinhados ao tema */
+.file-list,
+.hub-grid,
+.data-list,
+.cmd-results,
+#transfer-log-list,
+.screen-help-body,
+.compare-sections,
+.compare-pre,
+.explorer-xfer-dock-body,
+.preview-content,
+.code-block,
+#auto-history,
+.transfer-log-list-compact,
+.modal-dialog:not(.screen-help-dialog) {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
 .file-list::-webkit-scrollbar,
 .hub-grid::-webkit-scrollbar,
 .data-list::-webkit-scrollbar,
 .cmd-results::-webkit-scrollbar,
-#transfer-log-list::-webkit-scrollbar {
-  width: 8px; height: 8px;
+#transfer-log-list::-webkit-scrollbar,
+.screen-help-body::-webkit-scrollbar,
+.compare-sections::-webkit-scrollbar,
+.compare-pre::-webkit-scrollbar,
+.explorer-xfer-dock-body::-webkit-scrollbar,
+.preview-content::-webkit-scrollbar,
+.code-block::-webkit-scrollbar,
+#auto-history::-webkit-scrollbar,
+.transfer-log-list-compact::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
 }
+
+.file-list::-webkit-scrollbar-button,
+.hub-grid::-webkit-scrollbar-button,
+.data-list::-webkit-scrollbar-button,
+.cmd-results::-webkit-scrollbar-button,
+#transfer-log-list::-webkit-scrollbar-button,
+.screen-help-body::-webkit-scrollbar-button,
+.compare-sections::-webkit-scrollbar-button,
+.compare-pre::-webkit-scrollbar-button,
+.explorer-xfer-dock-body::-webkit-scrollbar-button,
+.preview-content::-webkit-scrollbar-button,
+.code-block::-webkit-scrollbar-button,
+#auto-history::-webkit-scrollbar-button,
+.transfer-log-list-compact::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.file-list::-webkit-scrollbar-track,
+.hub-grid::-webkit-scrollbar-track,
+.data-list::-webkit-scrollbar-track,
+.cmd-results::-webkit-scrollbar-track,
+#transfer-log-list::-webkit-scrollbar-track,
+.screen-help-body::-webkit-scrollbar-track,
+.compare-sections::-webkit-scrollbar-track,
+.compare-pre::-webkit-scrollbar-track,
+.explorer-xfer-dock-body::-webkit-scrollbar-track,
+.preview-content::-webkit-scrollbar-track,
+.code-block::-webkit-scrollbar-track,
+#auto-history::-webkit-scrollbar-track,
+.transfer-log-list-compact::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
 .file-list::-webkit-scrollbar-thumb,
 .hub-grid::-webkit-scrollbar-thumb,
 .data-list::-webkit-scrollbar-thumb,
 .cmd-results::-webkit-scrollbar-thumb,
-#transfer-log-list::-webkit-scrollbar-thumb {
-  background: var(--border-strong); border-radius: 999px;
+#transfer-log-list::-webkit-scrollbar-thumb,
+.screen-help-body::-webkit-scrollbar-thumb,
+.compare-sections::-webkit-scrollbar-thumb,
+.compare-pre::-webkit-scrollbar-thumb,
+.explorer-xfer-dock-body::-webkit-scrollbar-thumb,
+.preview-content::-webkit-scrollbar-thumb,
+.code-block::-webkit-scrollbar-thumb,
+#auto-history::-webkit-scrollbar-thumb,
+.transfer-log-list-compact::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
+
 .file-list::-webkit-scrollbar-thumb:hover,
-.hub-grid::-webkit-scrollbar-thumb:hover { background: var(--accent); }
-.file-list::-webkit-scrollbar-track,
-.hub-grid::-webkit-scrollbar-track { background: transparent; }
+.hub-grid::-webkit-scrollbar-thumb:hover,
+.data-list::-webkit-scrollbar-thumb:hover,
+.cmd-results::-webkit-scrollbar-thumb:hover,
+#transfer-log-list::-webkit-scrollbar-thumb:hover,
+.screen-help-body::-webkit-scrollbar-thumb:hover,
+.compare-sections::-webkit-scrollbar-thumb:hover,
+.compare-pre::-webkit-scrollbar-thumb:hover,
+.explorer-xfer-dock-body::-webkit-scrollbar-thumb:hover,
+.preview-content::-webkit-scrollbar-thumb:hover,
+.code-block::-webkit-scrollbar-thumb:hover,
+#auto-history::-webkit-scrollbar-thumb:hover,
+.transfer-log-list-compact::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  background-clip: padding-box;
+}
+
+.file-list::-webkit-scrollbar-corner,
+.screen-help-body::-webkit-scrollbar-corner,
+.compare-sections::-webkit-scrollbar-corner {
+  background: transparent;
+}
 
 /* Explorador — filtro e menu de contexto */
 .panel-filter {
