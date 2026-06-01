@@ -488,8 +488,23 @@ $("#btn-refresh-panels")?.addEventListener("click", () => {
   if (state.ssh.connected && typeof loadRemote === "function") loadRemote(state.remotePath);
 });
 
+function expandXferDock() {
+  const dock = $("#explorer-xfer-dock");
+  if (!dock) return;
+  dock.classList.remove("collapsed");
+  if (typeof window.syncXferDockToggle === "function") window.syncXferDockToggle();
+  else {
+    const btn = $("#btn-xfer-dock-toggle");
+    if (btn) {
+      btn.textContent = "▾";
+      btn.title = "Recolher";
+      btn.setAttribute("aria-expanded", "true");
+    }
+  }
+}
+
 function showTransferLog() {
-  $("#explorer-xfer-dock")?.classList.remove("collapsed");
+  expandXferDock();
   $("#transfer-log")?.classList.remove("hidden");
 }
 
@@ -543,7 +558,7 @@ async function refreshTransferStatus() {
       }
     }
     if (busy) {
-      $("#explorer-xfer-dock")?.classList.remove("collapsed");
+      expandXferDock();
       CWUI.renderTransferProgress(st.active, st.recent);
     } else {
       hideTransferPanels();

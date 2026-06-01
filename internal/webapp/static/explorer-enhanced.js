@@ -718,6 +718,46 @@
     });
   });
 
+  const PREVIEW_INLINE_MAX = 12000;
+
+  function setPreviewFullscreenEnabled(on) {
+    const btn = $("#btn-preview-fullscreen");
+    if (btn) btn.disabled = !on;
+  }
+
+  function renderPreviewInto(target, cache) {
+    if (!target || !cache) return;
+    target.innerHTML = "";
+    target.classList.remove("muted");
+    if (cache.kind === "image") {
+      const img = document.createElement("img");
+      img.className = "preview-img";
+      img.alt = cache.name || "";
+      img.src = cache.imgSrc;
+      target.appendChild(img);
+    } else if (cache.kind === "text") {
+      const pre = document.createElement("pre");
+      pre.className = "preview-text";
+      pre.textContent = cache.text;
+      target.appendChild(pre);
+    } else {
+      target.classList.add("muted");
+      target.innerHTML = cache.html || "";
+    }
+  }
+
+  function openPreviewFullscreen() {
+    const cache = state.previewCache;
+    if (!cache || cache.kind === "meta") return;
+    const dlg = $("#preview-fullscreen-dialog");
+    const body = $("#preview-fullscreen-body");
+    const title = $("#preview-fullscreen-title");
+    if (!dlg || !body) return;
+    if (title) title.textContent = cache.name || "Pré-visualização";
+    renderPreviewInto(body, cache);
+    dlg.showModal();
+  }
+
   // Pré-visualização
   function schedulePreview(side) {
     const token = ++state.previewToken;
@@ -726,6 +766,8 @@
     const panel = $("#explorer-preview");
     const content = $("#preview-content");
     if (!panel || !content) return;
+    state.previewCache = null;
+    setPreviewFullscreenEnabled(false);
     if (!entry || entry.isDir || entry.name === "..") {
       content.innerHTML = '<span class="muted">Selecione um ficheiro</span>';
       return;
@@ -734,7 +776,9 @@
     const isImg = /^(png|jpe?g|gif|webp|svg|ico|bmp)$/.test(ext);
     const isTxt = /^(txt|md|json|ya?ml|xml|log|conf|ini|sh|bat|ps1|go|js|ts|css|html?|env)$/.test(ext);
     if (!isImg && !isTxt) {
-      content.innerHTML = `<p><strong>${escapeHtml(entry.name)}</strong></p><p class="muted">${entry.isDir ? "Pasta" : formatSize(entry.size)}</p>`;
+      const html = `<p><strong>${escapeHtml(entry.name)}</strong></p><p class="muted">${entry.isDir ? "Pasta" : formatSize(entry.size)}</p>`;
+      content.innerHTML = html;
+      state.previewCache = { kind: "meta", name: entry.name, html };
       panel.classList.remove("hidden");
       return;
     }
@@ -753,11 +797,18 @@
         const data = await api(url);
         if (token !== state.previewToken) return;
         if (data.encoding === "base64" && (data.mimeType || "").startsWith("image/")) {
-          content.innerHTML = `<img class="preview-img" alt="" src="data:${data.mimeType};base64,${data.content}" />`;
+          const imgSrc = `data:${data.mimeType};base64,${data.content}`;
+          state.previewCache = { kind: "image", name: entry.name, imgSrc };
+          setPreviewFullscreenEnabled(true);
+          content.innerHTML = `<img class="preview-img" alt="" src="${imgSrc}" />`;
         } else if (typeof data.content === "string") {
+          const full = data.content;
+          const truncated = full.length > PREVIEW_INLINE_MAX;
+          state.previewCache = { kind: "text", name: entry.name, text: full };
+          setPreviewFullscreenEnabled(true);
           const pre = document.createElement("pre");
           pre.className = "preview-text";
-          pre.textContent = data.content.length > 12000 ? data.content.slice(0, 12000) + "\n…" : data.content;
+          pre.textContent = truncated ? full.slice(0, PREVIEW_INLINE_MAX) + "\n… (use tela cheia para ver tudo)" : full;
           content.innerHTML = "";
           content.appendChild(pre);
         }
@@ -767,6 +818,11 @@
     })();
   }
 
+  $("#btn-preview-fullscreen")?.addEventListener("click", openPreviewFullscreen);
+  $("#btn-preview-fullscreen-close")?.addEventListener("click", () => $("#preview-fullscreen-dialog")?.close());
+  $("#preview-fullscreen-dialog")?.addEventListener("click", (e) => {
+    if (e.target === e.currentTarget) e.currentTarget.close();
+  });
   $("#btn-preview-close")?.addEventListener("click", () => $("#explorer-preview")?.classList.add("hidden"));
   $("#explorer-splitter-preview")?.addEventListener("dblclick", () => $("#explorer-preview")?.classList.toggle("hidden"));
 
@@ -804,7 +860,21 @@
     const key = "cw-xfer-dock-h";
     const h = localStorage.getItem(key);
     if (h) body.style.maxHeight = h;
-    $("#btn-xfer-dock-toggle")?.addEventListener("click", () => dock.classList.toggle("collapsed"));
+    function syncXferDockToggle() {
+      const collapsed = dock.classList.contains("collapsed");
+      const btn = $("#btn-xfer-dock-toggle");
+      if (btn) {
+        btn.textContent = collapsed ? "▴" : "▾";
+        btn.title = collapsed ? "Expandir" : "Recolher";
+        btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      }
+    }
+    $("#btn-xfer-dock-toggle")?.addEventListener("click", () => {
+      dock.classList.toggle("collapsed");
+      syncXferDockToggle();
+    });
+    syncXferDockToggle();
+    window.syncXferDockToggle = syncXferDockToggle;
     let resizing = false;
     const handle = document.createElement("div");
     handle.className = "explorer-xfer-dock-resize";

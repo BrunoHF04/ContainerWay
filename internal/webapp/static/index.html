@@ -262,18 +262,24 @@
           </div>
           <div class="explorer-splitter-h" id="explorer-splitter-preview" title="Pré-visualização" aria-hidden="true"></div>
           <aside class="explorer-preview glass-panel hidden" id="explorer-preview" aria-label="Pré-visualização">
-            <header class="preview-head"><strong>Pré-visualização</strong>
-              <button type="button" class="btn btn-ghost btn-sm" id="btn-preview-close" title="Fechar">×</button>
+            <header class="preview-head">
+              <strong>Pré-visualização</strong>
+              <div class="preview-head-actions">
+                <button type="button" class="btn btn-ghost btn-sm btn-icon" id="btn-preview-fullscreen" title="Ver em tela cheia" aria-label="Tela cheia" disabled>
+                  <svg class="ico" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M5 5h5V3H3v7h2V5zm14 0v5h2V3h-7v2h5zM5 19v-5H3v7h7v-2H5zm14 0h-5v2h7v-7h-2v5z"/></svg>
+                </button>
+                <button type="button" class="btn btn-ghost btn-sm btn-icon" id="btn-preview-close" title="Fechar painel" aria-label="Fechar">×</button>
+              </div>
             </header>
             <div id="preview-content" class="preview-content muted">Selecione um ficheiro</div>
           </aside>
           </div>
-          <div class="explorer-xfer-dock glass-card" id="explorer-xfer-dock">
+          <div class="explorer-xfer-dock glass-card collapsed" id="explorer-xfer-dock">
             <div class="explorer-xfer-dock-head">
               <strong>Transferências</strong>
               <div class="explorer-xfer-dock-actions">
                 <span id="transfer-status-dock" class="transfer-status-pill muted hidden"></span>
-                <button type="button" class="btn btn-ghost btn-sm btn-icon" id="btn-xfer-dock-toggle" title="Recolher">▾</button>
+                <button type="button" class="btn btn-ghost btn-sm btn-icon" id="btn-xfer-dock-toggle" title="Expandir" aria-expanded="false">▴</button>
               </div>
             </div>
             <div class="explorer-xfer-dock-body" id="explorer-xfer-dock-body">
@@ -450,6 +456,16 @@
       <input type="search" id="cmd-input" class="cmd-input" placeholder="Ir para módulo ou ação…  (Ctrl+K)" autocomplete="off" />
       <ul id="cmd-results" class="cmd-results"></ul>
       <p class="muted cmd-hint">↑↓ navegar · Enter executar · Esc fechar</p>
+    </div>
+  </dialog>
+
+  <dialog id="preview-fullscreen-dialog" class="modal-dialog preview-fullscreen-dialog">
+    <div class="preview-fullscreen-inner">
+      <header class="preview-fullscreen-head">
+        <strong id="preview-fullscreen-title">Pré-visualização</strong>
+        <button type="button" class="btn btn-ghost btn-sm" id="btn-preview-fullscreen-close" title="Fechar (Esc)">Fechar</button>
+      </header>
+      <div id="preview-fullscreen-body" class="preview-fullscreen-body muted"></div>
     </div>
   </dialog>
 

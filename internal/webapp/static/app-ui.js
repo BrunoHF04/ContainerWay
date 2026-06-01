@@ -71,8 +71,10 @@
   });
   $("#btn-toggle-xfer-panel")?.addEventListener("click", () => {
     const dock = $("#explorer-xfer-dock");
-    if (dock) dock.classList.toggle("collapsed");
-    else $("#transfer-progress-panel")?.classList.toggle("hidden");
+    if (dock) {
+      dock.classList.toggle("collapsed");
+      if (typeof window.syncXferDockToggle === "function") window.syncXferDockToggle();
+    } else $("#transfer-progress-panel")?.classList.toggle("hidden");
     refreshTransferStatus();
   });
 
