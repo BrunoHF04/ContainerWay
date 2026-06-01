@@ -131,9 +131,6 @@
     const data = await api("/api/local/list" + q);
     state.localPath = data.path;
     state.selLocal = null;
-    const lp = $("#local-path");
-    lp.textContent = data.path;
-    lp.title = data.path;
     renderEntries($("#local-list"), data.entries, "local");
     if (typeof updateExplorerBreadcrumbs === "function") updateExplorerBreadcrumbs();
   };
@@ -152,9 +149,6 @@
       const data = await api(`/api/remote/list?path=${encodeURIComponent(path || "/")}${remoteApiExtra()}`);
       state.remotePath = data.path;
       state.selRemote = null;
-      const rp = $("#remote-path");
-      rp.textContent = data.path;
-      rp.title = data.path;
       renderEntries(listEl, data.entries, "remote");
       if (typeof updateExplorerBreadcrumbs === "function") updateExplorerBreadcrumbs();
     } catch (e) {
@@ -288,7 +282,7 @@
       loadRemote("/");
     }
     updateSudoButton();
-    if (typeof window.updateRemoteTargetHint === "function") window.updateRemoteTargetHint();
+    if (typeof window.updateExplorerBreadcrumbs === "function") window.updateExplorerBreadcrumbs();
   }
 
   async function addFavorite(side) {

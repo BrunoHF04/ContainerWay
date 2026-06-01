@@ -244,10 +244,10 @@ const CWUI = (() => {
         openCommandPalette();
       }
       if (e.key === "?" && !e.ctrlKey && !e.metaKey && e.target.tagName !== "INPUT" && e.target.tagName !== "TEXTAREA") {
-        $("#shortcuts-dialog")?.showModal();
+        if (typeof window.openScreenHelp === "function") window.openScreenHelp();
       }
       if (e.key === "Escape") {
-        $("#shortcuts-dialog")?.close();
+        $("#screen-help-dialog")?.close();
       }
     });
   }
@@ -269,12 +269,23 @@ const CWUI = (() => {
     });
   }
 
-  function renderBreadcrumbs(container, parts, onNavigate) {
+  function renderBreadcrumbs(container, parts, onNavigate, prefix) {
     if (!container) return;
     container.innerHTML = "";
     const nav = document.createElement("nav");
     nav.className = "breadcrumbs";
     nav.setAttribute("aria-label", "Caminho");
+    if (prefix) {
+      const chip = document.createElement("span");
+      chip.className = "bc-context";
+      chip.textContent = prefix;
+      chip.title = prefix;
+      nav.appendChild(chip);
+      const sep0 = document.createElement("span");
+      sep0.className = "bc-sep";
+      sep0.textContent = "›";
+      nav.appendChild(sep0);
+    }
     parts.forEach((p, i) => {
       if (i > 0) {
         const sep = document.createElement("span");

@@ -39,7 +39,18 @@
   window.updateExplorerBreadcrumbs = function () {
     const isWin = state.localPath && /^[A-Za-z]:/.test(state.localPath);
     U.renderBreadcrumbs($("#local-bc"), U.pathToBreadcrumbs(state.localPath, isWin), (p) => loadLocal(p));
-    U.renderBreadcrumbs($("#remote-bc"), U.pathToBreadcrumbs(state.remotePath, false), (p) => loadRemote(p));
+    let remotePrefix = "SFTP";
+    if (state.remoteTarget === "container") {
+      const opt = $("#remote-container")?.selectedOptions?.[0];
+      const label = opt?.textContent?.trim() || "contêiner";
+      remotePrefix = `Docker · ${label}`;
+    }
+    U.renderBreadcrumbs(
+      $("#remote-bc"),
+      U.pathToBreadcrumbs(state.remotePath, false),
+      (p) => loadRemote(p),
+      remotePrefix
+    );
   };
 
   async function loadAppVersion() {
@@ -55,7 +66,9 @@
   U.bindRipple();
   loadAppVersion();
 
-  $("#btn-shortcuts")?.addEventListener("click", () => $("#shortcuts-dialog")?.showModal());
+  $("#btn-shortcuts")?.addEventListener("click", () => {
+    if (typeof window.openScreenHelp === "function") window.openScreenHelp();
+  });
   $("#btn-toggle-xfer-panel")?.addEventListener("click", () => {
     const dock = $("#explorer-xfer-dock");
     if (dock) dock.classList.toggle("collapsed");

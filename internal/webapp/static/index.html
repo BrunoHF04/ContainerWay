@@ -80,7 +80,7 @@
         <div class="topbar-right">
           <span id="ssh-status" class="badge badge-pulse">SSH: offline</span>
           <span id="ssh-latency" class="badge latency-badge hidden" title="Latência SSH (listagem remota)">—</span>
-          <button type="button" class="btn btn-ghost btn-icon-text" id="btn-shortcuts" title="Atalhos de teclado">?</button>
+          <button type="button" class="btn btn-ghost btn-icon-text" id="btn-shortcuts" title="Ajuda desta tela">?</button>
           <button type="button" class="theme-toggle compact" id="btn-theme" aria-label="Alternar tema">
             <span class="theme-icon theme-icon-dark">☀</span>
             <span class="theme-icon theme-icon-light">☽</span>
@@ -188,7 +188,6 @@
               </nav>
             </header>
             <div id="local-bc" class="bc-bar"></div>
-            <div class="path-bar" id="local-path" title="">—</div>
             <div id="local-panel-alert" class="panel-alert hidden" role="alert"></div>
             <div class="panel-search">
               <input type="search" id="local-filter" class="panel-filter" placeholder="Filtrar ficheiros…" />
@@ -232,8 +231,6 @@
               </nav>
             </header>
             <div id="remote-bc" class="bc-bar"></div>
-            <p id="remote-target-hint" class="remote-target-hint muted">SFTP · /</p>
-            <div class="path-bar" id="remote-path" title="">—</div>
             <div id="remote-panel-alert" class="panel-alert hidden" role="alert">
               <span id="remote-panel-alert-text"></span>
               <button type="button" class="btn btn-primary btn-sm" id="remote-panel-alert-sudo">Activar sudo</button>
@@ -436,25 +433,11 @@
     </div>
   </dialog>
 
-  <dialog id="shortcuts-dialog" class="modal-dialog">
+  <dialog id="screen-help-dialog" class="modal-dialog screen-help-dialog">
     <div class="modal-form">
-      <h3>Atalhos de teclado</h3>
-      <ul class="shortcut-list">
-        <li><kbd>Ctrl</kbd>+<kbd>K</kbd> Paleta de comandos</li>
-        <li><kbd>?</kbd> Esta ajuda</li>
-        <li><kbd>Esc</kbd> Fechar diálogos</li>
-        <li class="shortcut-section">Explorador</li>
-        <li><kbd>F5</kbd> Atualizar painel activo</li>
-        <li><kbd>F2</kbd> Renomear</li>
-        <li><kbd>Del</kbd> Apagar</li>
-        <li><kbd>Backspace</kbd> Subir pasta</li>
-        <li><kbd>Enter</kbd> Abrir pasta / editar ficheiro</li>
-        <li><kbd>Tab</kbd> Alternar painel Local / Remoto</li>
-        <li><kbd>F6</kbd> Enviar ou receber (conforme painel)</li>
-        <li><kbd>Ctrl</kbd>+clique — seleccionar vários</li>
-        <li><kbd>Shift</kbd>+clique — intervalo</li>
-      </ul>
-      <div class="btn-row end"><button type="button" class="btn btn-primary" onclick="document.getElementById('shortcuts-dialog').close()">Fechar</button></div>
+      <h3 id="screen-help-title">Ajuda</h3>
+      <div id="screen-help-body" class="screen-help-body"></div>
+      <div class="btn-row end"><button type="button" class="btn btn-primary" id="screen-help-close">Fechar</button></div>
     </div>
   </dialog>
 
@@ -551,6 +534,7 @@
   <script src="/app.js"></script>
   <script src="/explorer.js"></script>
   <script src="/explorer-enhanced.js"></script>
+  <script src="/screen-help.js"></script>
   <script src="/app-ui.js"></script>
 </body>
 </html>

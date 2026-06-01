@@ -1070,7 +1070,26 @@ body {
 .preview-img { max-width: 100%; height: auto; border-radius: var(--radius-sm); }
 .preview-text { margin: 0; font-family: var(--mono); font-size: 0.7rem; white-space: pre-wrap; word-break: break-word; }
 .panel.explorer-panel-active { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
-.remote-target-hint { margin: 0; padding: 0.2rem 0.75rem 0; font-size: 0.72rem; font-family: var(--mono); }
+.bc-context {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--accent);
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  white-space: nowrap;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.screen-help-dialog { max-width: min(560px, 94vw); }
+.screen-help-body { max-height: min(70vh, 520px); overflow: auto; margin: 0.5rem 0 0.75rem; font-size: 0.88rem; line-height: 1.45; }
+.screen-help-body h4 { margin: 0.85rem 0 0.35rem; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); }
+.screen-help-body h4:first-of-type { margin-top: 0.25rem; }
+.screen-help-body ul { margin: 0.2rem 0 0.5rem 1.1rem; padding: 0; }
+.screen-help-body .shortcut-list { list-style: none; margin-left: 0; }
+.screen-help-body .shortcut-list li { line-height: 1.75; }
+.screen-help-body code { font-family: var(--mono); font-size: 0.82em; }
 .panel-alert {
   display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
   margin: 0.25rem 0.65rem; padding: 0.4rem 0.55rem; border-radius: var(--radius-sm);

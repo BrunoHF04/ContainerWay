@@ -143,17 +143,9 @@
     if (sudoBtn) sudoBtn.classList.toggle("hidden", !showSudo);
   }
 
-  window.updateRemoteTargetHint = function updateRemoteTargetHint() {
-    const el = $("#remote-target-hint");
-    if (!el) return;
-    if (state.remoteTarget === "container") {
-      const opt = $("#remote-container")?.selectedOptions?.[0];
-      const label = opt?.textContent?.trim() || "—";
-      el.textContent = `Docker · ${label} · ${state.remotePath || "/"}`;
-    } else {
-      el.textContent = `SFTP · ${state.remotePath || "/"}`;
-    }
-  };
+  function refreshExplorerNav() {
+    if (typeof window.updateExplorerBreadcrumbs === "function") window.updateExplorerBreadcrumbs();
+  }
 
   function updatePanelStatus(side) {
     const foot = side === "local" ? $("#local-status") : $("#remote-status");
@@ -270,7 +262,7 @@
     showPanelAlert("remote", null);
     clearSelection("remote");
     await origLoadRemote(path);
-    updateRemoteTargetHint();
+    refreshExplorerNav();
     updatePanelStatus("remote");
   };
 
@@ -592,12 +584,12 @@
   const origSetRemote = null;
   $("#remote-target-host")?.addEventListener("click", () => {
     $("#remote-container-filter")?.classList.add("hidden");
-    updateRemoteTargetHint();
+    refreshExplorerNav();
   });
   $("#remote-target-container")?.addEventListener("click", () => {
     $("#remote-container-filter")?.classList.remove("hidden");
     origLoadContainers();
-    updateRemoteTargetHint();
+    refreshExplorerNav();
   });
 
   // Drag entre painéis
@@ -847,7 +839,7 @@
     window.showScreen = function (n) {
       origShow(n);
       if (n === "explorer") {
-        updateRemoteTargetHint();
+        refreshExplorerNav();
         $("#explorer-preview")?.classList.toggle("hidden", localStorage.getItem("cw-preview-hidden") === "1");
       }
     };
@@ -862,5 +854,5 @@
     mo.observe(remoteSel, { childList: true });
   }
 
-  updateRemoteTargetHint();
+  refreshExplorerNav();
 })();
