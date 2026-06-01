@@ -34,7 +34,7 @@ go install github.com/tc-hib/go-winres@latest
 .\scripts\build-web.ps1
 ```
 
-Ícones: `go run ./cmd/iconforge/ -web` → `assets/containerway-web-icon.*` e `internal/webapp/static/favicon*`.
+Ícones (mascote em `assets/mascot-source-*.png`): `go run ./cmd/iconforge/` → `assets/containerway-*.png/.ico`, `internal/webapp/static/favicon*` e `internal/appui/window-icon.png`.
 
 Incluído também em `.\scripts\build.ps1` (use `-SkipWeb` para omitir).
 

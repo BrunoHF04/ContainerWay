@@ -21,12 +21,32 @@ const $$ = (sel) => document.querySelectorAll(sel);
 
 const THEME_KEY = "cw-web-theme";
 
+function mascotIconSrc(theme) {
+  return theme === "light" ? "/icon-192-light.png" : "/icon-192.png";
+}
+
+function mascotHeroSrc(theme) {
+  return theme === "light" ? "/mascot-hero-light.png" : "/mascot-hero.png";
+}
+
+function syncMascotIcons(theme) {
+  const src = mascotIconSrc(theme);
+  const hero = mascotHeroSrc(theme);
+  for (const img of document.querySelectorAll(".logo, .splash-logo")) {
+    img.src = src;
+  }
+  for (const img of document.querySelectorAll(".login-mascot, .hub-mascot-img")) {
+    img.src = hero;
+  }
+}
+
 function initTheme() {
   const saved = localStorage.getItem(THEME_KEY);
   const theme = saved === "light" || saved === "dark"
     ? saved
     : (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
   document.documentElement.setAttribute("data-theme", theme);
+  syncMascotIcons(theme);
 }
 
 function toggleTheme() {
@@ -36,6 +56,7 @@ function toggleTheme() {
   const apply = () => {
     root.setAttribute("data-theme", next);
     localStorage.setItem(THEME_KEY, next);
+    syncMascotIcons(next);
   };
   const finish = () => {
     window.setTimeout(() => {
@@ -67,7 +88,7 @@ bindThemeButtons();
 
 const MODULES = [
   { id: "explorer", icon: "📁", accent: "cyan", title: "Gerenciador de arquivos", desc: "Painel duplo local/remoto, enviar e receber ficheiros.", kw: "arquivos sftp transferência" },
-  { id: "docker", icon: "🐳", accent: "indigo", title: "Contêineres Docker", desc: "Lista e reinício de contêineres em execução.", kw: "docker container" },
+  { id: "docker", icon: "🐳", accent: "indigo", title: "Contêineres Docker", desc: "Lista, métricas, logs, consola e ciclo de vida.", kw: "docker container" },
   { id: "disks", icon: "💾", accent: "emerald", title: "Discos e armazenamento", desc: "lsblk e uso por df no host.", kw: "disco lsblk armazenamento" },
   { id: "terminal", icon: "⌨️", accent: "amber", title: "Terminal SSH", desc: "Consola remota interativa.", kw: "terminal ssh shell" },
   { id: "automations", icon: "⚙️", accent: "violet", title: "Central de automações", desc: "Regras e histórico por host.", kw: "automação regras" },
@@ -82,7 +103,9 @@ function handleSessionExpired(message) {
   state.ssh.user = "";
   $("#sudo-dialog")?.close();
   $("#confirm-dialog")?.close();
+  setAppTopbar(false);
   showView("#view-login");
+  showLoginPhase("auth");
   const err = $("#login-error");
   if (err) {
     err.textContent = msg;
@@ -111,15 +134,53 @@ function showView(id) {
   $(id).classList.add("active");
 }
 
+function setAppTopbar(visible) {
+  $("#app-topbar")?.classList.toggle("hidden", !visible);
+  $("#app")?.classList.toggle("app-authed", !!visible);
+}
+
+function showLoginPhase(phase) {
+  const auth = $("#login-auth-panel");
+  const conn = $("#login-connect-panel");
+  const card = $("#login-card");
+  const isConnect = phase === "connect";
+  auth?.classList.toggle("hidden", isConnect);
+  auth?.toggleAttribute("hidden", isConnect);
+  conn?.classList.toggle("hidden", !isConnect);
+  conn?.toggleAttribute("hidden", !isConnect);
+  card?.classList.toggle("login-card--connect", isConnect);
+  if (isConnect) state.screen = "connect";
+  if (isConnect) {
+    conn?.classList.remove("login-panel-enter");
+    void conn?.offsetWidth;
+    conn?.classList.add("login-panel-enter");
+    requestAnimationFrame(() => CWUI.enhanceSelects?.(conn));
+  }
+}
+
+async function afterAuthSuccess(me) {
+  state.user = me;
+  state.ssh.isAdmin = !!me.isAdmin;
+  $("#user-label").textContent = me.displayName || me.username;
+  setAppTopbar(true);
+  showView("#view-login");
+  showLoginPhase("connect");
+  await refreshConnections();
+  await refreshSSH();
+}
+
 function showScreen(name) {
   state.screen = name;
   $$(".subview").forEach((v) => {
     v.classList.toggle("active", v.id === `view-${name}`);
   });
   const hubBtn = $("#btn-hub");
-  if (hubBtn) hubBtn.hidden = name === "connect" || name === "hub";
+  if (hubBtn) hubBtn.hidden = name === "hub" || !state.ssh.connected;
   if (name === "explorer") refreshTransferStatus();
-  if (name === "docker") loadDocker();
+  if (name === "docker") {
+    loadDocker();
+    window.dockerOnScreenEnter?.();
+  }
   if (name === "disks") loadDisks();
   if (name === "automations") {
     loadAutomations();
@@ -151,6 +212,65 @@ function formatSize(n) {
 }
 
 const motionReduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+let hubMascotMagnetBound = false;
+
+/** bindHubMascotMagnet — a formiga segue o cursor com suavização (efeito magnético). */
+function bindHubMascotMagnet() {
+  if (hubMascotMagnetBound || motionReduced()) return;
+  const wrap = $("#hub-mascot");
+  const scene = wrap?.querySelector(".hub-mascot-scene");
+  if (!wrap || !scene) return;
+  hubMascotMagnetBound = true;
+
+  const strength = 32;
+  let targetX = 0;
+  let targetY = 0;
+  let currentX = 0;
+  let currentY = 0;
+  let raf = null;
+
+  const tick = () => {
+    currentX += (targetX - currentX) * 0.14;
+    currentY += (targetY - currentY) * 0.14;
+    const rotY = currentX * 0.35;
+    const rotX = -currentY * 0.28;
+    scene.style.transform =
+      `translate3d(${currentX.toFixed(2)}px, ${currentY.toFixed(2)}px, 0) rotateX(${rotX.toFixed(2)}deg) rotateY(${rotY.toFixed(2)}deg)`;
+    const done = Math.abs(targetX - currentX) < 0.15 && Math.abs(targetY - currentY) < 0.15;
+    if (!done || targetX !== 0 || targetY !== 0) {
+      raf = requestAnimationFrame(tick);
+    } else {
+      scene.style.transform = "";
+      raf = null;
+    }
+  };
+
+  const queue = () => {
+    if (!raf) raf = requestAnimationFrame(tick);
+  };
+
+  wrap.addEventListener("mousemove", (e) => {
+    const r = wrap.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    const nx = (e.clientX - cx) / (r.width / 2);
+    const ny = (e.clientY - cy) / (r.height / 2);
+    const dist = Math.min(1, Math.hypot(nx, ny));
+    const pull = 0.55 + dist * 0.45;
+    targetX = nx * strength * pull;
+    targetY = ny * strength * pull;
+    wrap.classList.add("is-active");
+    queue();
+  });
+
+  wrap.addEventListener("mouseleave", () => {
+    targetX = 0;
+    targetY = 0;
+    wrap.classList.remove("is-active");
+    queue();
+  });
+}
 
 /** bindHubCardTilt inclinação 3D — eventos no botão, transform no wrapper. */
 function bindHubCardTilt(shell) {
@@ -185,6 +305,7 @@ function bindHubCardTilt(shell) {
 }
 
 function renderHub() {
+  bindHubMascotMagnet();
   const q = ($("#hub-search").value || "").toLowerCase();
   const grid = $("#hub-grid");
   grid.innerHTML = "";
@@ -241,28 +362,31 @@ async function refreshSSH() {
     $("#ssh-latency")?.classList.add("hidden");
   }
   if (st.connected) {
+    setAppTopbar(true);
     showView("#view-shell");
     if (!wasConnected || prevScreen === "connect") {
       showScreen("hub");
       renderHub();
     }
+  } else if (state.user) {
+    setAppTopbar(true);
+    showView("#view-login");
+    showLoginPhase("connect");
   } else {
-    showView("#view-shell");
-    showScreen("connect");
+    setAppTopbar(false);
+    showView("#view-login");
+    showLoginPhase("auth");
   }
 }
 
 async function checkSession() {
   try {
     const me = await api("/api/auth/me");
-    state.user = me;
-    state.ssh.isAdmin = !!me.isAdmin;
-    $("#user-label").textContent = me.displayName || me.username;
-    showView("#view-shell");
-    await refreshConnections();
-    await refreshSSH();
+    await afterAuthSuccess(me);
   } catch {
+    setAppTopbar(false);
     showView("#view-login");
+    showLoginPhase("auth");
   }
 }
 
@@ -275,12 +399,7 @@ $("#login-form").addEventListener("submit", async (ev) => {
       method: "POST",
       body: JSON.stringify({ username: $("#login-user").value, password: $("#login-pass").value }),
     });
-    state.user = me;
-    state.ssh.isAdmin = !!me.isAdmin;
-    $("#user-label").textContent = me.displayName || me.username;
-    showView("#view-shell");
-    await refreshConnections();
-    await refreshSSH();
+    await afterAuthSuccess(me);
   } catch (e) {
     err.textContent = e.message;
     err.classList.remove("hidden");
@@ -292,7 +411,9 @@ $("#btn-logout").addEventListener("click", async () => {
   await api("/api/auth/logout", { method: "POST", body: "{}" });
   state.user = null;
   state.ssh.connected = false;
+  setAppTopbar(false);
   showView("#view-login");
+  showLoginPhase("auth");
 });
 
 $("#btn-disconnect").addEventListener("click", async () => {
@@ -381,6 +502,7 @@ async function refreshConnections(selectName) {
     sel.appendChild(opt);
   }
   if (prev) sel.value = prev;
+  CWUI.refreshSelect?.(sel);
 }
 
 async function loadSelectedProfile() {
@@ -569,66 +691,6 @@ async function refreshTransferStatus() {
 }
 setInterval(() => { if (state.screen === "explorer") refreshTransferStatus(); }, 2000);
 
-// Docker
-async function loadDocker() {
-  const box = $("#docker-list");
-  CWUI.skeletonList(box, 5);
-  try {
-    const data = await api("/api/docker/containers");
-    box.innerHTML = "";
-    if (!data.containers?.length) {
-      CWUI.emptyState(box, {
-        icon: "🐳",
-        title: "Nenhum contêiner",
-        desc: "Não há contêineres em execução neste host.",
-        actionLabel: "Atualizar",
-        onAction: () => loadDocker(),
-      });
-      return;
-    }
-    for (const c of data.containers) {
-      const row = document.createElement("div");
-      row.className = "data-row";
-      row.innerHTML = `<div><strong>${escapeHtml(c.name || c.id)}</strong><span class="muted">${escapeHtml(c.image)} — ${escapeHtml(c.status)}</span></div>`;
-      const actions = document.createElement("div");
-      actions.className = "data-row-actions";
-      const id = c.idFull || c.id;
-      for (const [label, fn] of [
-        ["Logs", async () => {
-          try {
-            const data = await api(`/api/docker/logs?id=${encodeURIComponent(id)}&tail=300`);
-            await CWConfirm(data.logs || "(vazio)", { ok: "Fechar", title: `Logs — ${c.name || id}` });
-          } catch (e) { CWUI.toast(e.message, "error"); }
-        }],
-        ["Stats", async () => {
-          try {
-            const data = await api(`/api/docker/stats?id=${encodeURIComponent(id)}`);
-            const txt = typeof data.stats === "string" ? data.stats : JSON.stringify(data.stats, null, 2);
-            await CWConfirm(txt.slice(0, 4000), { ok: "Fechar", title: `Stats — ${c.name || id}` });
-          } catch (e) { CWUI.toast(e.message, "error"); }
-        }],
-        ["Reiniciar", async () => {
-          if (!(await CWConfirm(`Reiniciar ${c.name || c.id}?`))) return;
-          await api("/api/docker/restart", { method: "POST", body: JSON.stringify({ id }) });
-          CWUI.toast("Contêiner reiniciado", "success");
-          loadDocker();
-        }],
-      ]) {
-        const btn = document.createElement("button");
-        btn.className = "btn btn-ghost btn-sm";
-        btn.textContent = label;
-        btn.addEventListener("click", fn);
-        actions.appendChild(btn);
-      }
-      row.appendChild(actions);
-      box.appendChild(row);
-    }
-  } catch (e) {
-    box.innerHTML = `<p class="error">${escapeHtml(e.message)}</p>`;
-  }
-}
-$("#docker-refresh").addEventListener("click", loadDocker);
-
 // Disks
 async function loadDisks() {
   const wrap = $("#disks-table-wrap");
@@ -777,6 +839,46 @@ function openAutoRuleDialog(idx) {
   $("#auto-rule-dialog").showModal();
 }
 
+function applyDockerAutomationPrefill() {
+  const raw = sessionStorage.getItem("cw-docker-auto-prefill");
+  if (!raw) return false;
+  sessionStorage.removeItem("cw-docker-auto-prefill");
+  let pre;
+  try {
+    pre = JSON.parse(raw);
+  } catch {
+    return false;
+  }
+  const target = String(pre.target || "").trim();
+  if (!target) return false;
+  const existing = state.autoRules.findIndex(
+    (r) => r.kind === "docker_container_stopped_restart" && r.target === target
+  );
+  if (existing >= 0) {
+    openAutoRuleDialog(existing);
+    CWUI.toast("Regra existente para este alvo — pode editar e guardar", "info");
+    return true;
+  }
+  const rule = {
+    id: `docker-${Date.now()}`,
+    kind: "docker_container_stopped_restart",
+    name: pre.name || `Reinício automático: ${target}`,
+    description: "Criada a partir do ecrã Contêineres Docker",
+    trigger: "Contêiner Docker deixou de correr",
+    action: "docker restart",
+    target,
+    cooldownSec: 60,
+    enabled: true,
+    webhookURL: "",
+  };
+  state.autoRules.push(rule);
+  state.autoRulesDirty = true;
+  renderAutoRules();
+  openAutoRuleDialog(state.autoRules.length - 1);
+  CWUI.toast("Nova regra — confirme e clique em Guardar regras", "info");
+  return true;
+}
+
 async function loadAutomations() {
   const rulesBox = $("#auto-rules");
   CWUI.skeletonList(rulesBox, 4);
@@ -788,6 +890,7 @@ async function loadAutomations() {
     state.autoRulesDirty = false;
     renderAutoRules();
     await refreshAutoHistory();
+    applyDockerAutomationPrefill();
   } catch (e) {
     rulesBox.innerHTML = `<p class="error">${escapeHtml(e.message)}</p>`;
   }

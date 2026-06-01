@@ -168,12 +168,40 @@
   };
 
   function shortContainerLabel(c) {
-    const name = (c.name || c.id || "").replace(/^\//, "");
+    const name = (c.displayName || c.name || c.id || "").replace(/^\//, "");
     const short = name.length > 18 ? name.slice(0, 16) + "…" : name;
-    const img = (c.image || "").split(":")[0];
-    const imgShort = img.length > 14 ? img.slice(0, 12) + "…" : img;
-    return imgShort ? `${short}` : short;
+    return short;
   }
+
+  window.openDockerContainerInExplorer = function (c) {
+    const id = c.idFull || c.id;
+    if (!id) return;
+    showScreen("explorer");
+    setRemoteTarget("container");
+    const sel = $("#remote-container");
+    const trySelect = () => {
+      if (!sel) return;
+      for (const opt of sel.options) {
+        if (opt.value === id) {
+          sel.value = id;
+          state.remoteContainerId = id;
+          loadRemote("/");
+          return;
+        }
+      }
+      loadContainersSelect().then(() => {
+        for (const opt of sel.options) {
+          if (opt.value === id) {
+            sel.value = id;
+            state.remoteContainerId = id;
+            loadRemote("/");
+            return;
+          }
+        }
+      });
+    };
+    trySelect();
+  };
 
   async function loadContainersSelect() {
     const sel = $("#remote-container");
@@ -207,6 +235,7 @@
     } catch {
       ph.textContent = "Docker indisponível";
     }
+    CWUI.refreshSelect?.(sel);
   }
 
   function fillPanelMenu(listEl, items, onPick) {

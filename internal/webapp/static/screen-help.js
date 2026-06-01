@@ -113,13 +113,44 @@
       `,
     },
     docker: {
-      title: "Contêineres Docker",
+      title: "Docker",
       html: `
-        <p class="muted">Gestão de contêineres em execução no host remoto.</p>
+        <p class="muted">Gestão Docker no host remoto: <strong>Contêineres</strong>, <strong>Imagens</strong> e <strong>Volumes</strong>.</p>
+        <h4>Abas</h4>
         <ul>
-          <li><strong>Atualizar</strong> — recarrega a lista.</li>
-          <li>Por contêiner: <strong>Reiniciar</strong>, <strong>Logs</strong> e <strong>Stats</strong>.</li>
-          <li>Para ficheiros dentro do contêiner, use o explorador em modo <strong>Docker</strong>.</li>
+          <li><strong>Contêineres</strong> — métricas, ciclo de vida, logs, consola, Compose.</li>
+          <li><strong>Imagens</strong> — listagem, filtro, dangling, remover (com confirmação).</li>
+          <li><strong>Volumes</strong> — listagem, copiar nome, remover.</li>
+        </ul>
+        <h4>Contêineres</h4>
+        <ul>
+          <li><strong>Lista</strong> / <strong>Grelha</strong> — alterne o modo de visualização (a preferência fica guardada).</li>
+          <li><strong>Filtros rápidos</strong> — Todos, em execução, parados, alerta, críticos, Compose, Swarm.</li>
+          <li><strong>Resumo</strong> — chips sob o título com totais e médias de CPU/RAM.</li>
+          <li><strong>Agrupar Compose</strong> — secções por projeto; clique no cabeçalho para colapsar.</li>
+          <li><strong>★ Fixar</strong> — mantém contêineres no topo da lista.</li>
+          <li><strong>Cores dos cartões</strong> — neutro no normal; <strong>amarelo</strong> ≥75% CPU/RAM; <strong>vermelho</strong> ≥90%.</li>
+          <li><strong>Clique num cartão</strong> — vista dividida com detalhes, sparklines e inspect.</li>
+          <li><strong>Ferramentas</strong> — copiar ID/nome, logs, stats, explorador, consola, ciclo de vida.</li>
+          <li><strong>Portas</strong> — mapeamentos publicados no cartão quando existirem.</li>
+          <li>Seleção em lote: iniciar, reiniciar, parar, remover; checkbox <strong>Selecionar todos visíveis</strong>.</li>
+          <li>URL <code>#docker=ID</code> — abre directamente o detalhe do contêiner.</li>
+          <li><strong>Intervalo</strong> — auto-atualizar a cada 5–60 s (preferência guardada).</li>
+          <li><strong>Logs</strong> — pesquisa, destaque de erros/stderr, «Desde reinício», quebra de linha, live.</li>
+          <li><strong>Stats</strong> — modal com gráficos em tempo real (actualiza a cada 2 s).</li>
+          <li><strong>📁</strong> no cartão — abre o explorador de ficheiros do contêiner.</li>
+          <li>Lote com erros — diálogo lista IDs que falharam.</li>
+          <li><strong>Agrupar Compose</strong> — botão «Reiniciar projeto» por grupo (<code>compose up --force-recreate</code>).</li>
+          <li><strong>Expandir / Colapsar</strong> — com agrupamento Compose activo.</li>
+          <li><strong>Regra automática</strong> — cria regra na Central de automações (reinício se parar).</li>
+          <li>Toast quando novos contêineres ficam críticos durante auto-atualizar.</li>
+          <li>Reinício de um contêiner tenta <em>compose recreate</em> do serviço quando há labels Compose.</li>
+        </ul>
+        <h4>Atalhos neste ecrã</h4>
+        <ul class="shortcut-list">
+          <li><kbd>R</kbd> Atualizar lista</li>
+          <li><kbd>/</kbd> Focar pesquisa</li>
+          <li><kbd>Esc</kbd> Voltar à lista (fecha detalhes)</li>
         </ul>
         <h4>Atalhos gerais</h4>
         <ul class="shortcut-list">

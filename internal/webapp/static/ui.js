@@ -480,6 +480,194 @@ const CWUI = (() => {
 
   document.getElementById("explorer-menu-backdrop")?.addEventListener("pointerdown", () => closeAllFloatMenus());
 
+  const selectControllers = new WeakMap();
+  const openSelectWraps = new Set();
+
+  function closeSelectWrap(wrap) {
+    if (!wrap) return;
+    wrap.classList.remove("is-open");
+    wrap.querySelector(".cw-select-list")?.classList.add("hidden");
+    wrap.querySelector(".cw-select-trigger")?.setAttribute("aria-expanded", "false");
+    openSelectWraps.delete(wrap);
+  }
+
+  function closeAllSelects(except) {
+    for (const wrap of [...openSelectWraps]) {
+      if (wrap !== except) closeSelectWrap(wrap);
+    }
+  }
+
+  function shouldEnhanceSelect(select) {
+    if (!select || select.multiple || select.size > 1) return false;
+    if (select.hasAttribute("data-select-native")) return false;
+    return true;
+  }
+
+  function enhanceSelect(select) {
+    if (!shouldEnhanceSelect(select)) return;
+    if (select.closest(".cw-select")) {
+      refreshSelect(select);
+      return;
+    }
+
+    const wrap = document.createElement("div");
+    wrap.className = "cw-select";
+    if (select.classList.contains("panel-select")) wrap.classList.add("cw-select--compact");
+    if (select.classList.contains("explorer-lang-select")) wrap.classList.add("cw-select--compact");
+    if (select.classList.contains("docker-poll-select")) wrap.classList.add("cw-select--compact");
+    if (select.disabled) wrap.classList.add("is-disabled");
+
+    select.classList.add("cw-select-native");
+    select.parentNode.insertBefore(wrap, select);
+    wrap.appendChild(select);
+
+    const trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.className = "cw-select-trigger";
+    trigger.setAttribute("aria-haspopup", "listbox");
+
+    const valueEl = document.createElement("span");
+    valueEl.className = "cw-select-value";
+
+    const chevron = document.createElement("span");
+    chevron.className = "cw-select-chevron";
+    chevron.setAttribute("aria-hidden", "true");
+    chevron.innerHTML =
+      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>';
+
+    const list = document.createElement("div");
+    list.className = "cw-select-list hidden";
+    list.setAttribute("role", "listbox");
+
+    trigger.append(valueEl, chevron);
+    wrap.append(trigger, list);
+
+    let focusIdx = -1;
+
+    function syncDisabled() {
+      const off = select.disabled;
+      wrap.classList.toggle("is-disabled", off);
+      trigger.disabled = off;
+    }
+
+    function syncLabel() {
+      const opt = select.selectedOptions[0];
+      valueEl.textContent = opt?.textContent?.trim() || "—";
+    }
+
+    function buildOptions() {
+      list.innerHTML = "";
+      focusIdx = -1;
+      [...select.options].forEach((opt) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "cw-select-option";
+        btn.setAttribute("role", "option");
+        btn.dataset.value = opt.value;
+        btn.textContent = opt.textContent;
+        const selected = opt.selected;
+        btn.setAttribute("aria-selected", selected ? "true" : "false");
+        btn.classList.toggle("is-selected", selected);
+        if (opt.disabled) {
+          btn.disabled = true;
+          btn.classList.add("is-disabled");
+        }
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          if (opt.disabled) return;
+          select.value = opt.value;
+          select.dispatchEvent(new Event("change", { bubbles: true }));
+          buildOptions();
+          close();
+        });
+        list.appendChild(btn);
+      });
+      syncLabel();
+      syncDisabled();
+    }
+
+    function open() {
+      if (select.disabled) return;
+      closeAllSelects(wrap);
+      closeAllFloatMenus();
+      list.classList.remove("hidden");
+      wrap.classList.add("is-open");
+      trigger.setAttribute("aria-expanded", "true");
+      openSelectWraps.add(wrap);
+      const selBtn = list.querySelector(".cw-select-option.is-selected");
+      focusIdx = selBtn ? [...list.querySelectorAll(".cw-select-option:not(:disabled)")].indexOf(selBtn) : 0;
+      focusOption(focusIdx);
+    }
+
+    function close() {
+      closeSelectWrap(wrap);
+    }
+
+    function focusOption(idx) {
+      const items = [...list.querySelectorAll(".cw-select-option:not(:disabled)")];
+      if (!items.length) return;
+      focusIdx = Math.max(0, Math.min(idx, items.length - 1));
+      items.forEach((el, i) => el.classList.toggle("is-focused", i === focusIdx));
+      items[focusIdx]?.scrollIntoView({ block: "nearest" });
+    }
+
+    function chooseFocused() {
+      const items = [...list.querySelectorAll(".cw-select-option:not(:disabled)")];
+      if (!items[focusIdx]) return;
+      items[focusIdx].click();
+    }
+
+    trigger.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (wrap.classList.contains("is-open")) close();
+      else open();
+    });
+
+    trigger.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+      }
+      if (!wrap.classList.contains("is-open")) {
+        if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") open();
+        return;
+      }
+      if (e.key === "Escape") {
+        close();
+        return;
+      }
+      if (e.key === "ArrowDown") focusOption(focusIdx + 1);
+      if (e.key === "ArrowUp") focusOption(focusIdx - 1);
+      if (e.key === "Enter" || e.key === " ") chooseFocused();
+    });
+
+    select.addEventListener("change", buildOptions);
+
+    selectControllers.set(select, { buildOptions, close });
+    buildOptions();
+  }
+
+  function refreshSelect(select) {
+    if (!select) return;
+    const ctrl = selectControllers.get(select);
+    if (ctrl) ctrl.buildOptions();
+    else enhanceSelect(select);
+  }
+
+  function enhanceSelects(root = document) {
+    root.querySelectorAll("select").forEach((sel) => enhanceSelect(sel));
+  }
+
+  document.addEventListener("pointerdown", (e) => {
+    if (e.target.closest(".cw-select")) return;
+    closeAllSelects();
+  });
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => enhanceSelects());
+  } else {
+    enhanceSelects();
+  }
+
   return {
     toast,
     confirmDialog,
@@ -500,6 +688,9 @@ const CWUI = (() => {
     escapeHtml,
     wireFloatingDropdown,
     closeAllFloatMenus,
+    enhanceSelect,
+    enhanceSelects,
+    refreshSelect,
   };
 })();
 

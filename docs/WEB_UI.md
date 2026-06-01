@@ -126,10 +126,15 @@ Listagem dentro de contêineres: `docker exec ls` (sem depender de `CopyFromCont
 | GET/PUT | `/api/explorer/favorites` | Favoritos (partilhados com desktop) |
 | GET/POST/DELETE | `/api/explorer/clipboard` | Copiar metadados para colar |
 | POST | `/api/explorer/paste` | Colar / mover entre painéis |
-| GET | `/api/docker/containers` | Contêineres em execução |
-| POST | `/api/docker/restart` | Reiniciar contêiner |
+| GET | `/api/docker/containers` | Lista (`?all=1`, `?metrics=1`) |
+| GET | `/api/docker/export` | Export CSV |
+| POST | `/api/docker/restart` | Reiniciar (Compose recreate se aplicável) |
+| POST | `/api/docker/restart-batch` | Reiniciar vários |
+| POST | `/api/docker/stop` \| `start` \| `pause` \| `unpause` \| `remove` | Ciclo de vida |
 | GET | `/api/docker/logs?id=` | Logs do contêiner |
-| GET | `/api/docker/stats?id=` | Estatísticas do contêiner |
+| GET | `/api/docker/stats?id=` | Métricas (`?raw=1` para JSON bruto) |
+| GET | `/api/docker/inspect?id=` | Inspect resumido |
+| WS | `/api/docker/exec/ws?id=` | Consola no contêiner |
 | GET | `/api/disks/summary` | Discos (lsblk + df) |
 | GET / PUT | `/api/automations/rules` | Regras do host |
 | GET / DELETE | `/api/automations/history` | Histórico / limpar |
@@ -146,7 +151,7 @@ Listagem dentro de contêineres: `docker exec ls` (sem depender de `CopyFromCont
 | Ligação SSH (perfis) | Sim |
 | Hub / menu da sessão | Sim |
 | Explorador dual (SFTP + Docker, sudo, editor, externo, favoritos, lote, comparar) | Sim |
-| Contêineres Docker (lista, reiniciar, logs, stats) | Sim |
+| Contêineres Docker (métricas, ciclo de vida, lote, logs live, consola, CSV) | Sim |
 | Discos (lsblk + df) | Sim |
 | Terminal SSH (WebSocket + xterm) | Sim |
 | Automações (regras, motor, histórico) | Sim |

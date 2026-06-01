@@ -6,6 +6,7 @@
   <title>ContainerWay Web</title>
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -24,110 +25,138 @@
   </div>
 
   <div id="app">
+    <header id="app-topbar" class="topbar glass-bar hidden" aria-label="Sessão">
+      <div class="topbar-left">
+        <button type="button" class="brand-mini" id="btn-hub" hidden title="Início (hub)" aria-label="Início">
+          <svg class="brand-mini-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5z"/>
+          </svg>
+        </button>
+        <div class="user-chip">
+          <span class="user-dot"></span>
+          <span id="user-label">—</span>
+        </div>
+      </div>
+      <div class="topbar-center">
+        <span id="session-host" class="session-host host-accent-text"></span>
+      </div>
+      <div class="topbar-right">
+        <span id="ssh-status" class="badge badge-pulse">SSH: offline</span>
+        <span id="ssh-latency" class="badge latency-badge hidden" title="Latência SSH (listagem remota)">—</span>
+        <button type="button" class="help-toggle compact" id="btn-shortcuts" title="Ajuda desta tela (?)" aria-label="Ajuda">
+          <svg class="help-toggle-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </button>
+        <button type="button" class="theme-toggle compact" id="btn-theme" aria-label="Alternar tema">
+          <span class="theme-icon theme-icon-dark">☀</span>
+          <span class="theme-icon theme-icon-light">☽</span>
+        </button>
+        <button type="button" class="btn btn-ghost" id="btn-disconnect" hidden>Desconectar</button>
+        <button type="button" class="btn btn-ghost" id="btn-logout">Sair</button>
+      </div>
+    </header>
+
     <section id="view-login" class="view active">
       <div class="login-wrap animate-in">
-        <div class="glass-card login-card">
-          <header class="brand">
-            <div class="logo-ring">
-              <img class="logo" src="/icon-192.png" width="56" height="56" alt="ContainerWay" />
+        <div class="login-stage">
+          <aside class="login-hero" aria-label="ContainerWay">
+            <div class="login-mascot-scene">
+              <div class="mascot-orbit mascot-orbit-1" aria-hidden="true"></div>
+              <div class="mascot-orbit mascot-orbit-2" aria-hidden="true"></div>
+              <div class="mascot-glow" aria-hidden="true"></div>
+              <img class="login-mascot" src="/mascot-hero.png" width="320" height="320" alt="Mascote ContainerWay" decoding="async" />
+              <span class="mascot-cube mascot-cube-1" aria-hidden="true"></span>
+              <span class="mascot-cube mascot-cube-2" aria-hidden="true"></span>
+              <span class="mascot-cube mascot-cube-3" aria-hidden="true"></span>
             </div>
-            <div>
-              <p class="eyebrow">Interface web local</p>
-              <h1>ContainerWay</h1>
-              <p class="subtitle">SSH · SFTP · Docker · Automações</p>
+            <p class="login-hero-tag">Leve a carga. Domine o host.</p>
+            <p class="login-hero-sub">SSH · SFTP · Docker · Automações</p>
+          </aside>
+          <div class="glass-card login-card" id="login-card">
+            <div id="login-auth-panel" class="login-panel">
+              <header class="brand brand-compact">
+                <p class="eyebrow">Interface web local</p>
+                <h1>ContainerWay</h1>
+              </header>
+              <form id="login-form" class="login-form">
+                <label class="field">
+                  <span>Utilizador</span>
+                  <input type="text" id="login-user" autocomplete="username" required placeholder="admin" />
+                </label>
+                <label class="field">
+                  <span>Senha</span>
+                  <input type="password" id="login-pass" autocomplete="current-password" required />
+                </label>
+                <p id="login-error" class="error hidden"></p>
+                <button type="submit" class="btn btn-primary btn-glow">
+                  <span>Entrar</span>
+                  <svg class="btn-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                </button>
+              </form>
+              <div class="login-footer">
+                <button type="button" class="theme-toggle" id="btn-theme-login" aria-label="Alternar tema">
+                  <span class="theme-icon theme-icon-dark" aria-hidden="true">☀</span>
+                  <span class="theme-icon theme-icon-light" aria-hidden="true">☽</span>
+                  <span class="theme-label">Tema</span>
+                </button>
+              </div>
             </div>
-          </header>
-          <form id="login-form" class="login-form">
-            <label class="field">
-              <span>Utilizador</span>
-              <input type="text" id="login-user" autocomplete="username" required placeholder="admin" />
-            </label>
-            <label class="field">
-              <span>Senha</span>
-              <input type="password" id="login-pass" autocomplete="current-password" required />
-            </label>
-            <p id="login-error" class="error hidden"></p>
-            <button type="submit" class="btn btn-primary btn-glow">
-              <span>Entrar</span>
-              <svg class="btn-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-            </button>
-          </form>
-          <div class="login-footer">
-            <button type="button" class="theme-toggle" id="btn-theme-login" aria-label="Alternar tema">
-              <span class="theme-icon theme-icon-dark" aria-hidden="true">☀</span>
-              <span class="theme-icon theme-icon-light" aria-hidden="true">☽</span>
-              <span class="theme-label">Tema</span>
-            </button>
+            <div id="login-connect-panel" class="login-panel hidden" hidden>
+              <div class="page-card-head login-connect-head">
+                <h2>Ligação SSH/SFTP</h2>
+                <p class="muted">Ligue-se ao servidor para aceder aos módulos.</p>
+              </div>
+              <form id="ssh-form" class="form-stack ssh-form">
+                <label class="field">Perfil<select id="ssh-profile"><option value="">— novo / manual —</option></select></label>
+                <label class="field">Nome do perfil<input type="text" id="ssh-name" placeholder="ex.: VM 63" required /></label>
+                <div class="field-row">
+                  <label class="field">Host<input type="text" id="ssh-host" required placeholder="10.0.1.63" /></label>
+                  <label class="field">Utilizador<input type="text" id="ssh-user" required /></label>
+                </div>
+                <label class="field">Senha<input type="password" id="ssh-pass" autocomplete="current-password" /></label>
+                <label class="checkbox-row"><input type="checkbox" id="ssh-save-secrets" checked /> Guardar senha no perfil</label>
+                <p id="ssh-conn-status" class="status-line muted"></p>
+                <p id="ssh-test-result" class="status-line muted hidden"></p>
+                <div class="btn-row">
+                  <button type="submit" class="btn btn-primary btn-glow">Conectar</button>
+                  <button type="button" class="btn btn-ghost" id="btn-ssh-test" data-i18n="ssh.test">Testar ligação</button>
+                  <button type="button" class="btn btn-ghost" id="ssh-save-profile">Guardar perfil</button>
+                  <button type="button" class="btn btn-ghost btn-danger-text" id="ssh-delete-profile">Apagar</button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       </div>
     </section>
 
     <section id="view-shell" class="view">
-      <header class="topbar glass-bar">
-        <div class="topbar-left">
-          <button type="button" class="brand-mini" id="btn-hub" hidden title="Início">
-            <img class="logo-sm" src="/favicon-32x32.png" width="28" height="28" alt="" />
-          </button>
-          <div class="user-chip">
-            <span class="user-dot"></span>
-            <span id="user-label">—</span>
-          </div>
-        </div>
-        <div class="topbar-center">
-          <span id="session-host" class="session-host host-accent-text"></span>
-        </div>
-        <div class="topbar-right">
-          <span id="ssh-status" class="badge badge-pulse">SSH: offline</span>
-          <span id="ssh-latency" class="badge latency-badge hidden" title="Latência SSH (listagem remota)">—</span>
-          <button type="button" class="btn btn-ghost btn-icon-text" id="btn-shortcuts" title="Ajuda desta tela">?</button>
-          <button type="button" class="theme-toggle compact" id="btn-theme" aria-label="Alternar tema">
-            <span class="theme-icon theme-icon-dark">☀</span>
-            <span class="theme-icon theme-icon-light">☽</span>
-          </button>
-          <button type="button" class="btn btn-ghost" id="btn-disconnect" hidden>Desconectar</button>
-          <button type="button" class="btn btn-ghost" id="btn-logout">Sair</button>
-        </div>
-      </header>
-
       <div class="shell-body">
-      <div id="view-connect" class="subview active">
-        <div class="page-center animate-in">
-          <div class="glass-card page-card">
-            <div class="page-card-head">
-              <h2>Ligação SSH/SFTP</h2>
-              <p class="muted">Ligue-se ao servidor para aceder aos módulos.</p>
-            </div>
-            <form id="ssh-form" class="form-stack ssh-form">
-              <label class="field">Perfil<select id="ssh-profile"><option value="">— novo / manual —</option></select></label>
-              <label class="field">Nome do perfil<input type="text" id="ssh-name" placeholder="ex.: VM 63" required /></label>
-              <div class="field-row">
-                <label class="field">Host<input type="text" id="ssh-host" required placeholder="10.0.1.63" /></label>
-                <label class="field">Utilizador<input type="text" id="ssh-user" required /></label>
-              </div>
-              <label class="field">Senha<input type="password" id="ssh-pass" autocomplete="current-password" /></label>
-              <label class="checkbox-row"><input type="checkbox" id="ssh-save-secrets" checked /> Guardar senha no perfil</label>
-              <p id="ssh-conn-status" class="status-line muted"></p>
-              <p id="ssh-test-result" class="status-line muted hidden"></p>
-              <div class="btn-row">
-                <button type="submit" class="btn btn-primary btn-glow">Conectar</button>
-                <button type="button" class="btn btn-ghost" id="btn-ssh-test" data-i18n="ssh.test">Testar ligação</button>
-                <button type="button" class="btn btn-ghost" id="ssh-save-profile">Guardar perfil</button>
-                <button type="button" class="btn btn-ghost btn-danger-text" id="ssh-delete-profile">Apagar</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
+      <div id="view-connect" class="subview" aria-hidden="true"></div>
 
       <div id="view-hub" class="subview">
         <div class="hub-hero animate-in">
-          <p class="eyebrow">Sessão ativa</p>
-          <h2 class="hub-title">O que pretende fazer?</h2>
-          <p id="hub-connected" class="hub-sub muted"></p>
-          <div class="search-wrap">
-            <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-            <input type="search" id="hub-search" class="search" placeholder="Pesquisar módulos…" />
+          <div class="hub-hero-row">
+            <div class="hub-hero-copy">
+              <p class="eyebrow">Sessão ativa</p>
+              <h2 class="hub-title">O que pretende fazer?</h2>
+              <p id="hub-connected" class="hub-sub muted"></p>
+              <div class="search-wrap">
+                <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                <input type="search" id="hub-search" class="search" placeholder="Pesquisar módulos…" />
+              </div>
+            </div>
+            <div class="hub-mascot-wrap" id="hub-mascot" aria-hidden="true">
+              <div class="hub-mascot-scene">
+                <div class="hub-mascot-glow" aria-hidden="true"></div>
+                <div class="hub-mascot-body">
+                  <img class="hub-mascot-img" src="/mascot-hero.png" width="260" height="260" alt="" decoding="async" />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         <div id="hub-grid" class="hub-grid"></div>
@@ -305,9 +334,160 @@
       </div>
 
       <div id="view-docker" class="subview">
-        <div class="page-head glass-bar-inline"><h2>Contêineres Docker</h2>
-          <button type="button" class="btn btn-ghost" id="docker-refresh">Atualizar</button></div>
-        <div id="docker-list" class="data-list content-pad"></div>
+        <nav class="docker-module-tabs" role="tablist" aria-label="Secções Docker">
+          <button type="button" class="docker-module-tab active" data-docker-tab="containers" role="tab" aria-selected="true">Contêineres</button>
+          <button type="button" class="docker-module-tab" data-docker-tab="images" role="tab" aria-selected="false">Imagens</button>
+          <button type="button" class="docker-module-tab" data-docker-tab="volumes" role="tab" aria-selected="false">Volumes</button>
+        </nav>
+        <div id="docker-section-containers" class="docker-section">
+        <header class="docker-page-header">
+          <div class="docker-page-top">
+            <div class="docker-page-title-block">
+              <h2>Contêineres Docker</h2>
+              <div class="docker-page-title-meta">
+                <p id="docker-status-bar" class="muted docker-status-bar">—</p>
+                <div id="docker-summary" class="docker-summary" aria-live="polite"></div>
+              </div>
+            </div>
+            <div class="docker-page-primary-actions">
+              <button type="button" class="btn btn-ghost btn-sm" id="docker-export" title="Exportar CSV">Exportar CSV</button>
+              <button type="button" class="btn btn-primary btn-sm" id="docker-refresh">Atualizar</button>
+            </div>
+          </div>
+          <div class="docker-toolbar-row" role="toolbar" aria-label="Filtros e visualização">
+            <div class="docker-toolbar-group docker-toolbar-toggles">
+              <label class="checkbox-row docker-toggle-all">
+                <input type="checkbox" id="docker-show-all" /> Incluir parados
+              </label>
+              <label class="checkbox-row docker-toggle-auto">
+                <input type="checkbox" id="docker-auto-refresh" checked /> Auto-atualizar
+              </label>
+              <label class="field-inline docker-poll-interval" title="Intervalo de atualização automática">
+                <span class="muted">cada</span>
+                <select id="docker-poll-interval" class="docker-sort docker-poll-select" aria-label="Intervalo de atualização">
+                  <option value="5000">5 s</option>
+                  <option value="8000" selected>8 s</option>
+                  <option value="15000">15 s</option>
+                  <option value="30000">30 s</option>
+                  <option value="60000">60 s</option>
+                </select>
+              </label>
+              <label class="checkbox-row docker-toggle-group" title="Agrupar por projeto Compose">
+                <input type="checkbox" id="docker-group-compose" /> Agrupar Compose
+              </label>
+              <span class="docker-group-controls hidden" id="docker-group-controls">
+                <button type="button" class="btn btn-ghost btn-sm" id="docker-groups-expand">Expandir</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="docker-groups-collapse">Colapsar</button>
+              </span>
+            </div>
+            <div class="docker-toolbar-group docker-toolbar-search">
+              <input type="search" id="docker-filter" class="docker-filter" placeholder="Filtrar por nome, imagem ou ID…" aria-label="Filtrar contêineres" />
+            </div>
+            <div class="docker-toolbar-group docker-toolbar-meta">
+              <select id="docker-sort" class="docker-sort" aria-label="Ordenar">
+                <option value="name">Nome A–Z</option>
+                <option value="name-desc">Nome Z–A</option>
+                <option value="cpu">CPU %</option>
+                <option value="mem">RAM %</option>
+                <option value="restarts">Reinícios</option>
+                <option value="state">Estado (ativos primeiro)</option>
+              </select>
+              <div class="view-toggle docker-view-toggle" role="group" aria-label="Modo de visualização">
+                <button type="button" class="view-toggle-btn active" id="docker-view-list" data-view="list" title="Lista">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                </button>
+                <button type="button" class="view-toggle-btn" id="docker-view-grid" data-view="grid" title="Grelha">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="docker-toolbar-filters" role="group" aria-label="Filtros rápidos">
+            <button type="button" class="docker-filter-chip active" data-quick="all">Todos</button>
+            <button type="button" class="docker-filter-chip" data-quick="running">Em execução</button>
+            <button type="button" class="docker-filter-chip" data-quick="stopped">Parados</button>
+            <button type="button" class="docker-filter-chip" data-quick="warn">Alerta</button>
+            <button type="button" class="docker-filter-chip" data-quick="critical">Críticos</button>
+            <button type="button" class="docker-filter-chip" data-quick="compose">Compose</button>
+            <button type="button" class="docker-filter-chip" data-quick="swarm">Swarm</button>
+            <div class="docker-toolbar-filters-end">
+              <span class="docker-legend-hint muted" title="Neutro · amarelo ≥75% CPU/RAM · vermelho ≥90%">Legenda cores</span>
+              <label class="checkbox-row docker-select-all-master" title="Marcar ou desmarcar todos os contêineres visíveis">
+                <input type="checkbox" id="docker-select-all-master" aria-label="Selecionar todos visíveis" />
+                Selecionar todos visíveis
+              </label>
+            </div>
+          </div>
+          <div class="docker-batch-bar hidden" id="docker-batch-bar" role="toolbar" aria-label="Acções em lote">
+            <span id="docker-batch-count" class="docker-batch-count">0 selecionados</span>
+            <button type="button" class="btn btn-ghost btn-sm" id="docker-batch-start">Iniciar</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="docker-batch-restart">Reiniciar</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="docker-batch-stop">Parar</button>
+            <button type="button" class="btn btn-ghost btn-sm btn-danger" id="docker-batch-remove">Remover</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="docker-batch-clear">Limpar</button>
+          </div>
+        </header>
+        <div class="docker-workspace" id="docker-workspace">
+          <div class="docker-master-pane">
+            <div class="docker-master-toolbar hidden" id="docker-master-toolbar">
+              <button type="button" class="btn btn-ghost btn-sm" id="docker-back-list">← Todos os contêineres</button>
+            </div>
+            <div class="docker-list-scroll">
+              <div id="docker-list" class="docker-list"></div>
+            </div>
+          </div>
+          <aside class="docker-detail-pane hidden" id="docker-detail-pane" aria-label="Detalhes do contêiner">
+            <div id="docker-detail-content" class="docker-detail-content"></div>
+          </aside>
+        </div>
+        </div>
+
+        <div id="docker-section-images" class="docker-section hidden">
+          <header class="docker-page-header docker-subpage-header">
+            <div class="docker-page-top">
+              <div class="docker-page-title-block">
+                <h2>Imagens Docker</h2>
+                <p id="docker-images-status" class="muted docker-status-bar">—</p>
+              </div>
+              <div class="docker-page-primary-actions">
+                <button type="button" class="btn btn-primary btn-sm" id="docker-images-refresh">Atualizar</button>
+              </div>
+            </div>
+            <div class="docker-toolbar-row">
+              <div class="docker-toolbar-group docker-toolbar-search">
+                <input type="search" id="docker-images-filter" class="docker-filter" placeholder="Filtrar por tag ou ID…" aria-label="Filtrar imagens" />
+              </div>
+              <label class="checkbox-row docker-images-dangling">
+                <input type="checkbox" id="docker-images-dangling" /> Só dangling (&lt;none&gt;)
+              </label>
+            </div>
+          </header>
+          <div class="docker-resource-scroll">
+            <div id="docker-images-list" class="docker-resource-host"></div>
+          </div>
+        </div>
+
+        <div id="docker-section-volumes" class="docker-section hidden">
+          <header class="docker-page-header docker-subpage-header">
+            <div class="docker-page-top">
+              <div class="docker-page-title-block">
+                <h2>Volumes Docker</h2>
+                <p id="docker-volumes-status" class="muted docker-status-bar">—</p>
+              </div>
+              <div class="docker-page-primary-actions">
+                <button type="button" class="btn btn-primary btn-sm" id="docker-volumes-refresh">Atualizar</button>
+              </div>
+            </div>
+            <div class="docker-toolbar-row">
+              <div class="docker-toolbar-group docker-toolbar-search">
+                <input type="search" id="docker-volumes-filter" class="docker-filter" placeholder="Filtrar por nome…" aria-label="Filtrar volumes" />
+              </div>
+            </div>
+          </header>
+          <div class="docker-resource-scroll">
+            <div id="docker-volumes-list" class="docker-resource-host"></div>
+          </div>
+        </div>
       </div>
 
       <div id="view-disks" class="subview">
@@ -559,6 +739,71 @@
     </div>
   </dialog>
 
+  <dialog id="docker-logs-dialog" class="modal-dialog docker-panel-dialog docker-logs-dialog">
+    <div class="modal-form docker-panel-form">
+      <div class="docker-panel-head">
+        <h3 id="docker-logs-title">Logs</h3>
+        <div class="btn-row docker-logs-toolbar">
+          <label class="field-inline">Linhas <input type="number" id="docker-logs-tail" min="50" max="5000" value="500" class="input-sm" /></label>
+          <label class="field-inline checkbox-row"><input type="checkbox" id="docker-logs-since" /> Desde reinício</label>
+          <label class="field-inline checkbox-row"><input type="checkbox" id="docker-logs-wrap" checked /> Quebrar linhas</label>
+          <input type="search" id="docker-logs-search" class="docker-filter docker-logs-search" placeholder="Filtrar linhas…" aria-label="Filtrar logs" />
+          <button type="button" class="btn btn-ghost btn-sm" id="docker-logs-refresh">Atualizar</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="docker-logs-copy">Copiar</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="docker-logs-auto">Pausar live</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="docker-logs-close">Fechar</button>
+        </div>
+      </div>
+      <pre id="docker-logs-body" class="code-block docker-logs-body docker-logs-wrap"></pre>
+      <p id="docker-logs-status" class="muted docker-logs-status"></p>
+    </div>
+  </dialog>
+
+  <dialog id="docker-stats-dialog" class="modal-dialog docker-panel-dialog">
+    <div class="modal-form docker-panel-form">
+      <div class="docker-panel-head">
+        <h3 id="docker-stats-title">Estatísticas</h3>
+        <div class="btn-row">
+          <span id="docker-stats-live" class="muted docker-stats-live-badge">● live</span>
+          <button type="button" class="btn btn-ghost btn-sm" id="docker-stats-refresh">Atualizar</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="docker-stats-close">Fechar</button>
+        </div>
+      </div>
+      <div id="docker-stats-body" class="docker-stats-panel"></div>
+    </div>
+  </dialog>
+
+  <dialog id="docker-batch-result-dialog" class="modal-dialog">
+    <div class="modal-form">
+      <h3 id="docker-batch-result-title">Resultado do lote</h3>
+      <p id="docker-batch-result-summary" class="muted"></p>
+      <pre id="docker-batch-result-body" class="code-block docker-batch-result-body hidden"></pre>
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary btn-sm" id="docker-batch-result-close">Fechar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="docker-inspect-dialog" class="modal-dialog docker-panel-dialog">
+    <div class="modal-form docker-panel-form">
+      <div class="docker-panel-head">
+        <h3 id="docker-inspect-title">Detalhes</h3>
+        <button type="button" class="btn btn-ghost btn-sm" id="docker-inspect-close">Fechar</button>
+      </div>
+      <pre id="docker-inspect-body" class="code-block"></pre>
+    </div>
+  </dialog>
+
+  <dialog id="docker-exec-dialog" class="modal-dialog docker-exec-dialog">
+    <div class="modal-form docker-panel-form">
+      <div class="docker-panel-head">
+        <h3 id="docker-exec-title">Consola</h3>
+        <button type="button" class="btn btn-ghost btn-sm" id="docker-exec-close">Fechar</button>
+      </div>
+      <div id="docker-exec-terminal" class="terminal-box docker-exec-terminal"></div>
+    </div>
+  </dialog>
+
   <dialog id="sudo-dialog" class="modal-dialog">
     <form id="sudo-form" class="modal-form" onsubmit="return false;">
       <h3>Superusuário (sudo)</h3>
@@ -583,6 +828,7 @@
   <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
   <script src="/ui.js"></script>
   <script src="/app.js"></script>
+  <script src="/docker-manager.js"></script>
   <script src="/explorer.js"></script>
   <script src="/explorer-enhanced.js"></script>
   <script src="/i18n.js"></script>

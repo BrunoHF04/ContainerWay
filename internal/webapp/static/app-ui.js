@@ -6,7 +6,16 @@
   function buildCommands() {
     return [
       { id: "hub", title: "Início (hub)", sub: "Menu principal", kw: "hub", run: () => { showScreen("hub"); renderHub(); } },
-      { id: "connect", title: "Ligação SSH", sub: "Perfis", run: () => showScreen("connect") },
+      {
+        id: "connect",
+        title: "Ligação SSH",
+        sub: "Perfis",
+        run: () => {
+          setAppTopbar(true);
+          showView("#view-login");
+          showLoginPhase("connect");
+        },
+      },
       { id: "explorer", title: "Explorador", sub: "Ficheiros SFTP", run: () => showScreen("explorer") },
       { id: "docker", title: "Docker", sub: "Contêineres", run: () => showScreen("docker") },
       { id: "disks", title: "Discos", sub: "Armazenamento", run: () => showScreen("disks") },
