@@ -106,7 +106,7 @@
             </div>
             <div id="login-connect-panel" class="login-panel hidden" hidden>
               <div class="page-card-head login-connect-head">
-                <h2>Ligação SSH/SFTP</h2>
+                <h2>Conexão SSH/SFTP</h2>
                 <p class="muted">Ligue-se ao servidor para aceder aos módulos.</p>
               </div>
               <form id="ssh-form" class="form-stack ssh-form">
@@ -114,7 +114,7 @@
                 <label class="field">Nome do perfil<input type="text" id="ssh-name" placeholder="ex.: VM 63" required /></label>
                 <div class="field-row">
                   <label class="field">Host<input type="text" id="ssh-host" required placeholder="10.0.1.63" /></label>
-                  <label class="field">Utilizador<input type="text" id="ssh-user" required /></label>
+                  <label class="field">Usuário<input type="text" id="ssh-user" required /></label>
                 </div>
                 <label class="field">Senha<input type="password" id="ssh-pass" autocomplete="current-password" /></label>
                 <label class="checkbox-row"><input type="checkbox" id="ssh-save-secrets" checked /> Guardar senha no perfil</label>
@@ -122,7 +122,7 @@
                 <p id="ssh-test-result" class="status-line muted hidden"></p>
                 <div class="btn-row">
                   <button type="submit" class="btn btn-primary btn-glow">Conectar</button>
-                  <button type="button" class="btn btn-ghost" id="btn-ssh-test" data-i18n="ssh.test">Testar ligação</button>
+                  <button type="button" class="btn btn-ghost" id="btn-ssh-test" data-i18n="ssh.test">Testar conexão</button>
                   <button type="button" class="btn btn-ghost" id="ssh-save-profile">Guardar perfil</button>
                   <button type="button" class="btn btn-ghost btn-danger-text" id="ssh-delete-profile">Apagar</button>
                 </div>
@@ -166,7 +166,7 @@
         <div class="explorer-toolbar glass-bar-inline">
           <div class="explorer-toolbar-start">
             <details class="explorer-menu" data-menu-prefer="down">
-              <summary class="btn btn-ghost btn-sm explorer-menu-trigger" title="Operações de ficheiros">Ações</summary>
+              <summary class="btn btn-ghost btn-sm explorer-menu-trigger" title="Operações de arquivos">Ações</summary>
               <div class="explorer-menu-panel">
                 <button type="button" class="btn btn-ghost btn-sm" id="btn-new-folder">Nova pasta</button>
                 <button type="button" class="btn btn-ghost btn-sm" id="btn-rename-item">Renomear</button>
@@ -233,7 +233,7 @@
             <div id="local-bc" class="bc-bar"></div>
             <div id="local-panel-alert" class="panel-alert hidden" role="alert"></div>
             <div class="panel-search">
-              <input type="search" id="local-filter" class="panel-filter" placeholder="Filtrar ficheiros…" />
+              <input type="search" id="local-filter" class="panel-filter" placeholder="Filtrar arquivos…" />
             </div>
             <div class="file-list-head" data-side="local">
               <button type="button" class="file-col-btn active" data-col="name">Nome</button>
@@ -249,8 +249,8 @@
               <h2 class="panel-title" data-i18n="explorer.remote">Remoto</h2>
               <div class="panel-head-mid">
                 <div class="remote-target-toggle" role="tablist" aria-label="Destino remoto">
-                  <button type="button" class="remote-target-btn active" data-target="host" id="remote-target-host" title="Ficheiros no host via SFTP">SFTP</button>
-                  <button type="button" class="remote-target-btn" data-target="container" id="remote-target-container" title="Ficheiros dentro do contêiner">Docker</button>
+                  <button type="button" class="remote-target-btn active" data-target="host" id="remote-target-host" title="Arquivos no host via SFTP">SFTP</button>
+                  <button type="button" class="remote-target-btn" data-target="container" id="remote-target-container" title="Arquivos dentro do contêiner">Docker</button>
                 </div>
                 <input type="search" id="remote-container-filter" class="remote-container-filter hidden" placeholder="Filtrar contêiner…" aria-label="Filtrar contêineres" />
                 <select id="remote-container" class="panel-select remote-container-select hidden" size="1" title="Seleccionar contêiner" aria-label="Contêiner"></select>
@@ -279,7 +279,7 @@
               <button type="button" class="btn btn-primary btn-sm" id="remote-panel-alert-sudo">Activar sudo</button>
             </div>
             <div class="panel-search">
-              <input type="search" id="remote-filter" class="panel-filter" placeholder="Filtrar ficheiros…" />
+              <input type="search" id="remote-filter" class="panel-filter" placeholder="Filtrar arquivos…" />
             </div>
             <div class="file-list-head" data-side="remote">
               <button type="button" class="file-col-btn active" data-col="name">Nome</button>
@@ -301,7 +301,7 @@
                 <button type="button" class="btn btn-ghost btn-sm btn-icon" id="btn-preview-close" title="Fechar painel" aria-label="Fechar">×</button>
               </div>
             </header>
-            <div id="preview-content" class="preview-content muted">Selecione um ficheiro</div>
+            <div id="preview-content" class="preview-content muted">Selecione um arquivo</div>
           </aside>
           </div>
           <div class="explorer-xfer-dock glass-card collapsed" id="explorer-xfer-dock">
@@ -526,12 +526,141 @@
         </div>
       </div>
 
-      <div id="view-disks" class="subview">
-        <div class="page-head glass-bar-inline"><h2>Discos e armazenamento</h2>
-          <button type="button" class="btn btn-ghost" id="disks-refresh">Atualizar</button></div>
-        <div class="content-pad">
-          <div id="disks-table-wrap" class="table-wrap glass-card"></div>
-          <pre id="disks-df" class="code-block"></pre>
+      <div id="view-disks" class="subview disks-module">
+        <header class="disks-top-bar glass-card">
+          <div class="disks-top-compact">
+            <div class="disks-top-primary">
+              <h2 class="disks-screen-title" data-i18n="disks.title">Discos e armazenamento no servidor</h2>
+              <span id="disks-sudo-status" class="disks-sudo-chip muted" title=""></span>
+            </div>
+            <div class="disks-top-actions">
+              <button type="button" class="btn btn-primary btn-sm" id="disks-refresh" data-i18n="disks.refresh">Atualizar</button>
+              <label class="checkbox-row disks-auto-check">
+                <input type="checkbox" id="disks-auto-refresh" />
+                <span data-i18n="disks.auto">Auto 90 s (aba host)</span>
+              </label>
+              <button type="button" class="btn btn-primary btn-sm" id="disks-sudo-on" data-i18n="disks.sudo.on">Ativar sudo</button>
+              <button type="button" class="btn btn-ghost btn-sm hidden" id="disks-sudo-off" data-i18n="disks.sudo.off">Desativar sudo</button>
+              <span id="disks-updated-at" class="disks-updated muted">—</span>
+            </div>
+          </div>
+          <p class="disks-meta disks-meta-inline muted" data-i18n="disks.meta">lsblk + df/LVM · loops do Snap ocultos por padrão.</p>
+        </header>
+        <nav class="disks-module-tabs" role="tablist" aria-label="Seções de discos">
+          <button type="button" class="disks-module-tab active" data-disks-tab="assistant" data-i18n="disks.tab.assistant" role="tab" aria-selected="true">Assistente</button>
+          <button type="button" class="disks-module-tab" data-disks-tab="host" data-i18n="disks.tab.host" role="tab" aria-selected="false">Armazenamento no host</button>
+          <button type="button" class="disks-module-tab" data-disks-tab="technical" data-i18n="disks.tab.technical" role="tab" aria-selected="false">Detalhe técnico</button>
+          <button type="button" class="disks-module-tab" data-disks-tab="files" data-i18n="disks.tab.files" role="tab" aria-selected="false">Arquivos</button>
+        </nav>
+        <div id="disks-section-assistant" class="disks-section active">
+          <div class="disks-assistant glass-card disks-panel">
+            <h3 class="disks-panel-title" data-i18n="disks.assistant.title">Assistente: ampliar volume lógico</h3>
+            <label class="field disks-lv-field">
+              <span data-i18n="disks.assistant.lv">Volume lógico (última atualização)</span>
+              <select id="disks-lv-select" class="disks-control"></select>
+            </label>
+            <div id="disks-assistant-detail" class="disks-assistant-detail"></div>
+            <p id="disks-vg-hint" class="disks-vg-hint muted"></p>
+            <div class="disks-assistant-actions">
+              <button type="button" class="btn btn-ghost btn-sm" id="disks-copy-path" data-i18n="disks.copyPath">Copiar caminho</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="disks-open-tech-vgs" data-i18n="disks.viewVgs">Ver VGS</button>
+            </div>
+            <hr class="disks-sep" />
+            <div class="disks-form-grid">
+              <label class="field disks-field-path">
+                <span data-i18n="disks.lvPath">Caminho do LV</span>
+                <input type="text" class="disks-control" id="disks-lv-path" placeholder="/dev/mapper/…" autocomplete="off" />
+              </label>
+              <label class="field disks-field-gib">
+                <span data-i18n="disks.addGib">+ GiB</span>
+                <input type="text" class="disks-control" id="disks-add-gib" placeholder="5" inputmode="decimal" autocomplete="off" />
+              </label>
+              <label class="field disks-field-fs">
+                <span data-i18n="disks.fs">Sistema de arquivos</span>
+                <select id="disks-fs-select" class="disks-control">
+                  <option value="ext4" selected>ext4</option>
+                  <option value="ext3">ext3</option>
+                  <option value="ext2">ext2</option>
+                  <option value="xfs">xfs</option>
+                  <option value="btrfs">btrfs</option>
+                </select>
+              </label>
+            </div>
+            <p class="disks-add-hint muted" data-i18n="disks.addHint">É preciso espaço livre no VG; erros aparecem no detalhe técnico.</p>
+            <div class="disks-expand-actions">
+              <button type="button" class="btn btn-primary btn-sm" id="disks-extend-lv" data-i18n="disks.extend">Ampliar LV (LVM)</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="disks-shrink-info" data-i18n="disks.shrink">Redução de LV</button>
+            </div>
+          </div>
+        </div>
+        <div id="disks-section-host" class="disks-section">
+          <div class="disks-host glass-card">
+            <div class="disks-host-head disks-panel">
+              <div class="disks-host-title-row">
+                <h3 class="disks-panel-title" data-i18n="disks.host.title">Armazenamento no host (resumo)</h3>
+                <label class="checkbox-row disks-loop-check">
+                  <input type="checkbox" id="disks-show-loop" />
+                  <span data-i18n="disks.host.loops">Loops (Snap)</span>
+                </label>
+              </div>
+              <div class="disks-host-toolbar">
+                <input type="search" id="disks-filter" class="disks-control disks-filter" data-i18n="disks.host.filter" placeholder="Filtrar…" aria-label="Filtrar tabela" />
+                <label class="disks-sort-row">
+                  <span data-i18n="disks.host.sort">Ordenação</span>
+                  <select id="disks-sort" class="disks-control disks-sort">
+                    <option value="lsblk">lsblk (árvore)</option>
+                    <option value="block">Bloco ↓</option>
+                    <option value="use">Uso % ↓</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+            <div class="disks-table-header" aria-hidden="true">
+              <span class="disks-col-dev" data-i18n="disks.col.device">Dispositivo</span>
+              <span class="disks-col-type" data-i18n="disks.col.type">Tipo</span>
+              <span class="disks-col-mount" data-i18n="disks.col.mount">Montagem</span>
+              <span class="disks-col-usage" data-i18n="disks.col.usage">Tamanho / uso</span>
+            </div>
+            <div id="disks-host-list" class="disks-host-list" role="list"></div>
+          </div>
+        </div>
+        <div id="disks-section-technical" class="disks-section">
+          <div class="disks-technical glass-card">
+            <div class="disks-tech-bar disks-panel">
+              <h3 class="disks-panel-title" data-i18n="disks.tech.title">Saída bruta (df, LVM, avisos)</h3>
+              <button type="button" class="btn btn-ghost btn-sm" id="disks-jump-vgs" data-i18n="disks.tech.vgs">VGS</button>
+            </div>
+            <pre id="disks-technical-text" class="disks-tech-pre code-block"></pre>
+          </div>
+        </div>
+        <div id="disks-section-files" class="disks-section">
+          <div class="disks-files glass-card">
+            <div class="disks-files-head disks-panel">
+              <div class="disks-files-title-row">
+                <h3 class="disks-panel-title" data-i18n="disks.files.title">Gerenciamento de arquivos</h3>
+                <p class="disks-files-sub muted" data-i18n="disks.files.sub">Uso por pasta — clique em uma pasta para abrir</p>
+              </div>
+              <div class="disks-files-toolbar">
+                <label class="disks-files-root-label">
+                  <span data-i18n="disks.files.start">Início</span>
+                  <select id="disks-files-root" class="disks-control disks-files-root"></select>
+                </label>
+                <button type="button" class="btn btn-ghost btn-sm" id="disks-files-up" title="Pasta anterior" disabled data-i18n="disks.files.up">↑ Subir</button>
+                <button type="button" class="btn btn-primary btn-sm" id="disks-files-scan" data-i18n="disks.files.scan">Analisar pasta</button>
+                <input type="search" id="disks-files-filter" class="disks-control disks-files-filter" data-i18n="disks.files.filter" placeholder="Filtrar nome…" />
+              </div>
+              <nav id="disks-files-breadcrumb" class="disks-files-breadcrumb" aria-label="Caminho atual"></nav>
+              <p id="disks-files-summary" class="disks-files-summary muted" data-i18n="disks.files.hint">Selecione uma pasta e clique em «Analisar pasta».</p>
+            </div>
+            <div class="disks-files-table-header" aria-hidden="true">
+              <span class="disks-files-col-name" data-i18n="disks.files.col.name">Nome</span>
+              <span class="disks-files-col-bar" data-i18n="disks.files.col.bar">Uso</span>
+              <span class="disks-files-col-size" data-i18n="disks.files.col.size">Tamanho</span>
+              <span class="disks-files-col-pct" data-i18n="disks.files.col.pct">%</span>
+              <span class="disks-files-col-actions" data-i18n="disks.files.col.actions">Ações</span>
+            </div>
+            <div id="disks-files-list" class="disks-files-list" role="list"></div>
+          </div>
         </div>
       </div>
 
@@ -755,7 +884,7 @@
   <dialog id="file-editor-dialog" class="modal-dialog file-editor-dialog">
     <div class="modal-form file-editor-form">
       <div class="file-editor-head">
-        <h3 id="file-editor-title">Editar ficheiro</h3>
+        <h3 id="file-editor-title">Editar arquivo</h3>
         <p id="file-editor-path" class="muted file-editor-path"></p>
       </div>
       <div id="file-editor-image-wrap" class="file-editor-image-wrap hidden">
@@ -962,6 +1091,27 @@
     </div>
   </dialog>
 
+  <dialog id="disks-extend-dialog" class="modal-dialog disks-result-dialog">
+    <div class="modal-form">
+      <h3 data-i18n="disks.extend.title">Ampliar LV — concluído</h3>
+      <pre id="disks-extend-output" class="disks-result-pre code-block"></pre>
+      <div class="btn-row end">
+        <button type="button" class="btn btn-primary btn-sm" id="disks-extend-close" data-i18n="disks.close">Fechar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="disks-vgs-dialog" class="modal-dialog disks-result-dialog">
+    <div class="modal-form">
+      <h3 data-i18n="disks.vgs.title">VGS (extração)</h3>
+      <pre id="disks-vgs-output" class="disks-result-pre code-block"></pre>
+      <div class="btn-row end">
+        <button type="button" class="btn btn-ghost btn-sm" id="disks-vgs-goto-tech">Detalhe técnico</button>
+        <button type="button" class="btn btn-primary btn-sm" id="disks-vgs-close" data-i18n="disks.close">Fechar</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="sudo-dialog" class="modal-dialog">
     <form id="sudo-form" class="modal-form" onsubmit="return false;">
       <h3>Superusuário (sudo)</h3>
@@ -987,6 +1137,7 @@
   <script src="/ui.js"></script>
   <script src="/app.js"></script>
   <script src="/docker-manager.js"></script>
+  <script src="/disks-manager.js"></script>
   <script src="/explorer.js"></script>
   <script src="/explorer-enhanced.js"></script>
   <script src="/i18n.js"></script>

@@ -35,7 +35,7 @@
       return;
     }
     const user = state.sudo.user || "root";
-    btn.title = on ? `Sudo activo (${user}) — clique para desactivar` : "Activar sudo/root no host";
+    btn.title = on ? `Sudo ativo (${user}) — clique para desativar` : "Ativar sudo/root no host";
     btn.textContent = on ? user : "Sudo";
   }
 
@@ -89,7 +89,11 @@
       CWUI.emptyState(container, {
         icon: "📂",
         title: q ? "Sem resultados" : "Pasta vazia",
-        desc: q ? "Nenhum item corresponde ao filtro." : (side === "local" ? "Não há ficheiros nesta pasta local." : "Não há ficheiros neste diretório."),
+        desc: q
+          ? (window.CWI18n?.t("explorer.empty.filter") || "Nenhum item corresponde ao filtro.")
+          : (side === "local"
+            ? (window.CWI18n?.t("explorer.empty.local") || "Não há arquivos nesta pasta local.")
+            : (window.CWI18n?.t("explorer.empty.remote") || "Não há arquivos neste diretório.")),
       });
       return;
     }
@@ -134,6 +138,12 @@
     state.selLocal = null;
     renderEntries($("#local-list"), data.entries, "local");
     if (typeof updateExplorerBreadcrumbs === "function") updateExplorerBreadcrumbs();
+  };
+
+  window.openRemoteExplorer = function openRemoteExplorer(remotePath) {
+    setRemoteTarget("host");
+    showScreen("explorer");
+    void window.loadRemote(remotePath || "/");
   };
 
   window.loadRemote = async function loadRemote(path) {
@@ -487,7 +497,7 @@
     _btnSend.replaceWith(_btnSend.cloneNode(true));
     $("#btn-send").addEventListener("click", async () => {
       if (!state.selLocal || state.selLocal.name === "..") {
-        CWUI.toast("Selecione um ficheiro ou pasta no painel local.", "error");
+        CWUI.toast(window.CWI18n?.t("explorer.toast.selectLocal") || "Selecione um arquivo ou pasta no painel local.", "error");
         return;
       }
       if (!(await CWConfirm(`Enviar para ${state.remotePath}?`))) return;
@@ -566,7 +576,7 @@
       imgWrap?.classList.add("hidden");
       saveBtn?.classList.add("hidden");
       hint?.classList.remove("hidden");
-      if (hint) hint.textContent = "Ficheiro binário ou não suportado no editor web. Abra com um programa no seu PC.";
+      if (hint) hint.textContent = window.CWI18n?.t("explorer.editor.binary") || "Arquivo binário ou não suportado no editor web. Abra com um programa no seu PC.";
     }
     syncBtn?.classList.toggle("hidden", !state.fileEdit?.externalSessionId);
   }
@@ -734,7 +744,7 @@
     const side = state.selRemote && !state.selLocal ? "remote" : "local";
     const entry = side === "local" ? state.selLocal : state.selRemote;
     if (!entry || entry.isDir) {
-      CWUI.toast("Selecione um ficheiro para editar.", "error");
+      CWUI.toast(window.CWI18n?.t("explorer.toast.selectFile") || "Selecione um arquivo para editar.", "error");
       return;
     }
     openFileEditor(side, entry);
@@ -755,12 +765,13 @@
   $("#btn-sudo")?.addEventListener("click", async () => {
     if (!state.ssh.connected || remoteSource() !== "host") return;
     if (state.sudo?.enabled) {
-      if (!(await CWConfirm("Desactivar modo sudo?"))) return;
+      if (!(await CWConfirm("Desativar modo sudo?"))) return;
       try {
         await api("/api/ssh/sudo", { method: "POST", body: JSON.stringify({ action: "disable" }) });
         state.sudo = { enabled: false, user: "" };
         updateSudoButton();
         CWUI.toast("Sudo desactivado", "success");
+        document.dispatchEvent(new CustomEvent("cw-sudo-changed"));
         if (state.remotePath) loadRemote(state.remotePath);
       } catch (e) {
         CWUI.toast(e.message, "error");
@@ -821,7 +832,8 @@
       updateSudoButton();
       $("#sudo-dialog")?.close();
       if (state.screen !== "explorer") showScreen("explorer");
-      CWUI.toast(`Sudo activo (${state.sudo.user})`, "success");
+      CWUI.toast(`Sudo ativo (${state.sudo.user})`, "success");
+      document.dispatchEvent(new CustomEvent("cw-sudo-changed"));
       await loadRemote(state.remotePath || "/");
     } catch (e) {
       const msg = e.message || "Falha ao activar sudo";
@@ -890,7 +902,7 @@
         method: "PUT",
         body: JSON.stringify(body),
       });
-      CWUI.toast("Ficheiro guardado", "success");
+      CWUI.toast("Arquivo salvo", "success");
       $("#file-editor-dialog")?.close();
       state.fileEdit = null;
       if (edit.side === "local") await loadLocal(state.localPath);

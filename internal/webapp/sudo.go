@@ -313,6 +313,38 @@ func (b *sshBundle) writeHostFileWithSudo(ctx context.Context, remotePath string
 	return nil
 }
 
+// removeHostWithSudo remove ficheiro ou pasta no host com rm via sudo.
+func (b *sshBundle) removeHostWithSudo(ctx context.Context, remotePath string, recursive bool) error {
+	if err := b.ensureSudoSession(ctx); err != nil {
+		return err
+	}
+	clean := path.Clean(strings.TrimSpace(remotePath))
+	if clean == "/" || clean == "." || clean == "" {
+		return fmt.Errorf("não é permitido apagar a raiz do sistema")
+	}
+	b.sudoMu.Lock()
+	user := b.sudoUser
+	pass := b.sudoPass
+	b.sudoMu.Unlock()
+	rmFlag := ""
+	if recursive {
+		rmFlag = "-rf"
+	} else {
+		rmFlag = "-f"
+	}
+	inner := fmt.Sprintf("rm %s -- %s", rmFlag, shellQuote(clean))
+	cmd := fmt.Sprintf("sudo -S -p '' -u %s sh -lc %s", shellQuote(user), shellQuote(inner))
+	_, stderr, err := b.runSSHCommand(ctx, cmd, pass)
+	if err != nil {
+		msg := strings.TrimSpace(stderr)
+		if msg == "" {
+			msg = err.Error()
+		}
+		return fmt.Errorf("%s", msg)
+	}
+	return nil
+}
+
 // isPermissionDenied indica erro de permissão SFTP/SSH.
 func isPermissionDenied(err error) bool {
 	if err == nil {

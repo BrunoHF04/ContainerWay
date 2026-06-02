@@ -8,7 +8,7 @@
       { id: "hub", title: "Início (hub)", sub: "Menu principal", kw: "hub", run: () => { showScreen("hub"); renderHub(); } },
       {
         id: "connect",
-        title: "Ligação SSH",
+        title: "Conexão SSH",
         sub: "Perfis",
         run: () => {
           setAppTopbar(true);
@@ -16,7 +16,7 @@
           showLoginPhase("connect");
         },
       },
-      { id: "explorer", title: "Explorador", sub: "Ficheiros SFTP", run: () => showScreen("explorer") },
+      { id: "explorer", title: "Explorador", sub: "Arquivos SFTP", run: () => showScreen("explorer") },
       { id: "docker", title: "Docker", sub: "Contêineres", run: () => showScreen("docker") },
       { id: "disks", title: "Discos", sub: "Armazenamento", run: () => showScreen("disks") },
       { id: "terminal", title: "Terminal", sub: "SSH interativo", run: () => showScreen("terminal") },

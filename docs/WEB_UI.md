@@ -144,7 +144,10 @@ Listagem dentro de contêineres: `docker exec ls` (sem depender de `CopyFromCont
 | GET | `/api/docker/stats?id=` | Métricas (`?raw=1` para JSON bruto) |
 | GET | `/api/docker/inspect?id=` | Inspect resumido |
 | WS | `/api/docker/exec/ws?id=` | Consola no contêiner |
-| GET | `/api/disks/summary` | Discos (lsblk + df) |
+| GET | `/api/disks/summary` | Discos (legado, resumo simples) |
+| GET | `/api/disks/probe` | Discos: lsblk, df, LVM, tabela host |
+| POST | `/api/disks/extend-lv` | Ampliar volume LVM (sudo) |
+| GET | `/api/disks/usage?path=` | Uso por pasta (TreeSize/ncdu) |
 | GET / PUT | `/api/automations/rules` | Regras do host |
 | GET / DELETE | `/api/automations/history` | Histórico / limpar |
 | GET / POST | `/api/automations/engine` | Motor (`start` \| `stop`) |
@@ -161,12 +164,11 @@ Listagem dentro de contêineres: `docker exec ls` (sem depender de `CopyFromCont
 | Hub / menu da sessão | Sim |
 | Explorador dual (SFTP + Docker, sudo, editor, externo, favoritos, lote, comparar) | Sim |
 | Contêineres Docker (métricas, ciclo de vida, lote, logs live, consola, CSV) | Sim |
-| Discos (lsblk + df) | Sim |
+| Discos (lsblk, LVM, assistente, arquivos, técnico) | Sim |
 | Terminal SSH (WebSocket + xterm) | Sim |
 | Automações (regras, motor, histórico) | Sim |
 | Admin: utilizadores e SMTP | Sim |
-| i18n (PT / EN / ES) na web | Planeado |
-| Assistente LVM completo | Só desktop |
+| i18n (pt-BR / EN / ES) — explorador e módulo Discos | Parcial |
 | Multi-seleção, drag-and-drop, atalhos, comparar acionável, preview, dock | Disponível (`explorer-enhanced.js`) |
 
 ## Interface

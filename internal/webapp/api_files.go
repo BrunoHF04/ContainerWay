@@ -240,6 +240,18 @@ func (s *Server) handleRemoteDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	hfs := &hostfs.FS{Client: b.Sess.SFTP}
 	if err := hfs.Remove(body.Path, body.Recursive); err != nil {
+		if isPermissionDenied(err) {
+			b.sudoMu.Lock()
+			sudoOn := b.sudoEnabled
+			b.sudoMu.Unlock()
+			if sudoOn {
+				if errSudo := b.removeHostWithSudo(r.Context(), body.Path, body.Recursive); errSudo == nil {
+					b.addOperation("Apagado (remoto/sudo): "+filepath.Base(body.Path), "info")
+					writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+					return
+				}
+			}
+		}
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}

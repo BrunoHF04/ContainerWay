@@ -136,7 +136,7 @@ bindThemeButtons();
 const MODULES = [
   { id: "explorer", icon: "📁", accent: "cyan", title: "Gerenciador de arquivos", desc: "Painel duplo local/remoto, enviar e receber ficheiros.", kw: "arquivos sftp transferência" },
   { id: "docker", icon: "🐳", accent: "indigo", title: "Contêineres Docker", desc: "Lista, métricas, logs, consola e ciclo de vida.", kw: "docker container" },
-  { id: "disks", icon: "💾", accent: "emerald", title: "Discos e armazenamento", desc: "lsblk e uso por df no host.", kw: "disco lsblk armazenamento" },
+  { id: "disks", icon: "💾", accent: "emerald", title: "Discos e armazenamento", desc: "lsblk, uso de pastas, LVM e ampliação.", kw: "disco lsblk armazenamento lvm ncdu treesize" },
   { id: "terminal", icon: "⌨️", accent: "amber", title: "Terminal SSH", desc: "Consola remota interativa.", kw: "terminal ssh shell" },
   { id: "automations", icon: "⚙️", accent: "violet", title: "Central de automações", desc: "Regras e histórico por host.", kw: "automação regras" },
   { id: "settings", icon: "🔧", accent: "rose", title: "Configurações", desc: "Conta, utilizadores e SMTP.", kw: "configurações admin", adminOnly: true },
@@ -221,6 +221,7 @@ async function afterAuthSuccess(me) {
 }
 
 function showScreen(name) {
+  const prevScreen = state.screen;
   state.screen = name;
   $$(".subview").forEach((v) => {
     v.classList.toggle("active", v.id === `view-${name}`);
@@ -232,6 +233,7 @@ function showScreen(name) {
     loadDocker();
     window.dockerOnScreenEnter?.();
   }
+  if (prevScreen === "disks" && name !== "disks") window.disksOnScreenLeave?.();
   if (name === "disks") loadDisks();
   if (name === "automations") {
     loadAutomations();
@@ -748,26 +750,7 @@ async function refreshTransferStatus() {
 }
 setInterval(() => { if (state.screen === "explorer") refreshTransferStatus(); }, 2000);
 
-// Disks
-async function loadDisks() {
-  const wrap = $("#disks-table-wrap");
-  wrap.innerHTML = "";
-  CWUI.skeletonList(wrap, 4);
-  try {
-    const data = await api("/api/disks/summary");
-    let html = '<table class="data-table"><thead><tr><th>Dispositivo</th><th>Tipo</th><th>Montagem</th><th>Tamanho</th></tr></thead><tbody>';
-    for (const d of data.devices || []) {
-      const pad = "&nbsp;".repeat((d.depth || 0) * 2);
-      html += `<tr><td>${pad}${escapeHtml(d.name)}</td><td>${escapeHtml(d.type)}</td><td>${escapeHtml(d.mount || "—")}</td><td>${escapeHtml(String(d.size))}</td></tr>`;
-    }
-    html += "</tbody></table>";
-    wrap.innerHTML = html;
-    $("#disks-df").textContent = data.dfRaw || "";
-  } catch (e) {
-    wrap.innerHTML = `<p class="error">${escapeHtml(e.message)}</p>`;
-  }
-}
-$("#disks-refresh").addEventListener("click", loadDisks);
+// Discos — disks-manager.js (loadDisks)
 
 // Terminal
 function terminalWSUrl() {
