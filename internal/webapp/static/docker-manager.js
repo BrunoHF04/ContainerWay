@@ -116,6 +116,8 @@
     $("#docker-section-images")?.classList.toggle("hidden", tab !== "images");
     $("#docker-section-volumes")?.classList.toggle("hidden", tab !== "volumes");
     $("#docker-section-networks")?.classList.toggle("hidden", tab !== "networks");
+    const section = document.getElementById(`docker-section-${tab}`);
+    window.CWMotion?.pulseEnter?.(section, "section-enter");
   }
 
   function refreshDockerModule() {

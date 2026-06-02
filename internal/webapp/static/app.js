@@ -9,7 +9,9 @@ const state = {
   selRemote: null,
   term: null,
   termFit: null,
+  termResizeBound: false,
   termSocket: null,
+  termLog: "",
   autoRules: [],
   autoRulesDirty: false,
   autoEditIndex: -1,
@@ -150,14 +152,21 @@ const MODULES = [
   { id: "settings", icon: "🔧", accent: "rose", title: "Configurações", desc: "Conta, interface, SSH, módulos e administração.", kw: "configurações admin", adminOnly: true },
 ];
 
+function closeAllAppDialogs() {
+  document.querySelectorAll("dialog").forEach((dlg) => {
+    if (dlg.open) dlg.close();
+  });
+}
+
 function handleSessionExpired(message) {
   const msg = message || "Sessão expirada — inicie sessão novamente.";
   state.user = null;
   state.ssh.connected = false;
   state.ssh.host = "";
   state.ssh.user = "";
-  $("#sudo-dialog")?.close();
-  $("#confirm-dialog")?.close();
+  closeAllAppDialogs();
+  closeTerminalCmdPanel();
+  closeTerminal();
   setAppTopbar(false);
   showView("#view-login");
   showLoginPhase("auth");
@@ -189,6 +198,8 @@ async function api(path, options = {}) {
 }
 
 function showView(id) {
+  closeTerminalCmdPanel();
+  if (id === "#view-login") closeAllAppDialogs();
   $$(".view").forEach((v) => v.classList.remove("active"));
   $(id).classList.add("active");
 }
@@ -258,7 +269,19 @@ async function afterAuthSuccess(me) {
   tryAutoReconnectSSH();
 }
 
+function closeTerminalCmdPanel() {
+  const ov = document.getElementById("terminal-cmd-overlay");
+  if (!ov) return;
+  if (window.CWMotion?.closeOverlay) {
+    window.CWMotion.closeOverlay(ov);
+    return;
+  }
+  ov.classList.add("hidden");
+  ov.setAttribute("aria-hidden", "true");
+}
+
 function showScreen(name) {
+  if (name !== "terminal") closeTerminalCmdPanel();
   if (!canScreen(name)) {
     CWUI.toast("Sem permissão para acessar este módulo.", "error");
     if (state.ssh.connected && name !== "hub") name = "hub";
@@ -830,7 +853,16 @@ setInterval(() => { if (state.screen === "explorer") refreshTransferStatus(); },
 // Terminal
 function terminalWSUrl() {
   const p = location.protocol === "https:" ? "wss:" : "ws:";
-  return `${p}//${location.host}/api/ssh/terminal/ws`;
+  const cols = state.term?.cols || 80;
+  const rows = state.term?.rows || 24;
+  const cwd = encodeURIComponent(state.remotePath || "/");
+  const lang = encodeURIComponent(window.CWWebPrefs?.get?.("lang") || window.CWI18n?.lang?.() || "pt");
+  return `${p}//${location.host}/api/ssh/terminal/ws?cols=${cols}&rows=${rows}&cwd=${cwd}&lang=${lang}`;
+}
+
+function sendTerminalResize(ws) {
+  if (!state.term || !ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ op: "resize", cols: state.term.cols, rows: state.term.rows }));
 }
 
 function closeTerminal() {
@@ -843,6 +875,43 @@ function closeTerminal() {
     state.term = null;
     state.termFit = null;
   }
+  state.termLog = "";
+}
+
+function sendTerminalRaw(data) {
+  if (!data || state.termSocket?.readyState !== WebSocket.OPEN) return false;
+  state.termSocket.send(data);
+  return true;
+}
+
+function sendTerminalCmd(cmd, run) {
+  const c = String(cmd ?? "");
+  if (!c.trim() || state.termSocket?.readyState !== WebSocket.OPEN) return false;
+  sendTerminalRaw(c + (run ? "\r" : ""));
+  state.term?.focus?.();
+  return true;
+}
+
+window.CWTerminal = {
+  isConnected: () => state.termSocket?.readyState === WebSocket.OPEN,
+  sendRaw: sendTerminalRaw,
+  sendCmd: sendTerminalCmd,
+  clear: () => {
+    state.term?.clear?.();
+    state.termLog = "";
+    sendTerminalCmd("clear", true);
+  },
+  ctrlC: () => sendTerminalRaw("\x03"),
+  getLog: () => state.termLog || "",
+  focus: () => state.term?.focus?.(),
+};
+
+function fitTerminal() {
+  if (state.screen !== "terminal" || !state.termFit) return;
+  try {
+    state.termFit.fit();
+    sendTerminalResize(state.termSocket);
+  } catch (_) { /* viewport ainda sem dimensões */ }
 }
 
 function openTerminal() {
@@ -854,13 +923,36 @@ function openTerminal() {
     state.termFit = new (window.FitAddon?.FitAddon || FitAddon.FitAddon)();
     state.term.loadAddon(state.termFit);
     state.term.open(box);
+    state.term.onResize(() => sendTerminalResize(state.termSocket));
+    if (!state.termResizeBound) {
+      state.termResizeBound = true;
+      window.addEventListener("resize", fitTerminal);
+      if (typeof ResizeObserver !== "undefined") {
+        const ro = new ResizeObserver(() => fitTerminal());
+        ro.observe(box);
+      }
+    }
   }
-  state.termFit.fit();
+  requestAnimationFrame(() => {
+    fitTerminal();
+    requestAnimationFrame(fitTerminal);
+  });
   if (state.termSocket) state.termSocket.close();
   const ws = new WebSocket(terminalWSUrl());
   state.termSocket = ws;
-  ws.onopen = () => state.term.writeln("\r\n\x1b[32mConectado ao host remoto.\x1b[0m\r\n");
-  ws.onmessage = (ev) => state.term.write(ev.data);
+  ws.onopen = () => {
+    fitTerminal();
+    sendTerminalResize(ws);
+  };
+  ws.onmessage = (ev) => {
+    const chunk = typeof ev.data === "string" ? ev.data : "";
+    if (chunk) {
+      const max = 2 * 1024 * 1024;
+      state.termLog += chunk;
+      if (state.termLog.length > max) state.termLog = state.termLog.slice(-max);
+    }
+    state.term.write(ev.data);
+  };
   ws.onclose = () => state.term.writeln("\r\n\x1b[33mSessão terminada.\x1b[0m\r\n");
   state.term.onData((data) => { if (ws.readyState === WebSocket.OPEN) ws.send(data); });
 }

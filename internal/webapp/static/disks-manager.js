@@ -63,7 +63,9 @@
       btn.setAttribute("aria-selected", on ? "true" : "false");
     });
     $$(".disks-section").forEach((sec) => {
-      sec.classList.toggle("active", sec.id === `disks-section-${tab}`);
+      const on = sec.id === `disks-section-${tab}`;
+      sec.classList.toggle("active", on);
+      if (on) window.CWMotion?.pulseEnter?.(sec, "section-enter");
     });
     if (tab === "files" && !state.files.entries.length && !state.files.loading) {
       void scanFilesPath(state.files.path || "/");

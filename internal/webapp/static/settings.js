@@ -208,6 +208,8 @@
       p.classList.toggle("active", on);
       p.hidden = !on;
     });
+    const activePanel = document.getElementById(`settings-panel-${tab}`);
+    window.CWMotion?.pulseEnter?.(activePanel, "panel-enter");
     if (tab === "users") loadSettingsUsers();
     else closeSettingsUserEditor();
     if (tab === "mail") loadSettingsMail();

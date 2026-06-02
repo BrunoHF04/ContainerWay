@@ -1,8 +1,13 @@
 package webapp
 
 import (
+	"encoding/json"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
+
+	"containerway/internal/termbanner"
 
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/ssh"
@@ -10,6 +15,56 @@ import (
 
 var terminalUpgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
+}
+
+const (
+	defaultTermCols = 80
+	defaultTermRows = 24
+	maxTermCols     = 500
+	maxTermRows     = 200
+)
+
+type wsTermResize struct {
+	Op   string `json:"op"`
+	Cols int    `json:"cols"`
+	Rows int    `json:"rows"`
+}
+
+func clampTermSize(cols, rows int) (int, int) {
+	if cols < 10 {
+		cols = defaultTermCols
+	}
+	if cols > maxTermCols {
+		cols = maxTermCols
+	}
+	if rows < 4 {
+		rows = defaultTermRows
+	}
+	if rows > maxTermRows {
+		rows = maxTermRows
+	}
+	return cols, rows
+}
+
+func termSizeFromQuery(r *http.Request) (cols, rows int) {
+	cols = defaultTermCols
+	rows = defaultTermRows
+	if v, err := strconv.Atoi(strings.TrimSpace(r.URL.Query().Get("cols"))); err == nil {
+		cols = v
+	}
+	if v, err := strconv.Atoi(strings.TrimSpace(r.URL.Query().Get("rows"))); err == nil {
+		rows = v
+	}
+	return clampTermSize(cols, rows)
+}
+
+func parseTermResizeMsg(msg []byte) (cols, rows int, ok bool) {
+	var ctrl wsTermResize
+	if err := json.Unmarshal(msg, &ctrl); err != nil || ctrl.Op != "resize" {
+		return 0, 0, false
+	}
+	cols, rows = clampTermSize(ctrl.Cols, ctrl.Rows)
+	return cols, rows, true
 }
 
 // handleTerminalWS abre sessão de terminal SSH interativo via WebSocket.
@@ -46,12 +101,14 @@ func (s *Server) handleTerminalWS(w http.ResponseWriter, r *http.Request) {
 	}
 	defer sess.Close()
 
+	cols, rows := termSizeFromQuery(r)
+
 	modes := ssh.TerminalModes{
 		ssh.ECHO:          1,
 		ssh.TTY_OP_ISPEED: 14400,
 		ssh.TTY_OP_OSPEED: 14400,
 	}
-	if err := sess.RequestPty("xterm", 120, 40, modes); err != nil {
+	if err := sess.RequestPty("xterm-256color", rows, cols, modes); err != nil {
 		_ = conn.WriteMessage(websocket.TextMessage, []byte("PTY indisponível\r\n"))
 		return
 	}
@@ -67,7 +124,15 @@ func (s *Server) handleTerminalWS(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	if err := sess.Shell(); err != nil {
+	host := strings.TrimSpace(b.Host)
+	if host == "" && b.Sess != nil {
+		host = b.Sess.HostAddr()
+	}
+	cwd := strings.TrimSpace(r.URL.Query().Get("cwd"))
+	lang := termbanner.NormalizeLang(r.URL.Query().Get("lang"))
+	startCmd := termbanner.ShellStart(cwd, host, lang)
+	if err := sess.Start(startCmd); err != nil {
+		_ = conn.WriteMessage(websocket.TextMessage, []byte("erro ao iniciar shell\r\n"))
 		return
 	}
 
@@ -103,6 +168,12 @@ func (s *Server) handleTerminalWS(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				_ = sess.Signal(ssh.SIGINT)
 				return
+			}
+			if len(msg) > 0 && msg[0] == '{' {
+				if c, r, ok := parseTermResizeMsg(msg); ok {
+					_ = sess.WindowChange(r, c)
+					continue
+				}
 			}
 			if _, err := stdin.Write(msg); err != nil {
 				return

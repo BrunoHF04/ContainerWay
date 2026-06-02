@@ -1,15 +1,51 @@
-/** Motion — transições estilo macOS (modais, módulos, respeita reduced-motion). */
+/** Motion — transições estilo macOS (módulos, modais, painéis; respeita reduced-motion). */
 const CWMotion = (() => {
-  const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const reduced = () =>
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
+    document.documentElement.classList.contains("reduce-motion");
+
+  const SCREEN_ORDER = [
+    "hub",
+    "explorer",
+    "docker",
+    "disks",
+    "terminal",
+    "automations",
+    "settings",
+  ];
 
   let prevScreen = "hub";
   const MODAL_OUT_MS = 240;
+  const OVERLAY_OUT_MS = 220;
 
   function navDirection(next, prev) {
     if (next === prev) return "neutral";
     if (next === "hub") return "back";
-    if (prev === "hub") return "forward";
+    if (prev === "hub" || prev === "connect") return "forward";
+    const ni = SCREEN_ORDER.indexOf(next);
+    const pi = SCREEN_ORDER.indexOf(prev);
+    if (ni >= 0 && pi >= 0 && ni !== pi) return ni > pi ? "forward" : "back";
     return "neutral";
+  }
+
+  function pulseClass(el, className) {
+    if (!el || reduced()) return;
+    el.classList.remove(className);
+    void el.offsetWidth;
+    el.classList.add(className);
+    const clear = () => el.classList.remove(className);
+    el.addEventListener("animationend", clear, { once: true });
+  }
+
+  function pulseHubCards() {
+    if (reduced()) return;
+    document.querySelectorAll("#hub-grid .hub-card-3d").forEach((el, i) => {
+      el.classList.remove("hub-card-entered");
+      el.style.setProperty("--delay", `${Math.min(i, 14) * 55}ms`);
+      el.style.animation = "none";
+      void el.offsetWidth;
+      el.style.removeProperty("animation");
+    });
   }
 
   function pulseScreenEnter(name, dir) {
@@ -24,6 +60,17 @@ const CWMotion = (() => {
     el.classList.remove("screen-enter");
     void el.offsetWidth;
     el.classList.add("screen-enter");
+
+    if (name === "hub") pulseHubCards();
+    if (name === "settings") {
+      pulseClass(document.querySelector("#view-settings .settings-panel.active"), "panel-enter");
+    }
+    if (name === "disks") {
+      pulseClass(document.querySelector("#view-disks .disks-section.active"), "section-enter");
+    }
+    if (name === "docker") {
+      pulseClass(document.querySelector("#view-docker .docker-section:not(.hidden)"), "section-enter");
+    }
   }
 
   function bloomShell() {
@@ -112,15 +159,77 @@ const CWMotion = (() => {
     document.querySelectorAll("dialog.modal-dialog").forEach(enhanceDialog);
   }
 
+  function openOverlay(overlay) {
+    if (!overlay) return;
+    overlay.classList.remove("hidden", "overlay-exit");
+    overlay.setAttribute("aria-hidden", "false");
+    if (reduced()) return;
+    overlay.classList.remove("overlay-enter");
+    void overlay.offsetWidth;
+    overlay.classList.add("overlay-enter");
+  }
+
+  function closeOverlay(overlay, onHidden) {
+    if (!overlay || overlay.classList.contains("hidden")) return;
+    const finish = () => {
+      overlay.classList.add("hidden");
+      overlay.classList.remove("overlay-enter", "overlay-exit");
+      overlay.setAttribute("aria-hidden", "true");
+      onHidden?.();
+    };
+    if (reduced() || overlay.classList.contains("overlay-exit")) {
+      finish();
+      return;
+    }
+    overlay.classList.remove("overlay-enter");
+    overlay.classList.add("overlay-exit");
+    let done = false;
+    const end = () => {
+      if (done) return;
+      done = true;
+      finish();
+    };
+    overlay.addEventListener(
+      "animationend",
+      (ev) => {
+        if (ev.target === overlay) end();
+      },
+      { once: true }
+    );
+    setTimeout(end, OVERLAY_OUT_MS);
+  }
+
   function init() {
+    if (window.state?.screen && window.state.screen !== "connect") {
+      prevScreen = window.state.screen;
+    }
     wrapShowScreen();
     wrapShowView();
     enhanceDialogs();
+    new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        for (const node of m.addedNodes) {
+          if (node.nodeType !== 1) continue;
+          if (node.matches?.("dialog.modal-dialog")) enhanceDialog(node);
+          node.querySelectorAll?.("dialog.modal-dialog").forEach(enhanceDialog);
+        }
+      }
+    }).observe(document.body, { childList: true, subtree: true });
   }
 
   init();
 
-  return { init, reduced, animatedClose };
+  return {
+    init,
+    reduced,
+    animatedClose,
+    pulseEnter: pulseClass,
+    pulseScreenEnter,
+    pulseHubCards,
+    openOverlay,
+    closeOverlay,
+    navDirection,
+  };
 })();
 
 window.CWMotion = CWMotion;

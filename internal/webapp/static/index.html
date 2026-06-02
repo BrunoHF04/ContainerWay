@@ -10,8 +10,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/app.css" />
   <link rel="stylesheet" href="/vendor/xterm/xterm.min.css" />
+  <link rel="stylesheet" href="/app.css" />
 </head>
 <body>
   <div id="theme-veil" class="theme-veil" aria-hidden="true"></div>
@@ -138,6 +138,7 @@
       <div id="view-connect" class="subview" aria-hidden="true"></div>
 
       <div id="view-hub" class="subview">
+        <div class="subview-body">
         <div class="hub-hero animate-in">
           <div class="hub-hero-row">
             <div class="hub-hero-copy">
@@ -160,6 +161,7 @@
           </div>
         </div>
         <div id="hub-grid" class="hub-grid"></div>
+        </div>
       </div>
 
       <div id="view-explorer" class="subview">
@@ -527,6 +529,7 @@
       </div>
 
       <div id="view-disks" class="subview disks-module">
+        <div class="subview-body">
         <header class="disks-top-bar glass-card">
           <div class="disks-top-compact">
             <div class="disks-top-primary">
@@ -662,15 +665,65 @@
             <div id="disks-files-list" class="disks-files-list" role="list"></div>
           </div>
         </div>
+        </div>
       </div>
 
       <div id="view-terminal" class="subview">
+        <div class="subview-body">
         <div class="page-head glass-bar-inline"><h2>Terminal SSH</h2>
           <button type="button" class="btn btn-ghost" id="terminal-reconnect">Reconectar</button></div>
+        <div class="terminal-toolbar glass-bar-inline" id="terminal-toolbar">
+          <button type="button" class="btn btn-ghost btn-sm" id="term-btn-htop" data-i18n="term.btn.htop">Ger. de Tarefas</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="term-btn-ncdu" data-i18n="term.btn.ncdu">Ver. Armazenamento</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="term-btn-cmdlist" data-i18n="term.btn.cmdlist">Lista de comandos</button>
+          <span class="terminal-toolbar-spacer"></span>
+          <button type="button" class="btn btn-ghost btn-sm" id="term-btn-ctrlc" title="Ctrl+C">Ctrl+C</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="term-btn-copy" data-i18n="term.btn.copy">Copiar saída</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="term-btn-clear" data-i18n="term.btn.clear">Limpar</button>
+        </div>
+        <p id="terminal-status" class="terminal-status hidden" role="status"></p>
         <div id="terminal" class="terminal-box"></div>
+        </div>
+        <div id="terminal-cmd-overlay" class="terminal-cmd-overlay hidden" aria-hidden="true">
+          <button type="button" class="terminal-cmd-backdrop" id="terminal-cmd-backdrop" aria-label="Fechar"></button>
+          <div class="terminal-cmd-panel" role="dialog" aria-modal="true" aria-labelledby="terminal-cmd-title">
+            <div class="terminal-cmd-shell">
+              <header class="terminal-cmd-header modal-head">
+                <h3 id="terminal-cmd-title" data-i18n="term.cmd.title">Lista de comandos Linux</h3>
+                <button type="button" class="btn btn-ghost" id="terminal-cmd-close" data-i18n="disks.close">Fechar</button>
+              </header>
+              <details class="terminal-cmd-compose-acc">
+                <summary data-i18n="term.cmd.compose">Docker Compose rápido</summary>
+                <div class="terminal-compose-fields">
+                  <label class="field"><span>Compose file</span><input type="text" id="term-compose-file" placeholder="/caminho/docker-compose.yml" /></label>
+                  <label class="field"><span>Projeto (-p)</span><input type="text" id="term-compose-project" placeholder="nome_projeto" /></label>
+                  <label class="field"><span>Serviço</span><input type="text" id="term-compose-service" placeholder="nome_servico" /></label>
+                </div>
+                <div class="terminal-compose-actions btn-row wrap" id="term-compose-actions"></div>
+              </details>
+              <div class="terminal-cmd-toolbar">
+                <label class="field terminal-cmd-search-field">
+                  <input type="search" id="term-cmd-search" class="panel-filter" data-i18n-placeholder="term.cmd.searchPh" placeholder="Pesquisar comando…" />
+                </label>
+                <div class="terminal-cmd-filters">
+                  <label class="field field--inline"><span data-i18n="term.cmd.profile">Perfil</span>
+                    <select id="term-cmd-profile"><option value="Todos">Todos</option><option>Dev</option><option>Infra</option><option>Docker</option></select>
+                  </label>
+                  <label class="checkbox-row"><input type="checkbox" id="term-cmd-quick-only" /><span data-i18n="term.cmd.quickOnly">Só mais usados</span></label>
+                  <label class="checkbox-row"><input type="checkbox" id="term-cmd-fav-only" /><span data-i18n="term.cmd.favOnly">Só favoritos</span></label>
+                </div>
+                <p class="muted terminal-cmd-hint" data-i18n="term.cmd.hint">Use Inserir ou Inserir e executar em cada comando.</p>
+              </div>
+              <div class="terminal-cmd-results-scroll">
+                <div id="term-cmd-results" class="terminal-cmd-results"></div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div id="view-automations" class="subview">
+        <div class="subview-body">
         <div class="page-head glass-bar-inline">
           <div><h2>Central de automações</h2>
           <p class="muted auto-hint">Motor verifica Docker a cada 8s · regras compartilhadas com o desktop</p></div>
@@ -691,6 +744,7 @@
               <button type="button" class="btn btn-ghost btn-sm" id="auto-clear-history">Limpar</button></div>
             <pre id="auto-history" class="code-block"></pre>
           </div>
+        </div>
         </div>
         <dialog id="auto-rule-dialog" class="modal-dialog">
           <form id="auto-rule-form" method="dialog" class="modal-form">
@@ -713,6 +767,7 @@
       </div>
 
       <div id="view-settings" class="subview">
+        <div class="subview-body">
         <div class="page-head glass-bar-inline"><h2>Configurações</h2></div>
         <div class="settings-layout content-pad">
           <nav class="settings-tabs" id="settings-tabs" role="tablist" aria-label="Seções de configurações">
@@ -971,6 +1026,7 @@
               </div>
             </div>
           </div>
+        </div>
         </div>
       </div>
 
@@ -1351,6 +1407,7 @@
   <script src="/ui.js"></script>
   <script src="/web-prefs.js"></script>
   <script src="/app.js"></script>
+  <script src="/terminal-tools.js"></script>
   <script src="/settings.js"></script>
   <script src="/docker-manager.js"></script>
   <script src="/disks-manager.js"></script>
