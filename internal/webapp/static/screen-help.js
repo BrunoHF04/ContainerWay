@@ -23,7 +23,7 @@
     hub: {
       title: "Menu da sessão",
       html: `
-        <p class="muted">Escolha o módulo depois de ligado ao SSH. Use a pesquisa para filtrar cartões.</p>
+        <p class="muted">Escolha o módulo depois de conectado ao SSH. Use a pesquisa para filtrar cartões.</p>
         <h4>Módulos</h4>
         <ul>
           <li><strong>Gerenciador de arquivos</strong> — painel duplo local/remoto, SFTP e Docker.</li>
@@ -31,7 +31,7 @@
           <li><strong>Discos e armazenamento</strong> — <code>lsblk</code> e <code>df</code> no host.</li>
           <li><strong>Terminal SSH</strong> — consola interativa no browser.</li>
           <li><strong>Central de automações</strong> — regras e motor por host.</li>
-          <li><strong>Configurações</strong> — usuárioes e SMTP (admin).</li>
+          <li><strong>Configurações</strong> — usuários e SMTP (admin).</li>
         </ul>
         <h4>Barra superior</h4>
         <ul>
@@ -63,7 +63,7 @@
 
         <h4>Painel Remoto</h4>
         <ul>
-          <li><strong>SFTP</strong> — arquivos no servidor Linux ligado por SSH.</li>
+          <li><strong>SFTP</strong> — arquivos no servidor Linux conectado por SSH.</li>
           <li><strong>Docker</strong> — selector de contêiner + filtro de pesquisa; ao mudar contêiner ou modo, a pasta volta a <code>/</code>.</li>
           <li>Ícones: favoritos (estrela), subir, atualizar; menu de atalhos salvos.</li>
         </ul>
@@ -71,7 +71,7 @@
         <h4>Lista de arquivos</h4>
         <ul>
           <li>Clique nas colunas <strong>Nome / Tamanho / Data</strong> para ordenar.</li>
-          <li><strong>Filtrar arquivos</strong> — pesquisa por nome na pasta actual.</li>
+          <li><strong>Filtrar arquivos</strong> — pesquisa por nome na pasta atual.</li>
           <li><strong>Duplo clique</strong> — abrir pasta ou editor de arquivo.</li>
           <li><strong>Botão direito</strong> — menu de contexto (enviar, receber, editar, etc.).</li>
           <li><strong>Pré-visualização</strong> — painel à direita para texto/imagem (redimensionável).</li>
@@ -82,7 +82,7 @@
           <li><kbd>Ctrl</kbd>+clique — adicionar/remover da seleção.</li>
           <li><kbd>Shift</kbd>+clique — seleção em intervalo.</li>
           <li>Arrastar arquivos entre painéis — enviar (local→remoto) ou receber (remoto→local).</li>
-          <li>Largar arquivos do Windows no painel <strong>Remoto</strong> — upload para a pasta actual.</li>
+          <li>Largar arquivos do Windows no painel <strong>Remoto</strong> — upload para a pasta atual.</li>
         </ul>
 
         <h4>Comparar pastas</h4>
@@ -129,10 +129,10 @@
         </ul>
         <h4>Contêineres</h4>
         <ul>
-          <li><strong>Lista</strong> / <strong>Grade</strong> — alterne o modo de visualização (a preferência fica guardada).</li>
+          <li><strong>Lista</strong> / <strong>Grade</strong> — alterne o modo de visualização (a preferência fica salva).</li>
           <li><strong>Filtros</strong> — Lista (Todos, em execução, parados, alerta, críticos, Compose, Swarm).</li>
           <li><strong>Resumo</strong> — chips sob o título com totais e médias de CPU/RAM.</li>
-          <li><strong>Agrupar Compose</strong> — secções por projeto; clique no cabeçalho para colapsar.</li>
+          <li><strong>Agrupar Compose</strong> — seções por projeto; clique no cabeçalho para colapsar.</li>
           <li><strong>★ Fixar</strong> — mantém contêineres no topo da lista.</li>
           <li><strong>Cores dos cartões</strong> — neutro no normal; <strong>amarelo</strong> ≥75% CPU/RAM; <strong>vermelho</strong> ≥90%.</li>
           <li><strong>Clique num cartão</strong> — vista dividida com detalhes, sparklines e inspect.</li>
@@ -141,12 +141,12 @@
           <li><strong>Portas</strong> — mapeamentos publicados no cartão quando existirem.</li>
           <li>Seleção em lote: iniciar, reiniciar, parar, pausar, retomar, remover; checkbox <strong>Selecionar todos visíveis</strong>.</li>
           <li>URL <code>#docker=ID</code> — abre diretamente o detalhe do contêiner.</li>
-          <li><strong>Intervalo</strong> — auto-atualizar a cada 5–60 s (preferência guardada).</li>
-          <li><strong>Logs</strong> — pesquisa, destaque de erros/stderr, «Desde reinício», quebra de linha, live.</li>
-          <li><strong>Stats</strong> — modal com gráficos em tempo real (actualiza a cada 2 s).</li>
+          <li><strong>Intervalo</strong> — auto-atualizar a cada 5–60 s (preferência salva).</li>
+          <li><strong>Logs</strong> — pesquisa, destaque de erros/stderr, "Desde reinício", quebra de linha, live.</li>
+          <li><strong>Stats</strong> — modal com gráficos em tempo real (atualiza a cada 2 s).</li>
           <li><strong>📁</strong> no cartão — abre o explorador de arquivos do contêiner.</li>
           <li>Lote com erros — diálogo lista IDs que falharam.</li>
-          <li><strong>Agrupar Compose</strong> — botão «Reiniciar projeto» por grupo (<code>compose up --force-recreate</code>).</li>
+          <li><strong>Agrupar Compose</strong> — botão "Reiniciar projeto" por grupo (<code>compose up --force-recreate</code>).</li>
           <li><strong>Expandir / Colapsar</strong> — com agrupamento Compose ativo.</li>
           <li><strong>Regra automática</strong> — cria regra na Central de automações (reinício se parar).</li>
           <li>Toast quando novos contêineres ficam críticos durante auto-atualizar.</li>
@@ -196,7 +196,7 @@
         <p class="muted">Regras por host com motor em segundo plano (compartilhado com o desktop).</p>
         <ul>
           <li><strong>Iniciar / Parar motor</strong> — ativa verificação periódica de contêineres.</li>
-          <li><strong>Regras</strong> — criar, editar, ativar; gatilho «contêiner parado» → reinício.</li>
+          <li><strong>Regras</strong> — criar, editar, ativar; gatilho "contêiner parado" → reinício.</li>
           <li><strong>Histórico</strong> — eventos recentes; <strong>Limpar</strong> apaga o histórico.</li>
           <li><strong>Atualizar</strong> — recarrega regras e histórico do disco.</li>
         </ul>
@@ -205,10 +205,10 @@
     settings: {
       title: "Configurações",
       html: `
-        <p class="muted">Conta local e, para <strong>admin</strong>, gestão de usuárioes e e-mail.</p>
+        <p class="muted">Conta local e, para <strong>admin</strong>, gestão de usuários e e-mail.</p>
         <ul>
           <li>Informação da versão ContainerWay Web.</li>
-          <li>Atalhos para módulos de administração (usuárioes, SMTP).</li>
+          <li>Atalhos para módulos de administração (usuários, SMTP).</li>
         </ul>
       `,
     },
@@ -218,7 +218,7 @@
         <p class="muted">Ajuda geral da aplicação.</p>
         <ul class="shortcut-list">
           <li><kbd>Ctrl</kbd>+<kbd>K</kbd> Paleta de comandos — saltar para módulos e ações.</li>
-          <li><kbd>?</kbd> Ajuda da tela actual</li>
+          <li><kbd>?</kbd> Ajuda da tela atual</li>
           <li><kbd>Esc</kbd> Fechar diálogos</li>
         </ul>
         <p>Abra um módulo no menu da sessão para ver ajuda específica.</p>

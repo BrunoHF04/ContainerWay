@@ -153,7 +153,7 @@
     const entries = side === "local" ? state.localEntries : state.remoteEntries;
     const n = (entries || []).filter((e) => e.name !== "..").length;
     const sel = selectionSet(side).size;
-    foot.textContent = sel ? `${n} itens · ${sel} seleccionado(s)` : `${n} itens`;
+    foot.textContent = sel ? `${n} itens · ${sel} selecionado(s)` : `${n} itens`;
   }
 
   function visibleList(side) {
@@ -206,7 +206,7 @@
       CWUI.emptyState(container, {
         icon: "📂",
         title: q ? "Sem resultados" : "Pasta vazia",
-        desc: q ? "Nenhum item corresponde ao filtro." : (side === "local" ? "Não há ficheiros nesta pasta local." : "Não há ficheiros neste diretório."),
+        desc: q ? "Nenhum item corresponde ao filtro." : (side === "local" ? "Não há arquivos nesta pasta local." : "Não há arquivos neste diretório."),
       });
       updatePanelStatus(side);
       return;
@@ -326,7 +326,7 @@
       CWUI.toast("Selecione um ou mais itens.", "error");
       return;
     }
-    if (!(await CWConfirm(`Apagar ${items.length} item(ns)?`, { danger: true, ok: "Apagar" }))) return;
+    if (!(await CWConfirm(`Excluir ${items.length} item(ns)?`, { danger: true, ok: "Excluir" }))) return;
     try {
       for (const sel of items) {
         if (side === "local") {
@@ -378,7 +378,7 @@
 
   async function transferPushEntries(items) {
     if (!items.length) {
-      CWUI.toast("Nada seleccionado no painel local.", "error");
+      CWUI.toast("Nada selecionado no painel local.", "error");
       return;
     }
     await api("/api/transfer/batch", {
@@ -399,7 +399,7 @@
 
   async function transferPullEntries(items) {
     if (!items.length) {
-      CWUI.toast("Nada seleccionado no painel remoto.", "error");
+      CWUI.toast("Nada selecionado no painel remoto.", "error");
       return;
     }
     await api("/api/transfer/batch", {
@@ -664,7 +664,7 @@
       const targetSide = zone.dataset.dropSide;
       if (e.dataTransfer.files?.length) {
         if (targetSide !== "remote") {
-          CWUI.toast("Largue ficheiros no painel Remoto para enviar.", "info");
+          CWUI.toast("Solte arquivos no painel Remoto para enviar.", "info");
           return;
         }
         if (!state.ssh.connected) return;
@@ -791,7 +791,7 @@
     state.previewCache = null;
     setPreviewFullscreenEnabled(false);
     if (!entry || entry.isDir || entry.name === "..") {
-      if (isPreviewPanelOpen()) content.innerHTML = '<span class="muted">Selecione um ficheiro</span>';
+      if (isPreviewPanelOpen()) content.innerHTML = '<span class="muted">Selecione um arquivo</span>';
       return;
     }
     const ext = entry.name.split(".").pop()?.toLowerCase() || "";

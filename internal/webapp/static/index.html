@@ -83,7 +83,7 @@
               </header>
               <form id="login-form" class="login-form">
                 <label class="field">
-                  <span>Utilizador</span>
+                  <span>Usuário</span>
                   <input type="text" id="login-user" autocomplete="username" required placeholder="admin" />
                 </label>
                 <label class="field">
@@ -117,14 +117,14 @@
                   <label class="field">Usuário<input type="text" id="ssh-user" required /></label>
                 </div>
                 <label class="field">Senha<input type="password" id="ssh-pass" autocomplete="current-password" /></label>
-                <label class="checkbox-row"><input type="checkbox" id="ssh-save-secrets" checked /> Guardar senha no perfil</label>
+                <label class="checkbox-row"><input type="checkbox" id="ssh-save-secrets" checked /> Salvar senha no perfil</label>
                 <p id="ssh-conn-status" class="status-line muted"></p>
                 <p id="ssh-test-result" class="status-line muted hidden"></p>
                 <div class="btn-row">
                   <button type="submit" class="btn btn-primary btn-glow">Conectar</button>
                   <button type="button" class="btn btn-ghost" id="btn-ssh-test" data-i18n="ssh.test">Testar conexão</button>
-                  <button type="button" class="btn btn-ghost" id="ssh-save-profile">Guardar perfil</button>
-                  <button type="button" class="btn btn-ghost btn-danger-text" id="ssh-delete-profile">Apagar</button>
+                  <button type="button" class="btn btn-ghost" id="ssh-save-profile">Salvar perfil</button>
+                  <button type="button" class="btn btn-ghost btn-danger-text" id="ssh-delete-profile">Excluir</button>
                 </div>
               </form>
             </div>
@@ -146,7 +146,7 @@
               <p id="hub-connected" class="hub-sub muted"></p>
               <div class="search-wrap">
                 <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                <input type="search" id="hub-search" class="search" placeholder="Pesquisar módulos…" />
+                <input type="search" id="hub-search" class="search" placeholder="Buscar módulos…" />
               </div>
             </div>
             <div class="hub-mascot-wrap" id="hub-mascot" aria-hidden="true">
@@ -170,7 +170,7 @@
               <div class="explorer-menu-panel">
                 <button type="button" class="btn btn-ghost btn-sm" id="btn-new-folder">Nova pasta</button>
                 <button type="button" class="btn btn-ghost btn-sm" id="btn-rename-item">Renomear</button>
-                <button type="button" class="btn btn-ghost btn-sm" id="btn-delete-item">Apagar</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="btn-delete-item">Excluir</button>
                 <button type="button" class="btn btn-ghost btn-sm" id="btn-copy-item">Copiar</button>
                 <button type="button" class="btn btn-ghost btn-sm" id="btn-paste-item">Colar</button>
                 <button type="button" class="btn btn-ghost btn-sm" id="btn-edit-file">Abrir / editar</button>
@@ -219,7 +219,7 @@
                   </summary>
                   <div class="panel-menu-list" id="local-menu-list"></div>
                 </details>
-                <button type="button" class="icon-btn" data-side="local" data-action="fav-add" title="Guardar pasta nos favoritos" aria-label="Favorito">
+                <button type="button" class="icon-btn" data-side="local" data-action="fav-add" title="Salvar pasta nos favoritos" aria-label="Favorito">
                   <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
                 </button>
                 <button type="button" class="icon-btn" data-side="local" data-action="up" title="Subir" aria-label="Subir">
@@ -253,7 +253,7 @@
                   <button type="button" class="remote-target-btn" data-target="container" id="remote-target-container" title="Arquivos dentro do contêiner">Docker</button>
                 </div>
                 <input type="search" id="remote-container-filter" class="remote-container-filter hidden" placeholder="Filtrar contêiner…" aria-label="Filtrar contêineres" />
-                <select id="remote-container" class="panel-select remote-container-select hidden" size="1" title="Seleccionar contêiner" aria-label="Contêiner"></select>
+                <select id="remote-container" class="panel-select remote-container-select hidden" size="1" title="Selecionar contêiner" aria-label="Contêiner"></select>
               </div>
               <nav class="panel-nav panel-nav-tools">
                 <details class="panel-menu" id="remote-menu">
@@ -262,7 +262,7 @@
                   </summary>
                   <div class="panel-menu-list" id="remote-menu-list"></div>
                 </details>
-                <button type="button" class="icon-btn" data-side="remote" data-action="fav-add" title="Guardar pasta nos favoritos" aria-label="Favorito">
+                <button type="button" class="icon-btn" data-side="remote" data-action="fav-add" title="Salvar pasta nos favoritos" aria-label="Favorito">
                   <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
                 </button>
                 <button type="button" class="icon-btn" data-side="remote" data-action="up" title="Subir" aria-label="Subir">
@@ -336,7 +336,7 @@
 
       <div id="view-docker" class="subview">
         <div class="docker-module-bar">
-          <nav class="docker-module-tabs" role="tablist" aria-label="Secções Docker">
+          <nav class="docker-module-tabs" role="tablist" aria-label="Seções Docker">
             <button type="button" class="docker-module-tab active" data-docker-tab="containers" role="tab" aria-selected="true">Contêineres</button>
             <button type="button" class="docker-module-tab" data-docker-tab="images" role="tab" aria-selected="false">Imagens</button>
             <button type="button" class="docker-module-tab" data-docker-tab="volumes" role="tab" aria-selected="false">Volumes</button>
@@ -426,7 +426,7 @@
               </label>
             </div>
           </div>
-          <div class="docker-batch-bar hidden" id="docker-batch-bar" role="toolbar" aria-label="Acções em lote">
+          <div class="docker-batch-bar hidden" id="docker-batch-bar" role="toolbar" aria-label="Ações em lote">
             <span id="docker-batch-count" class="docker-batch-count">0 selecionados</span>
             <button type="button" class="btn btn-ghost btn-sm" id="docker-batch-start">Iniciar</button>
             <button type="button" class="btn btn-ghost btn-sm" id="docker-batch-restart" title="Recria os contêineres (compose up --force-recreate) para aplicar alterações no YAML">Recriar</button>
@@ -650,7 +650,7 @@
                 <input type="search" id="disks-files-filter" class="disks-control disks-files-filter" data-i18n="disks.files.filter" placeholder="Filtrar nome…" />
               </div>
               <nav id="disks-files-breadcrumb" class="disks-files-breadcrumb" aria-label="Caminho atual"></nav>
-              <p id="disks-files-summary" class="disks-files-summary muted" data-i18n="disks.files.hint">Selecione uma pasta e clique em «Analisar pasta».</p>
+              <p id="disks-files-summary" class="disks-files-summary muted" data-i18n="disks.files.hint">Selecione uma pasta e clique em "Analisar pasta".</p>
             </div>
             <div class="disks-files-table-header" aria-hidden="true">
               <span class="disks-files-col-name" data-i18n="disks.files.col.name">Nome</span>
@@ -673,7 +673,7 @@
       <div id="view-automations" class="subview">
         <div class="page-head glass-bar-inline">
           <div><h2>Central de automações</h2>
-          <p class="muted auto-hint">Motor verifica Docker a cada 8s · regras partilhadas com o desktop</p></div>
+          <p class="muted auto-hint">Motor verifica Docker a cada 8s · regras compartilhadas com o desktop</p></div>
           <div class="page-head-actions">
             <span id="auto-engine-status" class="badge">Motor parado</span>
             <button type="button" class="btn btn-ghost" id="auto-engine-toggle">Iniciar motor</button>
@@ -683,7 +683,7 @@
         <div class="split-panels content-pad">
           <div class="glass-card split-card">
             <div class="panel-head"><h3>Regras</h3>
-              <button type="button" class="btn btn-sm btn-primary" id="auto-save-rules" hidden>Guardar</button></div>
+              <button type="button" class="btn btn-sm btn-primary" id="auto-save-rules" hidden>Salvar</button></div>
             <div id="auto-rules" class="data-list"></div>
           </div>
           <div class="glass-card split-card">
@@ -714,63 +714,277 @@
 
       <div id="view-settings" class="subview">
         <div class="page-head glass-bar-inline"><h2>Configurações</h2></div>
-        <nav class="settings-tabs content-pad" id="settings-tabs">
-          <button type="button" class="settings-tab active" data-tab="account">Conta</button>
-          <button type="button" class="settings-tab" data-tab="users" id="settings-tab-users">Utilizadores</button>
-          <button type="button" class="settings-tab" data-tab="mail" id="settings-tab-mail">E-mail SMTP</button>
-        </nav>
+        <div class="settings-layout content-pad">
+          <nav class="settings-tabs" id="settings-tabs" role="tablist" aria-label="Seções de configurações">
+            <button type="button" class="settings-tab active" data-tab="account" role="tab" aria-selected="true">Conta</button>
+            <button type="button" class="settings-tab" data-tab="interface" role="tab">Interface</button>
+            <button type="button" class="settings-tab" data-tab="session" role="tab">Sessão SSH</button>
+            <button type="button" class="settings-tab" data-tab="modules" role="tab">Módulos</button>
+            <button type="button" class="settings-tab" data-tab="connections" role="tab">Conexões</button>
+            <button type="button" class="settings-tab" data-tab="security" id="settings-tab-security" role="tab" hidden>Segurança</button>
+            <button type="button" class="settings-tab" data-tab="notifications" id="settings-tab-notifications" role="tab" hidden>Notificações</button>
+            <button type="button" class="settings-tab" data-tab="users" id="settings-tab-users" role="tab" hidden>Usuários</button>
+            <button type="button" class="settings-tab" data-tab="mail" id="settings-tab-mail" role="tab" hidden>E-mail SMTP</button>
+            <button type="button" class="settings-tab" data-tab="about" role="tab">Sobre</button>
+          </nav>
 
-        <div id="settings-panel-account" class="settings-panel active glass-card content-pad">
-          <ul class="settings-list">
-            <li>Conta atual: <strong id="settings-user"></strong></li>
-            <li>Perfil: <strong id="settings-role"></strong></li>
-            <li>Versão: <strong id="settings-version">—</strong></li>
-          </ul>
-          <p class="muted">Partilhado com a app desktop (mesmo ficheiro de preferências).</p>
-        </div>
+          <div class="settings-panels">
+            <div id="settings-panel-account" class="settings-panel settings-panel--form active glass-card" role="tabpanel">
+              <div class="settings-section-grid">
+                <div>
+                  <h3 class="settings-section-title">Resumo</h3>
+                  <ul class="settings-list">
+                    <li>Usuário: <strong id="settings-user"></strong></li>
+                    <li>Perfil: <strong id="settings-role"></strong></li>
+                    <li>Versão: <strong id="settings-version">—</strong></li>
+                  </ul>
+                </div>
+                <form id="settings-account-form" class="form-stack settings-account-form">
+                  <h3 class="settings-section-title">Minha conta</h3>
+                  <label class="field">Nome de exibição <input name="displayName" autocomplete="name" /></label>
+                  <label class="field">Senha atual <input name="currentPassword" type="password" autocomplete="current-password" placeholder="obrigatória ao alterar senha" /></label>
+                  <label class="field">Nova senha <input name="newPassword" type="password" autocomplete="new-password" placeholder="deixe vazio para manter" /></label>
+                  <div class="btn-row">
+                    <button type="submit" class="btn btn-primary">Salvar conta</button>
+                  </div>
+                </form>
+              </div>
+              <div id="settings-my-perms" class="settings-my-perms hidden">
+                <h3 class="settings-section-title">Meus acessos</h3>
+                <p class="settings-perms-title">Telas</p>
+                <ul id="settings-my-screens" class="settings-tag-list"></ul>
+                <p class="settings-perms-title">Ações</p>
+                <ul id="settings-my-actions" class="settings-tag-list"></ul>
+              </div>
+            </div>
 
-        <div id="settings-panel-users" class="settings-panel glass-card content-pad">
-          <p class="muted">O utilizador <code>admin</code> mantém a senha padrão do produto ao guardar.</p>
-          <div id="settings-users-list" class="data-list"></div>
-          <div class="btn-row">
-            <button type="button" class="btn btn-ghost" id="settings-user-add">Adicionar</button>
-            <button type="button" class="btn btn-primary" id="settings-users-save">Guardar utilizadores</button>
+            <div id="settings-panel-interface" class="settings-panel settings-panel--form glass-card" role="tabpanel" hidden>
+              <form id="settings-interface-form" class="form-stack settings-prefs-form">
+                <label class="field">Tema
+                  <select name="theme" class="panel-select">
+                    <option value="dark">Escuro</option>
+                    <option value="light">Claro</option>
+                    <option value="system">Seguir sistema</option>
+                  </select>
+                </label>
+                <label class="field">Idioma
+                  <select name="lang" class="panel-select">
+                    <option value="pt">Português (BR)</option>
+                    <option value="en">English</option>
+                    <option value="es">Español</option>
+                  </select>
+                </label>
+                <label class="field">Tela inicial após conectar SSH
+                  <select name="homeScreen" class="panel-select">
+                    <option value="hub">Hub (menu)</option>
+                    <option value="explorer">Gerenciador de arquivos</option>
+                    <option value="docker">Contêineres Docker</option>
+                    <option value="disks">Discos</option>
+                    <option value="terminal">Terminal SSH</option>
+                    <option value="automations">Automações</option>
+                  </select>
+                </label>
+                <label class="checkbox-row"><input type="checkbox" name="reduceMotion" /> Reduzir animações da interface</label>
+                <label class="field">Duração dos avisos (toast), segundos
+                  <input name="toastSeconds" type="number" min="2" max="30" value="5" />
+                </label>
+                <div class="btn-row"><button type="submit" class="btn btn-primary">Salvar interface</button></div>
+              </form>
+            </div>
+
+            <div id="settings-panel-session" class="settings-panel settings-panel--form glass-card" role="tabpanel" hidden>
+              <div class="settings-ssh-status glass-panel">
+                <p>Estado: <strong id="settings-ssh-badge">—</strong></p>
+                <p class="muted" id="settings-ssh-detail">—</p>
+              </div>
+              <form id="settings-session-form" class="form-stack settings-prefs-form">
+                <label class="checkbox-row"><input type="checkbox" name="sshDisconnectOnLogout" /> Desligar SSH ao sair da conta web</label>
+                <label class="checkbox-row"><input type="checkbox" name="sshAutoReconnect" /> Tentar reconectar SSH após recarregar a página</label>
+                <div class="btn-row">
+                  <button type="submit" class="btn btn-primary">Salvar sessão</button>
+                  <button type="button" class="btn btn-ghost" id="settings-ssh-test">Testar conexão SSH</button>
+                  <button type="button" class="btn btn-ghost" id="settings-ssh-disconnect">Desligar SSH</button>
+                </div>
+              </form>
+              <p class="muted settings-note" id="settings-ssh-test-result"></p>
+            </div>
+
+            <div id="settings-panel-modules" class="settings-panel settings-panel--modules glass-card" role="tabpanel" hidden>
+              <form id="settings-modules-form" class="form-stack settings-prefs-form settings-modules-form">
+                <div class="settings-modules-grid">
+                  <fieldset class="settings-fieldset">
+                    <legend>Explorador</legend>
+                    <label class="field">Editor externo padrão
+                      <select name="explorerExternalEditor" class="panel-select">
+                        <option value="default">Programa padrão do Windows</option>
+                        <option value="notepad++">Notepad++</option>
+                      </select>
+                    </label>
+                    <label class="checkbox-row"><input type="checkbox" name="explorerCompactToolbar" /> Barra compacta no explorador</label>
+                    <label class="checkbox-row"><input type="checkbox" name="explorerConfirmDelete" /> Confirmar antes de excluir arquivos</label>
+                  </fieldset>
+                  <fieldset class="settings-fieldset">
+                    <legend>Docker</legend>
+                    <label class="field">Atualizar métricas (s) <input name="dockerMetricsSec" type="number" min="5" max="120" value="15" /></label>
+                    <label class="field">Linhas de log <input name="dockerLogLines" type="number" min="50" max="2000" value="200" /></label>
+                  </fieldset>
+                  <fieldset class="settings-fieldset">
+                    <legend>Discos</legend>
+                    <label class="checkbox-row"><input type="checkbox" name="disksAutoRefresh" checked /> Auto-atualizar aba host (90 s)</label>
+                  </fieldset>
+                  <fieldset class="settings-fieldset">
+                    <legend>Transferências</legend>
+                    <label class="checkbox-row"><input type="checkbox" name="transferKeepHistory" checked /> Manter histórico recente no painel</label>
+                  </fieldset>
+                  <fieldset class="settings-fieldset settings-fieldset--wide">
+                    <legend>Terminal</legend>
+                    <label class="field field--inline-num">Tamanho da fonte <input name="terminalFontSize" type="number" min="10" max="24" value="14" /></label>
+                    <label class="field">Comandos favoritos <textarea name="terminalFavorites" rows="4" placeholder="um comando por linha"></textarea></label>
+                  </fieldset>
+                </div>
+                <div class="btn-row settings-modules-actions"><button type="submit" class="btn btn-primary">Salvar módulos</button></div>
+              </form>
+            </div>
+
+            <div id="settings-panel-connections" class="settings-panel settings-panel--connections glass-card" role="tabpanel" hidden>
+              <p class="muted settings-intro">Perfis SSH salvos neste PC (<code>connections.json</code>).</p>
+              <div class="settings-connections-layout">
+                <div class="settings-connections-side">
+                  <div id="settings-connections-list" class="data-list settings-connections-list"></div>
+                  <div class="btn-row settings-connections-toolbar">
+                    <button type="button" class="btn btn-ghost" id="settings-conn-add">Novo perfil</button>
+                  </div>
+                </div>
+              <form id="settings-conn-form" class="form-stack settings-conn-form hidden">
+                <h3 class="settings-section-title" id="settings-conn-form-title">Perfil SSH</h3>
+                <label class="field">Nome do perfil <input name="name" required autocomplete="off" /></label>
+                <label class="field">Host <input name="host" required /></label>
+                <label class="field">Usuário SSH <input name="user" required /></label>
+                <label class="field">Senha <input name="password" type="password" autocomplete="new-password" placeholder="opcional" /></label>
+                <label class="field">Chave privada <input name="keyPath" placeholder="caminho .pem" /></label>
+                <label class="checkbox-row"><input type="checkbox" name="insecureHostKey" /> Ignorar verificação de host key</label>
+                <label class="field">Socket Docker <input name="dockerSocket" placeholder="/var/run/docker.sock" /></label>
+                <div class="btn-row">
+                  <button type="submit" class="btn btn-primary">Salvar perfil</button>
+                  <button type="button" class="btn btn-ghost" id="settings-conn-cancel">Cancelar</button>
+                  <button type="button" class="btn btn-ghost" id="settings-conn-delete">Excluir</button>
+                </div>
+              </form>
+              </div>
+            </div>
+
+            <div id="settings-panel-security" class="settings-panel settings-panel--form glass-card" role="tabpanel" hidden>
+              <form id="settings-security-form" class="form-stack">
+                <label class="field">Encerrar sessão web após inatividade (minutos, 0 = desligado)
+                  <input name="sessionIdleMinutes" type="number" min="0" max="1440" value="0" />
+                </label>
+                <label class="field">Bloquear após tentativas de login falhadas (0 = desligado)
+                  <input name="maxLoginAttempts" type="number" min="0" max="50" value="0" />
+                </label>
+                <p class="settings-perms-title">Exigir troca de senha no próximo login</p>
+                <div id="settings-force-password-list" class="settings-perms-grid"></div>
+                <div class="btn-row"><button type="submit" class="btn btn-primary">Salvar segurança</button></div>
+              </form>
+            </div>
+
+            <div id="settings-panel-notifications" class="settings-panel settings-panel--form glass-card" role="tabpanel" hidden>
+              <form id="settings-notifications-form" class="form-stack">
+                <p class="muted">Eventos que podem gerar e-mail quando o SMTP estiver configurado na aba E-mail.</p>
+                <label class="checkbox-row"><input type="checkbox" name="automationFail" /> Falha em regra de automação</label>
+                <label class="checkbox-row"><input type="checkbox" name="dockerStopped" /> Contêiner parado inesperadamente</label>
+                <label class="checkbox-row"><input type="checkbox" name="diskSpaceLow" /> Espaço em disco baixo</label>
+                <label class="checkbox-row"><input type="checkbox" name="loginFailure" /> Limite de tentativas de login atingido</label>
+                <div class="btn-row"><button type="submit" class="btn btn-primary">Salvar notificações</button></div>
+              </form>
+            </div>
+
+            <div id="settings-panel-users" class="settings-panel glass-card" role="tabpanel" hidden>
+              <p class="muted settings-users-intro">O usuário <code>admin</code> mantém a senha padrão do produto ao salvar.</p>
+              <div id="settings-users-layout" class="settings-users-layout">
+                <div class="settings-users-main">
+                  <div id="settings-users-list" class="data-list settings-users-list"></div>
+                  <div class="btn-row settings-users-toolbar">
+                    <button type="button" class="btn btn-ghost" id="settings-user-add">Adicionar</button>
+                    <button type="button" class="btn btn-primary" id="settings-users-save">Salvar usuários</button>
+                  </div>
+                </div>
+                <aside id="settings-user-editor" class="settings-user-editor glass-panel" aria-hidden="true" hidden>
+                  <form id="settings-user-form" class="settings-user-editor-form">
+                    <div class="settings-user-editor-head">
+                      <h3 id="settings-user-editor-title">Novo usuário</h3>
+                      <button type="button" class="btn btn-ghost btn-sm btn-icon" id="settings-user-close" aria-label="Fechar editor">×</button>
+                    </div>
+                    <div class="settings-user-editor-body">
+                      <div class="settings-user-editor-cols">
+                        <div class="settings-user-fields-col">
+                          <p class="settings-col-title">Dados do usuário</p>
+                          <label class="field">Usuário <input name="username" required pattern="[a-zA-Z0-9._-]+" autocomplete="off" /></label>
+                          <label class="field">Nome <input name="displayName" autocomplete="off" /></label>
+                          <label class="field">Senha <input name="password" type="password" autocomplete="new-password" /></label>
+                        </div>
+                        <div id="settings-user-perms" class="settings-user-perms-col">
+                          <p class="settings-col-title">Acessos</p>
+                          <p class="settings-perms-title">Telas permitidas</p>
+                          <div id="settings-user-screens" class="settings-perms-grid"></div>
+                          <p class="settings-perms-title">Ações permitidas</p>
+                          <div id="settings-user-actions" class="settings-perms-grid"></div>
+                          <p class="muted settings-perms-hint">Administrador tem acesso total. Outros usuários só veem o que estiver marcado.</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="btn-row end settings-user-editor-foot">
+                      <button type="button" class="btn btn-ghost" id="settings-user-cancel">Cancelar</button>
+                      <button type="submit" class="btn btn-primary">Aplicar</button>
+                    </div>
+                  </form>
+                </aside>
+              </div>
+            </div>
+
+            <div id="settings-panel-mail" class="settings-panel glass-card" role="tabpanel" hidden>
+              <form id="settings-mail-form" class="form-stack">
+                <label class="checkbox-row"><input type="checkbox" name="enabled" /> Ativar alertas por e-mail</label>
+                <div class="field-row">
+                  <label class="field">Servidor SMTP <input name="host" placeholder="smtp.office365.com" /></label>
+                  <label class="field">Porta <input name="port" type="number" value="587" /></label>
+                  <label class="field">Usuário <input name="user" autocomplete="username" /></label>
+                  <label class="field">Senha <input name="password" type="password" autocomplete="new-password" placeholder="vazio = manter" /></label>
+                  <label class="field">From <input name="from" type="email" /></label>
+                </div>
+                <label class="field">Destinatários <input name="recipientsText" placeholder="a@x.com, b@y.com" /></label>
+                <p class="muted" id="settings-mail-status"></p>
+                <div class="btn-row">
+                  <button type="submit" class="btn btn-primary">Salvar SMTP</button>
+                  <button type="button" class="btn btn-ghost" id="settings-mail-test-self">Teste remetente</button>
+                  <button type="button" class="btn btn-ghost" id="settings-mail-test-all">Teste destinatários</button>
+                </div>
+              </form>
+            </div>
+
+            <div id="settings-panel-about" class="settings-panel settings-panel--about glass-card" role="tabpanel" hidden>
+              <div id="settings-diagnostics" class="settings-diagnostics">
+                <p class="muted">A carregar diagnóstico…</p>
+              </div>
+              <div class="btn-row">
+                <button type="button" class="btn btn-ghost" id="settings-copy-diagnostics">Copiar diagnóstico</button>
+                <button type="button" class="btn btn-ghost" id="settings-refresh-diagnostics">Atualizar</button>
+              </div>
+            </div>
           </div>
         </div>
-
-        <div id="settings-panel-mail" class="settings-panel glass-card content-pad">
-          <form id="settings-mail-form" class="form-stack">
-            <label class="checkbox-row"><input type="checkbox" name="enabled" /> Ativar alertas por e-mail</label>
-            <div class="field-row">
-              <label class="field">Servidor SMTP <input name="host" placeholder="smtp.office365.com" /></label>
-              <label class="field">Porta <input name="port" type="number" value="587" /></label>
-              <label class="field">Utilizador <input name="user" autocomplete="username" /></label>
-              <label class="field">Senha <input name="password" type="password" autocomplete="new-password" placeholder="vazio = manter" /></label>
-              <label class="field">From <input name="from" type="email" /></label>
-            </div>
-            <label class="field">Destinatários <input name="recipientsText" placeholder="a@x.com, b@y.com" /></label>
-            <p class="muted" id="settings-mail-status"></p>
-            <div class="btn-row">
-              <button type="submit" class="btn btn-primary">Guardar SMTP</button>
-              <button type="button" class="btn btn-ghost" id="settings-mail-test-self">Teste remetente</button>
-              <button type="button" class="btn btn-ghost" id="settings-mail-test-all">Teste destinatários</button>
-            </div>
-          </form>
-        </div>
-
-        <dialog id="settings-user-dialog" class="modal-dialog">
-          <form id="settings-user-form" method="dialog" class="modal-form">
-            <h3>Editar utilizador</h3>
-            <label class="field">Utilizador <input name="username" required pattern="[a-zA-Z0-9._-]+" /></label>
-            <label class="field">Nome <input name="displayName" /></label>
-            <label class="field">Senha <input name="password" type="password" /></label>
-            <div class="btn-row end">
-              <button type="button" class="btn btn-ghost" id="settings-user-cancel">Cancelar</button>
-              <button type="submit" class="btn btn-primary">Aplicar</button>
-            </div>
-          </form>
-        </dialog>
       </div>
+
+      <dialog id="settings-password-dialog" class="modal-dialog">
+        <form method="dialog" id="settings-password-form" class="modal-form">
+          <h3>Troca de senha obrigatória</h3>
+          <p class="muted">O administrador exige que você defina uma nova senha antes de continuar.</p>
+          <label class="field">Senha atual <input name="currentPassword" type="password" required autocomplete="current-password" /></label>
+          <label class="field">Nova senha <input name="newPassword" type="password" required autocomplete="new-password" minlength="6" /></label>
+          <div class="btn-row end">
+            <button type="submit" class="btn btn-primary">Alterar senha</button>
+          </div>
+        </form>
+      </dialog>
       </div><!-- shell-body -->
     </section>
   </div>
@@ -780,7 +994,7 @@
   <div id="splash-overlay" class="splash hidden" aria-busy="false">
     <div class="splash-card glass-card">
       <img src="/icon-192.png" width="64" height="64" alt="" class="splash-logo" />
-      <p class="splash-label">A ligar SSH…</p>
+      <p class="splash-label">Conectando SSH…</p>
       <div class="progress-track splash-track"><div class="progress-fill indeterminate"></div></div>
     </div>
   </div>
@@ -849,7 +1063,7 @@
     <button type="button" data-action="copy">Copiar</button>
     <button type="button" data-action="paste">Colar</button>
     <button type="button" data-action="rename">Renomear</button>
-    <button type="button" data-action="delete">Apagar</button>
+    <button type="button" data-action="delete">Excluir</button>
     <button type="button" data-action="mkdir">Nova pasta aqui</button>
   </menu>
 
@@ -899,7 +1113,7 @@
         <button type="button" class="btn btn-ghost btn-sm hidden" id="file-editor-sync-external">Sincronizar remoto</button>
         <span class="file-editor-actions-spacer"></span>
         <button type="button" class="btn btn-ghost" id="file-editor-cancel">Cancelar</button>
-        <button type="button" class="btn btn-primary" id="file-editor-save">Guardar</button>
+        <button type="button" class="btn btn-primary" id="file-editor-save">Salvar</button>
       </div>
     </div>
   </dialog>
@@ -1117,7 +1331,7 @@
       <h3>Superusuário (sudo)</h3>
       <p class="muted">Credenciais para pastas e operações que exigem privilégios elevados no host SFTP.</p>
       <label class="field">
-        <span>Utilizador</span>
+        <span>Usuário</span>
         <input type="text" id="sudo-user" value="root" autocomplete="username" />
       </label>
       <label class="field">
@@ -1135,7 +1349,9 @@
   <script src="/vendor/xterm/xterm.min.js"></script>
   <script src="/vendor/xterm/xterm-addon-fit.min.js"></script>
   <script src="/ui.js"></script>
+  <script src="/web-prefs.js"></script>
   <script src="/app.js"></script>
+  <script src="/settings.js"></script>
   <script src="/docker-manager.js"></script>
   <script src="/disks-manager.js"></script>
   <script src="/explorer.js"></script>

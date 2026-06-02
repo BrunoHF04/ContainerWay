@@ -19,8 +19,13 @@ func (s *Server) handleTerminalWS(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "não autenticado", http.StatusUnauthorized)
 		return
 	}
-	if _, ok := s.store.getWebToken(tok); !ok {
+	ws, ok := s.store.getWebToken(tok)
+	if !ok {
 		http.Error(w, "sessão expirada", http.StatusUnauthorized)
+		return
+	}
+	if !userHasRequestPermission(ws.Username, r.Method, r.URL.Path) {
+		http.Error(w, "sem permissão", http.StatusForbidden)
 		return
 	}
 	b := s.store.getSSH(tok)

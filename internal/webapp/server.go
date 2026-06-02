@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"containerway/internal/hostfs"
 	"containerway/internal/localfs"
 	"containerway/internal/session"
+	"containerway/internal/webprefs"
 )
 
 //go:embed static/*
@@ -169,6 +171,8 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("/api/automations/engine", s.handleAutomationsEngine)
 	mux.HandleFunc("/api/admin/users", s.handleAdminUsers)
 	mux.HandleFunc("/api/admin/mail", s.handleAdminMail)
+	mux.HandleFunc("/api/admin/web-settings", s.handleAdminWebSettings)
+	mux.HandleFunc("/api/settings/diagnostics", s.handleSettingsDiagnostics)
 	mux.HandleFunc("/api/ssh/terminal/ws", s.handleTerminalWS)
 
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -210,11 +214,29 @@ func (s *Server) handleAuthLogin(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "corpo inválido"})
 		return
 	}
+	username := strings.TrimSpace(body.Username)
+	cfg, _ := webprefs.Load()
+	if cfg.Policies.MaxLoginAttempts > 0 {
+		if webprefs.LoginFailuresFor(username) >= cfg.Policies.MaxLoginAttempts {
+			writeJSON(w, http.StatusTooManyRequests, map[string]string{
+				"error": "muitas tentativas falhadas — aguarde ou contacte o administrador",
+			})
+			return
+		}
+	}
 	user, ok := accessauth.Authenticate(body.Username, body.Password)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "utilizador ou senha inválidos"})
+		if cfg.Policies.MaxLoginAttempts > 0 {
+			n, _ := webprefs.RecordLoginFailure(username)
+			if n >= cfg.Policies.MaxLoginAttempts && cfg.Notifications.LoginFailure {
+				// e-mail opcional: ignorar erro de envio
+				_ = notifyLoginFailure(cfg, username)
+			}
+		}
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "usuário ou senha inválidos"})
 		return
 	}
+	_ = webprefs.ResetLoginFailures(username)
 	tok, err := s.store.newWebToken(user.Username, user.DisplayName)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "falha ao criar sessão"})
@@ -222,9 +244,11 @@ func (s *Server) handleAuthLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	setSessionCookie(w, tok)
 	writeJSON(w, http.StatusOK, map[string]any{
-		"username":    user.Username,
-		"displayName": user.DisplayName,
-		"isAdmin":     isAdminUser(user.Username),
+		"username":           user.Username,
+		"displayName":        user.DisplayName,
+		"isAdmin":            isAdminUser(user.Username),
+		"permissions":        permissionsPayload(user.Username),
+		"mustChangePassword": webprefs.MustChangePassword(user.Username),
 	})
 }
 
@@ -241,29 +265,6 @@ func (s *Server) handleAuthLogout(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// handleAuthMe devolve o utilizador autenticado ou authenticated:false (sem 401, para evitar ruído na consola ao abrir a app).
-func (s *Server) handleAuthMe(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "método não permitido"})
-		return
-	}
-	tok, ok := sessionTokenFromRequest(r)
-	if !ok {
-		writeJSON(w, http.StatusOK, map[string]any{"authenticated": false})
-		return
-	}
-	ws, ok := s.store.getWebToken(tok)
-	if !ok {
-		writeJSON(w, http.StatusOK, map[string]any{"authenticated": false})
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"authenticated": true,
-		"username":      ws.Username,
-		"displayName":   ws.DisplayName,
-		"isAdmin":       isAdminUser(ws.Username),
-	})
-}
 
 // handleSSHConnect abre sessão SSH/SFTP para o utilizador web autenticado.
 func (s *Server) handleSSHConnect(w http.ResponseWriter, r *http.Request) {
@@ -326,8 +327,9 @@ func (s *Server) handleSSHStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	b := s.store.getSSH(tok)
 	resp := map[string]any{
-		"connected": b != nil,
-		"isAdmin":   isAdminUser(ws.Username),
+		"connected":   b != nil,
+		"isAdmin":     isAdminUser(ws.Username),
+		"permissions": permissionsPayload(ws.Username),
 	}
 	if b != nil {
 		resp["host"] = b.Host
@@ -437,6 +439,21 @@ func (s *Server) requireWebAuth(w http.ResponseWriter, r *http.Request) (string,
 	if !ok {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "sessão expirada"})
 		return "", webSession{}, false
+	}
+	if idle, mins := sessionIdleExceeded(ws); idle {
+		s.store.deleteWebToken(tok)
+		clearSessionCookie(w)
+		writeJSON(w, http.StatusUnauthorized, map[string]string{
+			"error": "sessão encerrada por inatividade (" + strconv.Itoa(mins) + " min)",
+		})
+		return "", webSession{}, false
+	}
+	s.store.touchWebToken(tok)
+	if need := permissionForRequest(r.Method, r.URL.Path); need != "" {
+		if !accessauth.PermissionsForUser(ws.Username).HasAction(need) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "sem permissão para esta ação"})
+			return "", webSession{}, false
+		}
 	}
 	return tok, ws, true
 }

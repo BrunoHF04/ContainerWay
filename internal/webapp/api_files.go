@@ -234,7 +234,7 @@ func (s *Server) handleRemoteDelete(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
-		b.addOperation("Apagado (contêiner): "+filepath.Base(body.Path), "info")
+		b.addOperation("Excluído (contêiner): "+filepath.Base(body.Path), "info")
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 		return
 	}
@@ -246,7 +246,7 @@ func (s *Server) handleRemoteDelete(w http.ResponseWriter, r *http.Request) {
 			b.sudoMu.Unlock()
 			if sudoOn {
 				if errSudo := b.removeHostWithSudo(r.Context(), body.Path, body.Recursive); errSudo == nil {
-					b.addOperation("Apagado (remoto/sudo): "+filepath.Base(body.Path), "info")
+					b.addOperation("Excluído (remoto/sudo): "+filepath.Base(body.Path), "info")
 					writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 					return
 				}
@@ -255,7 +255,7 @@ func (s *Server) handleRemoteDelete(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
-	b.addOperation("Apagado (remoto): "+filepath.Base(body.Path), "info")
+	b.addOperation("Excluído (remoto): "+filepath.Base(body.Path), "info")
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 

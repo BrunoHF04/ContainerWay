@@ -1,5 +1,6 @@
 const state = {
   user: null,
+  permissions: { screens: [], actions: [] },
   ssh: { connected: false, host: "", user: "", isAdmin: false },
   screen: "connect",
   localPath: "",
@@ -50,6 +51,12 @@ function preloadMascotAssets() {
 }
 
 function initTheme() {
+  if (window.CWWebPrefs) {
+    const resolved = CWWebPrefs.applyThemeFromPrefs();
+    preloadMascotAssets();
+    syncMascotIcons(resolved);
+    return;
+  }
   const saved = localStorage.getItem(THEME_KEY);
   const theme = saved === "light" || saved === "dark"
     ? saved
@@ -93,6 +100,7 @@ function toggleTheme() {
   const applyTheme = () => {
     root.setAttribute("data-theme", next);
     localStorage.setItem(THEME_KEY, next);
+    window.CWWebPrefs?.set?.("theme", next);
   };
 
   const onThemeDone = () => {
@@ -134,12 +142,12 @@ function bindThemeButtons() {
 bindThemeButtons();
 
 const MODULES = [
-  { id: "explorer", icon: "📁", accent: "cyan", title: "Gerenciador de arquivos", desc: "Painel duplo local/remoto, enviar e receber ficheiros.", kw: "arquivos sftp transferência" },
+  { id: "explorer", icon: "📁", accent: "cyan", title: "Gerenciador de arquivos", desc: "Painel duplo local/remoto, enviar e receber arquivos.", kw: "arquivos sftp transferência" },
   { id: "docker", icon: "🐳", accent: "indigo", title: "Contêineres Docker", desc: "Lista, métricas, logs, consola e ciclo de vida.", kw: "docker container" },
   { id: "disks", icon: "💾", accent: "emerald", title: "Discos e armazenamento", desc: "lsblk, uso de pastas, LVM e ampliação.", kw: "disco lsblk armazenamento lvm ncdu treesize" },
   { id: "terminal", icon: "⌨️", accent: "amber", title: "Terminal SSH", desc: "Consola remota interativa.", kw: "terminal ssh shell" },
   { id: "automations", icon: "⚙️", accent: "violet", title: "Central de automações", desc: "Regras e histórico por host.", kw: "automação regras" },
-  { id: "settings", icon: "🔧", accent: "rose", title: "Configurações", desc: "Conta, utilizadores e SMTP.", kw: "configurações admin", adminOnly: true },
+  { id: "settings", icon: "🔧", accent: "rose", title: "Configurações", desc: "Conta, interface, SSH, módulos e administração.", kw: "configurações admin", adminOnly: true },
 ];
 
 function handleSessionExpired(message) {
@@ -209,18 +217,53 @@ function showLoginPhase(phase) {
   }
 }
 
+function applyUserPermissions(perms) {
+  state.permissions = {
+    screens: Array.isArray(perms?.screens) ? [...perms.screens] : [],
+    actions: Array.isArray(perms?.actions) ? [...perms.actions] : [],
+  };
+}
+
+function canScreen(id) {
+  if (state.user?.isAdmin || state.ssh.isAdmin) return true;
+  const screens = state.permissions?.screens;
+  if (!screens?.length) return true;
+  return screens.includes(id);
+}
+
+function canAction(id) {
+  if (state.user?.isAdmin || state.ssh.isAdmin) return true;
+  const actions = state.permissions?.actions;
+  if (!actions?.length) return true;
+  return actions.includes(id);
+}
+
+window.canScreen = canScreen;
+window.canAction = canAction;
+
 async function afterAuthSuccess(me) {
   state.user = me;
+  state.user.mustChangePassword = !!me.mustChangePassword;
   state.ssh.isAdmin = !!me.isAdmin;
+  applyUserPermissions(me.permissions);
   $("#user-label").textContent = me.displayName || me.username;
   setAppTopbar(true);
+  if (await window.CWSettings?.promptMustChangePassword?.()) {
+    /* continua após troca de senha */
+  }
   showView("#view-login");
   showLoginPhase("connect");
   await refreshConnections();
   await refreshSSH();
+  tryAutoReconnectSSH();
 }
 
 function showScreen(name) {
+  if (!canScreen(name)) {
+    CWUI.toast("Sem permissão para acessar este módulo.", "error");
+    if (state.ssh.connected && name !== "hub") name = "hub";
+    else return;
+  }
   const prevScreen = state.screen;
   state.screen = name;
   $$(".subview").forEach((v) => {
@@ -242,7 +285,7 @@ function showScreen(name) {
     stopAutoPoll();
   }
   if (name === "terminal") openTerminal();
-  if (name === "settings") loadSettings();
+  if (name === "settings") window.CWSettings?.loadSettings?.();
   if (name === "explorer") {
     loadLocal(state.localPath);
     if (state.ssh.connected) loadRemote(state.remotePath);
@@ -368,6 +411,7 @@ function renderHub() {
   const isAdmin = state.user?.isAdmin || state.ssh.isAdmin;
   for (const m of MODULES) {
     if (m.adminOnly && !isAdmin) continue;
+    if (!canScreen(m.id)) continue;
     const hay = `${m.title} ${m.desc} ${m.kw}`.toLowerCase();
     if (q && !hay.includes(q)) continue;
     const shell = document.createElement("div");
@@ -400,6 +444,7 @@ async function refreshSSH() {
   state.ssh.host = st.host || "";
   state.ssh.user = st.user || "";
   state.ssh.isAdmin = !!st.isAdmin;
+  if (st.permissions) applyUserPermissions(st.permissions);
   const badge = $("#ssh-status");
   badge.textContent = st.connected ? "SSH: online" : "SSH: offline";
   badge.classList.toggle("online", st.connected);
@@ -418,8 +463,12 @@ async function refreshSSH() {
     setAppTopbar(true);
     showView("#view-shell");
     if (!wasConnected || prevScreen === "connect") {
-      showScreen("hub");
-      renderHub();
+      if (window.CWSettings?.navigateHomeScreen) {
+        CWSettings.navigateHomeScreen();
+      } else {
+        showScreen("hub");
+        renderHub();
+      }
     }
   } else if (state.user) {
     setAppTopbar(true);
@@ -441,11 +490,29 @@ async function checkSession() {
       showLoginPhase("auth");
       return;
     }
+    me.mustChangePassword = !!me.mustChangePassword;
     await afterAuthSuccess(me);
   } catch {
     setAppTopbar(false);
     showView("#view-login");
     showLoginPhase("auth");
+  }
+}
+
+async function tryAutoReconnectSSH() {
+  if (!window.CWWebPrefs?.get?.("sshAutoReconnect")) return;
+  if (state.ssh.connected) return;
+  const prof = CWWebPrefs.get("lastSSHProfile");
+  if (!prof) return;
+  try {
+    await api("/api/ssh/connect", {
+      method: "POST",
+      body: JSON.stringify({ profileName: prof }),
+    });
+    await refreshSSH();
+    CWUI.toast("SSH reconectado automaticamente", "success");
+  } catch {
+    /* perfil inválido ou host indisponível */
   }
 }
 
@@ -458,6 +525,7 @@ $("#login-form").addEventListener("submit", async (ev) => {
       method: "POST",
       body: JSON.stringify({ username: $("#login-user").value, password: $("#login-pass").value }),
     });
+    me.mustChangePassword = !!me.mustChangePassword;
     await afterAuthSuccess(me);
   } catch (e) {
     err.textContent = e.message;
@@ -467,6 +535,11 @@ $("#login-form").addEventListener("submit", async (ev) => {
 
 $("#btn-logout").addEventListener("click", async () => {
   closeTerminal();
+  if (CWWebPrefs?.get?.("sshDisconnectOnLogout") && state.ssh.connected) {
+    try {
+      await api("/api/ssh/disconnect", { method: "POST", body: "{}" });
+    } catch { /* ignore */ }
+  }
   await api("/api/auth/logout", { method: "POST", body: "{}" });
   state.user = null;
   state.ssh.connected = false;
@@ -491,7 +564,7 @@ $("#btn-ssh-test")?.addEventListener("click", async () => {
   const host = $("#ssh-host")?.value?.trim();
   const user = $("#ssh-user")?.value?.trim();
   if (!host || !user) {
-    CWUI.toast("Preencha host e utilizador.", "error");
+    CWUI.toast("Preencha host e usuário.", "error");
     return;
   }
   const out = $("#ssh-test-result");
@@ -531,15 +604,17 @@ $("#ssh-form").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   CWUI.showSplash("A estabelecer ligação SSH…");
   try {
+    const profileName = $("#ssh-profile").value || $("#ssh-name").value.trim();
     await api("/api/ssh/connect", {
       method: "POST",
       body: JSON.stringify({
-        profileName: $("#ssh-profile").value || $("#ssh-name").value.trim(),
+        profileName,
         host: $("#ssh-host").value,
         user: $("#ssh-user").value,
         password: $("#ssh-pass").value,
       }),
     });
+    if (profileName) CWWebPrefs?.set?.("lastSSHProfile", profileName);
     await refreshSSH();
     CWUI.toast("Ligação SSH estabelecida", "success");
   } catch (e) {
@@ -583,7 +658,7 @@ async function loadSelectedProfile() {
     $("#ssh-user").value = p.user || "";
     $("#ssh-pass").value = p.password || "";
     $("#ssh-save-secrets").checked = !!(p.password || p.hasPassword);
-    $("#ssh-conn-status").textContent = `Perfil «${p.name}» carregado.`;
+    $("#ssh-conn-status").textContent = `Perfil "${p.name}" carregado.`;
   } catch (e) {
     $("#ssh-conn-status").textContent = e.message;
   }
@@ -596,7 +671,7 @@ $("#ssh-save-profile").addEventListener("click", async () => {
   const host = $("#ssh-host").value.trim();
   const user = $("#ssh-user").value.trim();
   if (!name || !host || !user) {
-    CWUI.toast("Preencha nome do perfil, host e utilizador.", "error");
+    CWUI.toast("Preencha nome do perfil, host e usuário.", "error");
     return;
   }
   try {
@@ -613,27 +688,27 @@ $("#ssh-save-profile").addEventListener("click", async () => {
     });
     await refreshConnections(name);
     $("#ssh-profile").value = name;
-    $("#ssh-conn-status").textContent = `Perfil «${name}» guardado.`;
-    CWUI.toast(`Perfil «${name}» guardado`, "success");
+    $("#ssh-conn-status").textContent = `Perfil "${name}" salvo.`;
+    CWUI.toast(`Perfil "${name}" salvo`, "success");
   } catch (e) {
-    CWUI.toast("Não foi possível guardar: " + e.message, "error");
+    CWUI.toast("Não foi possível salvar: " + e.message, "error");
   }
 });
 
 $("#ssh-delete-profile").addEventListener("click", async () => {
   const name = $("#ssh-profile").value || $("#ssh-name").value.trim();
   if (!name) {
-    CWUI.toast("Selecione ou indique o nome do perfil a apagar.", "error");
+    CWUI.toast("Selecione ou indique o nome do perfil a excluir.", "error");
     return;
   }
-  if (!(await CWConfirm(`Apagar o perfil «${name}»?`, { danger: true, ok: "Apagar" }))) return;
+  if (!(await CWConfirm(`Excluir o perfil "${name}"?`, { danger: true, ok: "Excluir" }))) return;
   try {
     await api("/api/connections?name=" + encodeURIComponent(name), { method: "DELETE" });
     $("#ssh-profile").value = "";
     await refreshConnections();
     await loadSelectedProfile();
-    $("#ssh-conn-status").textContent = `Perfil «${name}» apagado.`;
-    CWUI.toast(`Perfil «${name}» apagado`, "success");
+    $("#ssh-conn-status").textContent = `Perfil "${name}" excluído.`;
+    CWUI.toast(`Perfil "${name}" excluído`, "success");
   } catch (e) {
     CWUI.toast(e.message, "error");
   }
@@ -773,8 +848,9 @@ function closeTerminal() {
 function openTerminal() {
   if (!state.ssh.connected) return;
   const box = $("#terminal");
+  const fontSize = Number(window.CWWebPrefs?.get?.("terminalFontSize")) || 14;
   if (!state.term) {
-    state.term = new Terminal({ theme: { background: "#0f1419", foreground: "#e8eef7", cursor: "#3b82f6" }, fontSize: 14 });
+    state.term = new Terminal({ theme: { background: "#0f1419", foreground: "#e8eef7", cursor: "#3b82f6" }, fontSize });
     state.termFit = new (window.FitAddon?.FitAddon || FitAddon.FitAddon)();
     state.term.loadAddon(state.termFit);
     state.term.open(box);
@@ -783,7 +859,7 @@ function openTerminal() {
   if (state.termSocket) state.termSocket.close();
   const ws = new WebSocket(terminalWSUrl());
   state.termSocket = ws;
-  ws.onopen = () => state.term.writeln("\r\n\x1b[32mLigado ao host remoto.\x1b[0m\r\n");
+  ws.onopen = () => state.term.writeln("\r\n\x1b[32mConectado ao host remoto.\x1b[0m\r\n");
   ws.onmessage = (ev) => state.term.write(ev.data);
   ws.onclose = () => state.term.writeln("\r\n\x1b[33mSessão terminada.\x1b[0m\r\n");
   state.term.onData((data) => { if (ws.readyState === WebSocket.OPEN) ws.send(data); });
@@ -896,14 +972,14 @@ function applyDockerAutomationPrefill() {
   );
   if (existing >= 0) {
     openAutoRuleDialog(existing);
-    CWUI.toast("Regra existente para este alvo — pode editar e guardar", "info");
+    CWUI.toast("Regra existente para este alvo — pode editar e salvar", "info");
     return true;
   }
   const rule = {
     id: `docker-${Date.now()}`,
     kind: "docker_container_stopped_restart",
     name: pre.name || `Reinício automático: ${target}`,
-    description: "Criada a partir do ecrã Contêineres Docker",
+    description: "Criada a partir do tela Contêineres Docker",
     trigger: "Contêiner Docker deixou de correr",
     action: "docker restart",
     target,
@@ -915,7 +991,7 @@ function applyDockerAutomationPrefill() {
   state.autoRulesDirty = true;
   renderAutoRules();
   openAutoRuleDialog(state.autoRules.length - 1);
-  CWUI.toast("Nova regra — confirme e clique em Guardar regras", "info");
+  CWUI.toast("Nova regra — confirme e clique em Salvar regras", "info");
   return true;
 }
 
@@ -955,7 +1031,7 @@ $("#auto-save-rules").addEventListener("click", async () => {
     await api("/api/automations/rules", { method: "PUT", body: JSON.stringify({ rules: state.autoRules }) });
     state.autoRulesDirty = false;
     renderAutoRules();
-    CWUI.toast("Regras guardadas", "success");
+    CWUI.toast("Regras salvas", "success");
   } catch (e) {
     CWUI.toast(e.message, "error");
   }
@@ -993,208 +1069,5 @@ $("#auto-rule-form").addEventListener("submit", (ev) => {
   $("#auto-rule-dialog").close();
   renderAutoRules();
 });
-
-const settingsState = { users: [], userEditIndex: -1, tab: "account" };
-
-function showSettingsTab(tab) {
-  settingsState.tab = tab;
-  $$(".settings-tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
-  $$(".settings-panel").forEach((p) => p.classList.remove("active"));
-  const panel = $(`#settings-panel-${tab}`);
-  if (panel) panel.classList.add("active");
-  if (tab === "users") loadSettingsUsers();
-  if (tab === "mail") loadSettingsMail();
-}
-
-async function loadSettings() {
-  $("#settings-user").textContent = state.user?.displayName || state.user?.username || "—";
-  const isAdmin = !!state.user?.isAdmin || state.ssh.isAdmin;
-  $("#settings-role").textContent = isAdmin ? "Administrador" : "Utilizador";
-  const usersTab = $("#settings-tab-users");
-  const mailTab = $("#settings-tab-mail");
-  if (usersTab) usersTab.hidden = !isAdmin;
-  if (mailTab) mailTab.hidden = !isAdmin;
-  if (!isAdmin && (settingsState.tab === "users" || settingsState.tab === "mail")) {
-    showSettingsTab("account");
-  }
-  if (isAdmin && settingsState.tab !== "account") {
-    if (settingsState.tab === "users") await loadSettingsUsers();
-    if (settingsState.tab === "mail") await loadSettingsMail();
-  }
-}
-
-async function loadSettingsUsers() {
-  const box = $("#settings-users-list");
-  box.innerHTML = "…";
-  try {
-    const data = await api("/api/admin/users");
-    settingsState.users = (data.users || []).map((u) => ({
-      username: u.username,
-      displayName: u.displayName || u.username,
-      password: "",
-      isAdmin: !!u.isAdmin,
-    }));
-    renderSettingsUsers();
-  } catch (e) {
-    box.innerHTML = `<p class="error">${escapeHtml(e.message)}</p>`;
-  }
-}
-
-function renderSettingsUsers() {
-  const box = $("#settings-users-list");
-  box.innerHTML = "";
-  for (const u of settingsState.users) {
-    const row = document.createElement("div");
-    row.className = "data-row";
-    row.innerHTML = `<div><strong>${escapeHtml(u.displayName)}</strong><span class="muted">@${escapeHtml(u.username)}${u.isAdmin ? " · admin" : ""}</span></div>`;
-    const actions = document.createElement("div");
-    actions.className = "data-row-actions";
-    const editBtn = document.createElement("button");
-    editBtn.type = "button";
-    editBtn.className = "btn btn-ghost btn-sm";
-    editBtn.textContent = "Editar";
-    editBtn.addEventListener("click", () => {
-      settingsState.userEditIndex = settingsState.users.indexOf(u);
-      const form = $("#settings-user-form");
-      form.elements.username.value = u.username;
-      form.elements.username.readOnly = !!u.isAdmin;
-      form.elements.displayName.value = u.displayName;
-      form.elements.password.value = "";
-      form.elements.password.placeholder = u.isAdmin ? "admin: senha reposta ao padrão ao guardar" : "deixe vazio para manter";
-      $("#settings-user-dialog").showModal();
-    });
-    actions.appendChild(editBtn);
-    if (!u.isAdmin) {
-      const delBtn = document.createElement("button");
-      delBtn.type = "button";
-      delBtn.className = "btn btn-ghost btn-sm";
-      delBtn.textContent = "Remover";
-      delBtn.addEventListener("click", () => {
-        settingsState.users = settingsState.users.filter((x) => x !== u);
-        renderSettingsUsers();
-      });
-      actions.appendChild(delBtn);
-    }
-    row.appendChild(actions);
-    box.appendChild(row);
-  }
-}
-
-async function loadSettingsMail() {
-  const status = $("#settings-mail-status");
-  status.textContent = "A carregar…";
-  try {
-    const m = await api("/api/admin/mail");
-    const form = $("#settings-mail-form");
-    form.elements.enabled.checked = !!m.enabled;
-    form.elements.host.value = m.host || "";
-    form.elements.port.value = m.port || 587;
-    form.elements.user.value = m.user || "";
-    form.elements.password.value = "";
-    form.elements.password.placeholder = m.hasPassword ? "•••• (deixe vazio para manter)" : "senha SMTP";
-    form.elements.from.value = m.from || "";
-    form.elements.recipientsText.value = (m.recipients || []).join(", ");
-    const bits = [];
-    if (m.valid) bits.push("configuração completa");
-    else if (m.validTransport) bits.push("SMTP OK (faltam destinatários)");
-    else bits.push("configuração incompleta");
-    status.textContent = bits.join(" · ");
-  } catch (e) {
-    status.textContent = e.message;
-  }
-}
-
-$$(".settings-tab").forEach((btn) => {
-  btn.addEventListener("click", () => showSettingsTab(btn.dataset.tab));
-});
-
-$("#settings-user-add").addEventListener("click", () => {
-  settingsState.userEditIndex = -1;
-  const form = $("#settings-user-form");
-  form.elements.username.value = "";
-  form.elements.username.readOnly = false;
-  form.elements.displayName.value = "";
-  form.elements.password.value = "";
-  form.elements.password.placeholder = "obrigatória";
-  $("#settings-user-dialog").showModal();
-});
-
-$("#settings-user-cancel").addEventListener("click", () => $("#settings-user-dialog").close());
-
-$("#settings-user-form").addEventListener("submit", (ev) => {
-  ev.preventDefault();
-  const form = ev.target;
-  const username = form.elements.username.value.trim().toLowerCase();
-  const displayName = form.elements.displayName.value.trim() || username;
-  const password = form.elements.password.value;
-  if (!username) return;
-  const entry = { username, displayName, password, isAdmin: username === "admin" };
-  const idx = settingsState.userEditIndex;
-  if (idx >= 0) {
-    settingsState.users[idx] = { ...settingsState.users[idx], ...entry };
-  } else {
-    if (!password) {
-      CWUI.toast("Senha obrigatória para novo utilizador.", "error");
-      return;
-    }
-    if (settingsState.users.some((u) => u.username === username)) {
-      CWUI.toast("Utilizador já existe.", "error");
-      return;
-    }
-    settingsState.users.push(entry);
-  }
-  $("#settings-user-dialog").close();
-  renderSettingsUsers();
-});
-
-$("#settings-users-save").addEventListener("click", async () => {
-  try {
-    const users = settingsState.users.map((u) => ({
-      username: u.username,
-      displayName: u.displayName,
-      password: u.password || "",
-    }));
-    await api("/api/admin/users", { method: "PUT", body: JSON.stringify({ users }) });
-    CWUI.toast("Utilizadores guardados", "success");
-    await loadSettingsUsers();
-  } catch (e) {
-    CWUI.toast(e.message, "error");
-  }
-});
-
-$("#settings-mail-form").addEventListener("submit", async (ev) => {
-  ev.preventDefault();
-  const f = ev.target;
-  try {
-    await api("/api/admin/mail", {
-      method: "PUT",
-      body: JSON.stringify({
-        enabled: f.elements.enabled.checked,
-        host: f.elements.host.value.trim(),
-        port: parseInt(f.elements.port.value, 10) || 587,
-        user: f.elements.user.value.trim(),
-        password: f.elements.password.value,
-        from: f.elements.from.value.trim(),
-        recipientsText: f.elements.recipientsText.value,
-      }),
-    });
-    CWUI.toast("Configuração SMTP guardada", "success");
-    await loadSettingsMail();
-  } catch (e) {
-    CWUI.toast(e.message, "error");
-  }
-});
-
-async function testSettingsMail(mode) {
-  try {
-    await api("/api/admin/mail", { method: "POST", body: JSON.stringify({ mode }) });
-    CWUI.toast("E-mail de teste enviado", "success");
-  } catch (e) {
-    CWUI.toast(e.message, "error");
-  }
-}
-
-$("#settings-mail-test-self").addEventListener("click", () => testSettingsMail("self"));
-$("#settings-mail-test-all").addEventListener("click", () => testSettingsMail("recipients"));
 
 checkSession();

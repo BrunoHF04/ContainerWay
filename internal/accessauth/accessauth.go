@@ -13,9 +13,10 @@ const (
 
 // User conta de acesso local ao aplicativo.
 type User struct {
-	Username    string `json:"username"`
-	Password    string `json:"password"`
-	DisplayName string `json:"displayName"`
+	Username    string       `json:"username"`
+	Password    string       `json:"password"`
+	DisplayName string       `json:"displayName"`
+	Permissions *Permissions `json:"permissions,omitempty"`
 }
 
 // LoadUsers devolve contas de acesso (preferências Fyne ou padrão admin).
@@ -30,6 +31,7 @@ func LoadUsers() []User {
 			Username:    u.Username,
 			Password:    u.Password,
 			DisplayName: u.DisplayName,
+			Permissions: permsFromPrefs(u.Permissions),
 		}
 	}
 	return out
@@ -43,9 +45,45 @@ func SaveUsers(users []User) error {
 			Username:    u.Username,
 			Password:    u.Password,
 			DisplayName: u.DisplayName,
+			Permissions: permsToPrefs(u.Permissions),
 		}
 	}
 	return fyneprefs.SaveUsers(in)
+}
+
+func permsFromPrefs(p *fyneprefs.UserPermissions) *Permissions {
+	if p == nil {
+		return nil
+	}
+	return &Permissions{
+		Screens: append([]string(nil), p.Screens...),
+		Actions: append([]string(nil), p.Actions...),
+	}
+}
+
+func permsToPrefs(p *Permissions) *fyneprefs.UserPermissions {
+	if p == nil {
+		return nil
+	}
+	return &fyneprefs.UserPermissions{
+		Screens: append([]string(nil), p.Screens...),
+		Actions: append([]string(nil), p.Actions...),
+	}
+}
+
+// PermissionsForUser devolve permissões efetivas de um utilizador persistido.
+func PermissionsForUser(username string) Permissions {
+	users := LoadUsers()
+	key := normalizeUsername(username)
+	for _, u := range users {
+		if u.Username == key {
+			return ResolvePermissions(u.Username, u.Permissions)
+		}
+	}
+	if IsAdminUsername(username) {
+		return FullPermissions()
+	}
+	return DefaultPermissions()
 }
 
 // Authenticate valida utilizador e senha de acesso local.

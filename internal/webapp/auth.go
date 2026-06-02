@@ -19,9 +19,10 @@ const (
 )
 
 type webSession struct {
-	Username    string
-	DisplayName string
-	ExpiresAt   time.Time
+	Username     string
+	DisplayName  string
+	ExpiresAt    time.Time
+	LastActivity time.Time
 }
 
 type sessionStore struct {
@@ -42,10 +43,12 @@ func (st *sessionStore) newWebToken(username, displayName string) (string, error
 	if st.web == nil {
 		st.web = map[string]webSession{}
 	}
+	now := time.Now()
 	st.web[tok] = webSession{
-		Username:    username,
-		DisplayName: displayName,
-		ExpiresAt:   time.Now().Add(sessionTTL),
+		Username:     username,
+		DisplayName:  displayName,
+		ExpiresAt:    now.Add(sessionTTL),
+		LastActivity: now,
 	}
 	return tok, nil
 }
@@ -59,6 +62,18 @@ func (st *sessionStore) getWebToken(tok string) (webSession, bool) {
 		return webSession{}, false
 	}
 	return ws, true
+}
+
+// touchWebToken atualiza última atividade da sessão web.
+func (st *sessionStore) touchWebToken(tok string) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	ws, ok := st.web[tok]
+	if !ok {
+		return
+	}
+	ws.LastActivity = time.Now()
+	st.web[tok] = ws
 }
 
 // deleteWebToken remove sessão web e SSH associada.

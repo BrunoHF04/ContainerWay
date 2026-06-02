@@ -74,7 +74,7 @@ func (s *Server) handleLocalFile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if len(body.Content) > maxEditorFileBytes {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "ficheiro demasiado grande para editar"})
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "arquivo muito grande para editar"})
 			return
 		}
 		if err := os.WriteFile(body.Path, []byte(body.Content), 0o644); err != nil {
@@ -135,7 +135,7 @@ func (s *Server) handleRemoteFile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if len(body.Content) > maxEditorFileBytes {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "ficheiro demasiado grande para editar"})
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "arquivo muito grande para editar"})
 			return
 		}
 		if err := writeRemoteFileForEditor(ctx, b, body.Path, body.ContainerID, []byte(body.Content)); err != nil {
@@ -154,17 +154,17 @@ func readLocalFileForEditor(p string) ([]byte, error) {
 		return nil, err
 	}
 	if st.IsDir() {
-		return nil, fmt.Errorf("é uma pasta, não um ficheiro")
+		return nil, fmt.Errorf("é uma pasta, não um arquivo")
 	}
 	if st.Size() > maxEditorFileBytes {
-		return nil, fmt.Errorf("ficheiro demasiado grande (máx. %d MB)", maxEditorFileBytes/(1<<20))
+		return nil, fmt.Errorf("arquivo muito grande (máx. %d MB)", maxEditorFileBytes/(1<<20))
 	}
 	data, err := os.ReadFile(p)
 	if err != nil {
 		return nil, err
 	}
 	if !isTextContent(data) {
-		return nil, fmt.Errorf("ficheiro binário — não pode ser editado como texto")
+		return nil, fmt.Errorf("arquivo binário — não pode ser editado como texto")
 	}
 	return data, nil
 }
@@ -181,7 +181,7 @@ func readRemoteFileForEditor(ctx context.Context, b *sshBundle, p, containerID s
 		}
 		defer rc.Close()
 		if size > maxEditorFileBytes {
-			return nil, fmt.Errorf("ficheiro demasiado grande (máx. %d MB)", maxEditorFileBytes/(1<<20))
+			return nil, fmt.Errorf("arquivo muito grande (máx. %d MB)", maxEditorFileBytes/(1<<20))
 		}
 		return readLimitedText(rc, maxEditorFileBytes)
 	}
@@ -197,7 +197,7 @@ func readRemoteFileForEditor(ctx context.Context, b *sshBundle, p, containerID s
 	rf, err := hfs.OpenReader(p)
 	if err != nil {
 		if isPermissionDenied(err) {
-			return nil, fmt.Errorf("permissão negada — active o sudo para ler este ficheiro")
+			return nil, fmt.Errorf("permissão negada — ative o sudo para ler este arquivo")
 		}
 		return nil, err
 	}
@@ -207,7 +207,7 @@ func readRemoteFileForEditor(ctx context.Context, b *sshBundle, p, containerID s
 		return nil, err
 	}
 	if st.Size() > maxEditorFileBytes {
-		return nil, fmt.Errorf("ficheiro demasiado grande (máx. %d MB)", maxEditorFileBytes/(1<<20))
+		return nil, fmt.Errorf("arquivo muito grande (máx. %d MB)", maxEditorFileBytes/(1<<20))
 	}
 	return readLimitedText(rf, maxEditorFileBytes)
 }
@@ -237,7 +237,7 @@ func writeRemoteFileForEditor(ctx context.Context, b *sshBundle, p, containerID 
 	w, err := hfs.CreateWriter(p)
 	if err != nil {
 		if isPermissionDenied(err) {
-			return fmt.Errorf("permissão negada — active o sudo para gravar este ficheiro")
+			return fmt.Errorf("permissão negada — ative o sudo para gravar este arquivo")
 		}
 		return err
 	}
@@ -254,10 +254,10 @@ func readLimitedText(r io.Reader, max int64) ([]byte, error) {
 		return nil, err
 	}
 	if int64(len(data)) > max {
-		return nil, fmt.Errorf("ficheiro demasiado grande (máx. %d MB)", max/(1<<20))
+		return nil, fmt.Errorf("arquivo muito grande (máx. %d MB)", max/(1<<20))
 	}
 	if !isTextContent(data) {
-		return nil, fmt.Errorf("ficheiro binário — não pode ser editado como texto")
+		return nil, fmt.Errorf("arquivo binário — não pode ser editado como texto")
 	}
 	return data, nil
 }
@@ -322,10 +322,10 @@ func readLocalImage(p string) ([]byte, string, error) {
 		return nil, "", err
 	}
 	if st.IsDir() {
-		return nil, "", fmt.Errorf("é uma pasta, não um ficheiro")
+		return nil, "", fmt.Errorf("é uma pasta, não um arquivo")
 	}
 	if st.Size() > maxImagePreviewBytes {
-		return nil, "", fmt.Errorf("imagem demasiado grande (máx. %d MB)", maxImagePreviewBytes/(1<<20))
+		return nil, "", fmt.Errorf("imagem muito grande (máx. %d MB)", maxImagePreviewBytes/(1<<20))
 	}
 	data, err := os.ReadFile(p)
 	if err != nil {
@@ -357,7 +357,7 @@ func readRemoteBinary(ctx context.Context, b *sshBundle, p, containerID string, 
 		}
 		defer rc.Close()
 		if size > max {
-			return nil, fmt.Errorf("ficheiro demasiado grande (máx. %d MB)", max/(1<<20))
+			return nil, fmt.Errorf("arquivo muito grande (máx. %d MB)", max/(1<<20))
 		}
 		return readLimitedBytes(rc, max)
 	}
@@ -370,7 +370,7 @@ func readRemoteBinary(ctx context.Context, b *sshBundle, p, containerID string, 
 			return nil, err
 		}
 		if int64(len(data)) > max {
-			return nil, fmt.Errorf("ficheiro demasiado grande (máx. %d MB)", max/(1<<20))
+			return nil, fmt.Errorf("arquivo muito grande (máx. %d MB)", max/(1<<20))
 		}
 		return data, nil
 	}
@@ -378,7 +378,7 @@ func readRemoteBinary(ctx context.Context, b *sshBundle, p, containerID string, 
 	rf, err := hfs.OpenReader(p)
 	if err != nil {
 		if isPermissionDenied(err) {
-			return nil, fmt.Errorf("permissão negada — active o sudo")
+			return nil, fmt.Errorf("permissão negada — ative o sudo")
 		}
 		return nil, err
 	}
@@ -388,7 +388,7 @@ func readRemoteBinary(ctx context.Context, b *sshBundle, p, containerID string, 
 		return nil, err
 	}
 	if st.Size() > max {
-		return nil, fmt.Errorf("ficheiro demasiado grande (máx. %d MB)", max/(1<<20))
+		return nil, fmt.Errorf("arquivo muito grande (máx. %d MB)", max/(1<<20))
 	}
 	return readLimitedBytes(rf, max)
 }
@@ -399,7 +399,7 @@ func readLimitedBytes(r io.Reader, max int64) ([]byte, error) {
 		return nil, err
 	}
 	if int64(len(data)) > max {
-		return nil, fmt.Errorf("ficheiro demasiado grande (máx. %d MB)", max/(1<<20))
+		return nil, fmt.Errorf("arquivo muito grande (máx. %d MB)", max/(1<<20))
 	}
 	return data, nil
 }

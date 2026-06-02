@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"containerway/internal/accessauth"
+
 	dcontainer "github.com/docker/docker/api/types/container"
 	"github.com/gorilla/websocket"
 )
@@ -22,8 +24,13 @@ func (s *Server) handleDockerExecWS(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "não autenticado", http.StatusUnauthorized)
 		return
 	}
-	if _, ok := s.store.getWebToken(tok); !ok {
+	ws, ok := s.store.getWebToken(tok)
+	if !ok {
 		http.Error(w, "sessão expirada", http.StatusUnauthorized)
+		return
+	}
+	if !accessauth.PermissionsForUser(ws.Username).HasAction(accessauth.ActionDockerControl) {
+		http.Error(w, "sem permissão", http.StatusForbidden)
 		return
 	}
 	b := s.store.getSSH(tok)
@@ -71,7 +78,7 @@ func (s *Server) handleDockerExecWS(w http.ResponseWriter, r *http.Request) {
 
 	attach, err := b.Sess.Docker.ContainerExecAttach(ctx, created.ID, dcontainer.ExecStartOptions{Tty: true})
 	if err != nil {
-		_ = conn.WriteMessage(websocket.TextMessage, []byte("erro ao ligar exec: "+err.Error()+"\r\n"))
+		_ = conn.WriteMessage(websocket.TextMessage, []byte("erro ao conectar exec: "+err.Error()+"\r\n"))
 		return
 	}
 	defer attach.Close()

@@ -488,7 +488,7 @@ func (s *Server) handleTransferUpload(w http.ResponseWriter, r *http.Request) {
 	cid := strings.TrimSpace(r.FormValue("containerId"))
 	files := r.MultipartForm.File["files"]
 	if len(files) == 0 {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "nenhum ficheiro enviado"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "nenhum arquivo enviado"})
 		return
 	}
 	uploadRoot := filepath.Join(os.TempDir(), "containerway-upload", tok)
@@ -547,7 +547,7 @@ func (s *Server) handleTransferUpload(w http.ResponseWriter, r *http.Request) {
 		enqueued++
 	}
 	if enqueued == 0 {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "não foi possível gravar os ficheiros"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "não foi possível salvar os arquivos"})
 		return
 	}
 	writeJSON(w, http.StatusAccepted, map[string]any{"status": "enfileirado", "count": enqueued})

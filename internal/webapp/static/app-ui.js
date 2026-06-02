@@ -4,7 +4,8 @@
   if (!U) return;
 
   function buildCommands() {
-    return [
+    const can = (id) => (typeof window.canScreen === "function" ? window.canScreen(id) : true);
+    const all = [
       { id: "hub", title: "Início (hub)", sub: "Menu principal", kw: "hub", run: () => { showScreen("hub"); renderHub(); } },
       {
         id: "connect",
@@ -16,15 +17,16 @@
           showLoginPhase("connect");
         },
       },
-      { id: "explorer", title: "Explorador", sub: "Arquivos SFTP", run: () => showScreen("explorer") },
-      { id: "docker", title: "Docker", sub: "Contêineres", run: () => showScreen("docker") },
-      { id: "disks", title: "Discos", sub: "Armazenamento", run: () => showScreen("disks") },
-      { id: "terminal", title: "Terminal", sub: "SSH interativo", run: () => showScreen("terminal") },
-      { id: "auto", title: "Automações", sub: "Regras", run: () => showScreen("automations") },
-      { id: "settings", title: "Configurações", sub: "Conta / SMTP", run: () => showScreen("settings") },
+      { id: "explorer", title: "Explorador", sub: "Arquivos SFTP", screen: "explorer", run: () => showScreen("explorer") },
+      { id: "docker", title: "Docker", sub: "Contêineres", screen: "docker", run: () => showScreen("docker") },
+      { id: "disks", title: "Discos", sub: "Armazenamento", screen: "disks", run: () => showScreen("disks") },
+      { id: "terminal", title: "Terminal", sub: "SSH interativo", screen: "terminal", run: () => showScreen("terminal") },
+      { id: "auto", title: "Automações", sub: "Regras", screen: "automations", run: () => showScreen("automations") },
+      { id: "settings", title: "Configurações", sub: "Conta / usuários / SMTP", screen: "settings", run: () => showScreen("settings") },
       { id: "theme", title: "Alternar tema", sub: "Claro ou escuro", run: () => toggleTheme() },
       { id: "disconnect", title: "Desconectar SSH", sub: "", run: () => $("#btn-disconnect")?.click() },
     ];
+    return all.filter((c) => !c.screen || can(c.screen));
   }
 
   window.measureSSHLatency = async function () {

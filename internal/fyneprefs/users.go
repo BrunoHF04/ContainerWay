@@ -11,11 +11,18 @@ const (
 	defaultPass    = "!q1w2e3r4$"
 )
 
+// UserPermissions telas e ações permitidas na interface web.
+type UserPermissions struct {
+	Screens []string `json:"screens,omitempty"`
+	Actions []string `json:"actions,omitempty"`
+}
+
 // AccessUser conta de acesso local.
 type AccessUser struct {
-	Username    string `json:"username"`
-	Password    string `json:"password"`
-	DisplayName string `json:"display_name"`
+	Username    string           `json:"username"`
+	Password    string           `json:"password"`
+	DisplayName string           `json:"display_name"`
+	Permissions *UserPermissions   `json:"permissions,omitempty"`
 }
 
 // LoadUsers devolve contas persistidas (ou admin padrão).
@@ -66,6 +73,11 @@ func parseUsersBytes(bb []byte) ([]AccessUser, error) {
 	if len(strings.TrimSpace(string(bb))) == 0 {
 		return nil, nil
 	}
+	var raw []json.RawMessage
+	if err := json.Unmarshal(bb, &raw); err == nil && len(raw) > 0 {
+		return parseUsersRawMessages(raw)
+	}
+	// Legado: array de mapas string.
 	var flex []map[string]string
 	if err := json.Unmarshal(bb, &flex); err != nil {
 		return nil, err
@@ -87,6 +99,48 @@ func parseUsersBytes(bb []byte) ([]AccessUser, error) {
 			display = name
 		}
 		out = append(out, AccessUser{Username: name, Password: pass, DisplayName: display})
+	}
+	return out, nil
+}
+
+type accessUserJSON struct {
+	Username     string           `json:"username"`
+	Password     string           `json:"password"`
+	DisplayName  string           `json:"display_name"`
+	DisplayName2 string           `json:"displayName"`
+	Permissions  *UserPermissions `json:"permissions"`
+}
+
+func parseUsersRawMessages(raw []json.RawMessage) ([]AccessUser, error) {
+	out := make([]AccessUser, 0, len(raw))
+	seen := map[string]struct{}{}
+	for _, item := range raw {
+		var row accessUserJSON
+		if err := json.Unmarshal(item, &row); err != nil {
+			continue
+		}
+		name := normalizeUsername(row.Username)
+		pass := strings.TrimSpace(row.Password)
+		if name == "" || pass == "" {
+			continue
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		display := strings.TrimSpace(row.DisplayName)
+		if display == "" {
+			display = strings.TrimSpace(row.DisplayName2)
+		}
+		if display == "" {
+			display = name
+		}
+		out = append(out, AccessUser{
+			Username:    name,
+			Password:    pass,
+			DisplayName: display,
+			Permissions: row.Permissions,
+		})
 	}
 	return out, nil
 }
@@ -117,7 +171,12 @@ func normalizeUsers(users []AccessUser) []AccessUser {
 		if display == "" {
 			display = name
 		}
-		out = append(out, AccessUser{Username: name, Password: pass, DisplayName: display})
+		out = append(out, AccessUser{
+			Username:    name,
+			Password:    pass,
+			DisplayName: display,
+			Permissions: u.Permissions,
+		})
 	}
 	if _, ok := seen[normalizeUsername(defaultUser)]; !ok {
 		out = append(out, defaultUsers()...)

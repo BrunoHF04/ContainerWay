@@ -240,10 +240,10 @@ func (b *sshBundle) readHostFileWithSudo(ctx context.Context, remotePath string)
 	}
 	data := []byte(stdout)
 	if int64(len(data)) > maxEditorFileBytes {
-		return nil, fmt.Errorf("ficheiro demasiado grande (máx. %d MB)", maxEditorFileBytes/(1<<20))
+		return nil, fmt.Errorf("arquivo muito grande (máx. %d MB)", maxEditorFileBytes/(1<<20))
 	}
 	if !isTextContent(data) {
-		return nil, fmt.Errorf("ficheiro binário — não pode ser editado como texto")
+		return nil, fmt.Errorf("arquivo binário — não pode ser editado como texto")
 	}
 	return data, nil
 }
@@ -320,7 +320,7 @@ func (b *sshBundle) removeHostWithSudo(ctx context.Context, remotePath string, r
 	}
 	clean := path.Clean(strings.TrimSpace(remotePath))
 	if clean == "/" || clean == "." || clean == "" {
-		return fmt.Errorf("não é permitido apagar a raiz do sistema")
+		return fmt.Errorf("não é permitido excluir a raiz do sistema")
 	}
 	b.sudoMu.Lock()
 	user := b.sudoUser

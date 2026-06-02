@@ -73,7 +73,7 @@ func (s *Server) handleConnectionsSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if host == "" || user == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "host e utilizador obrigatórios"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "host e usuário obrigatórios"})
 		return
 	}
 	incoming := connectcfg.SavedConnection{

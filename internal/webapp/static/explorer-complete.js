@@ -107,14 +107,16 @@
   };
 
   // Modo compacto
-  const compactKey = "cw-explorer-compact";
   $("#btn-compact-explorer")?.addEventListener("click", () => {
     const view = $("#view-explorer");
     if (!view) return;
     view.classList.toggle("explorer-compact");
-    localStorage.setItem(compactKey, view.classList.contains("explorer-compact") ? "1" : "0");
+    const on = view.classList.contains("explorer-compact");
+    window.CWWebPrefs?.set?.("explorerCompactToolbar", on);
   });
-  if (localStorage.getItem(compactKey) === "1") $("#view-explorer")?.classList.add("explorer-compact");
+  if (window.CWWebPrefs?.get?.("explorerCompactToolbar")) {
+    $("#view-explorer")?.classList.add("explorer-compact");
+  }
 
   // Seletor idioma
   $("#explorer-lang")?.addEventListener("change", (e) => {

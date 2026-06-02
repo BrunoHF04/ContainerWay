@@ -37,10 +37,22 @@ func (s *Server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 		}
 		out := make([]map[string]any, 0, len(users))
 		for _, u := range users {
+			var stored *accessauth.Permissions
+			if u.Permissions != nil {
+				stored = &accessauth.Permissions{
+					Screens: append([]string(nil), u.Permissions.Screens...),
+					Actions: append([]string(nil), u.Permissions.Actions...),
+				}
+			}
+			perms := accessauth.ResolvePermissions(u.Username, stored)
 			out = append(out, map[string]any{
 				"username":    u.Username,
 				"displayName": u.DisplayName,
 				"isAdmin":     isAdminUser(u.Username),
+				"permissions": map[string]any{
+					"screens": perms.Screens,
+					"actions": perms.Actions,
+				},
 			})
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"users": out})
@@ -50,6 +62,10 @@ func (s *Server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 				Username    string `json:"username"`
 				DisplayName string `json:"displayName"`
 				Password    string `json:"password"`
+				Permissions *struct {
+					Screens []string `json:"screens"`
+					Actions []string `json:"actions"`
+				} `json:"permissions"`
 			} `json:"users"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -78,21 +94,28 @@ func (s *Server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			if pass == "" {
-				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "senha obrigatória para novo utilizador: " + name})
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "senha obrigatória para novo usuário: " + name})
 				return
 			}
 			display := strings.TrimSpace(u.DisplayName)
 			if display == "" {
 				display = name
 			}
-			saved = append(saved, accessauth.User{
+			entry := accessauth.User{
 				Username:    name,
 				Password:    pass,
 				DisplayName: display,
-			})
+			}
+			if !isAdminUser(name) && u.Permissions != nil {
+				entry.Permissions = accessauth.SanitizePermissions(&accessauth.Permissions{
+					Screens: append([]string(nil), u.Permissions.Screens...),
+					Actions: append([]string(nil), u.Permissions.Actions...),
+				})
+			}
+			saved = append(saved, entry)
 		}
 		if len(saved) == 0 {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "lista de utilizadores vazia"})
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "lista de usuários vazia"})
 			return
 		}
 		if err := accessauth.SaveUsers(saved); err != nil {

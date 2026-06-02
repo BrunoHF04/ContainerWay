@@ -391,7 +391,8 @@
       return;
     }
     const rec = sel.isDir;
-    if (!(await CWConfirm(`Apagar ${sel.name}?${rec ? " (pasta e conteúdo)" : ""}`, { danger: true, ok: "Apagar" }))) return;
+    const needConfirm = window.CWWebPrefs?.get?.("explorerConfirmDelete") !== false;
+    if (needConfirm && !(await CWConfirm(`Excluir ${sel.name}?${rec ? " (pasta e conteúdo)" : ""}`, { danger: true, ok: "Excluir" }))) return;
     if (side === "local") {
       await api("/api/local/delete", { method: "POST", body: JSON.stringify({ path: sel.path, recursive: rec }) });
       await loadLocal(state.localPath);
@@ -890,7 +891,7 @@
     if (!edit || !ta || ta.disabled) return;
     if (btn) {
       btn.disabled = true;
-      btn.textContent = "A guardar…";
+      btn.textContent = "Salvando…";
     }
     showFileEditorError("");
     try {
@@ -908,11 +909,11 @@
       if (edit.side === "local") await loadLocal(state.localPath);
       else await loadRemote(state.remotePath);
     } catch (e) {
-      showFileEditorError(e.message || "Falha ao guardar.");
+      showFileEditorError(e.message || "Falha ao salvar.");
     } finally {
       if (btn) {
         btn.disabled = false;
-        btn.textContent = "Guardar";
+        btn.textContent = "Salvar";
       }
     }
   });

@@ -82,6 +82,8 @@
     dockerState.groupCompose = localStorage.getItem(DOCKER_GROUP_KEY) === "1";
     const poll = parseInt(localStorage.getItem(DOCKER_POLL_KEY) || "30000", 10);
     if ([5000, 8000, 15000, 30000, 60000].includes(poll)) dockerState.pollMs = poll;
+    const prefSec = Number(window.CWWebPrefs?.get?.("dockerMetricsSec"));
+    if (prefSec >= 5 && prefSec <= 120) dockerState.pollMs = prefSec * 1000;
     try {
       const pins = JSON.parse(localStorage.getItem(DOCKER_PINNED_KEY) || "[]");
       if (Array.isArray(pins)) dockerState.pinned = new Set(pins);
@@ -180,8 +182,8 @@
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "btn btn-ghost btn-sm docker-explore-btn";
-    btn.title = "Explorar ficheiros";
-    btn.setAttribute("aria-label", "Explorar ficheiros");
+    btn.title = "Explorar arquivos";
+    btn.setAttribute("aria-label", "Explorar arquivos");
     btn.textContent = "📁";
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -542,8 +544,8 @@
       const left = pending().length;
       setRecreateSummary(
         left === 1
-          ? `A aguardar «${pending()[0].name}» no host…`
-          : `A aguardar ${left} serviço(s) no host… (${round + 1}/${maxRounds})`
+          ? `A asalvar "${pending()[0].name}" no host…`
+          : `A asalvar ${left} serviço(s) no host… (${round + 1}/${maxRounds})`
       );
       for (const item of pending()) {
         setItemsPhase((i) => i.key === item.key, "start");
@@ -570,7 +572,7 @@
 
     const items = buildRecreateItemsFromContainers(targets);
     openRecreateProgressUI(
-      targets.length === 1 ? `A recriar «${items[0].name}»` : `A recriar ${targets.length} contêineres`,
+      targets.length === 1 ? `A recriar "${items[0].name}"` : `A recriar ${targets.length} contêineres`,
       items
     );
 
@@ -593,10 +595,10 @@
 
     try {
       for (const [project, rep] of byProject) {
-        setRecreateSummary(`Projeto «${project}»: a parar contêineres antigos…`);
+        setRecreateSummary(`Projeto "${project}": a parar contêineres antigos…`);
         setItemsPhase((i) => i.project === project, "stop");
         await sleep(120);
-        setRecreateSummary(`Projeto «${project}»: a recriar (docker compose up --force-recreate)…`);
+        setRecreateSummary(`Projeto "${project}": a recriar (docker compose up --force-recreate)…`);
         setItemsPhase((i) => i.project === project, "recreate");
         try {
           await dockerApi("/api/docker/compose/restart-project", {
@@ -604,7 +606,7 @@
             body: JSON.stringify({ id: containerId(rep) }),
           });
           const projectItems = recreateProgressState.items.filter((i) => i.project === project);
-          setRecreateSummary(`Projeto «${project}»: a iniciar serviços…`);
+          setRecreateSummary(`Projeto "${project}": a iniciar serviços…`);
           setItemsPhase((i) => i.project === project, "start");
           await waitRecreateItemsRunning(projectItems);
           for (const item of projectItems) {
@@ -791,7 +793,7 @@
       { divider: true },
       { label: "Ver logs", fn: () => openLogs(c) },
       { label: "Estatísticas", fn: () => openStats(c) },
-      { label: "Explorar ficheiros", fn: () => openInExplorer(c) },
+      { label: "Explorar arquivos", fn: () => openInExplorer(c) },
       { label: "Consola interativa", fn: () => openExec(c), hidden: !(c.running || c.restarting) },
       { divider: true },
     ];
@@ -826,7 +828,7 @@
     const wrap = document.createElement("div");
     wrap.className = "docker-quick-actions";
     wrap.setAttribute("role", "group");
-    wrap.setAttribute("aria-label", "Acções rápidas");
+    wrap.setAttribute("aria-label", "Ações rápidas");
     const st = (c.state || "").toLowerCase();
     const running = c.running || c.restarting;
     const paused = st === "paused";
@@ -1131,7 +1133,7 @@
   async function restartComposeProject(c) {
     const project = (c.composeProject || "").trim();
     const label = project || c.composeService || containerDisplayName(c);
-    if (!(await CWConfirm(`Recriar todos os serviços do projeto Compose «${label}»?\n\nRemove e recria os contêineres (compose up --force-recreate).`))) return;
+    if (!(await CWConfirm(`Recriar todos os serviços do projeto Compose "${label}"?\n\nRemove e recria os contêineres (compose up --force-recreate).`))) return;
     const inProject = project
       ? dockerState.containers.filter((x) => (x.composeProject || "").trim() === project)
       : [];
@@ -1247,7 +1249,7 @@
     if (!filtered.length) {
       const hasQuick = dockerState.quickFilter !== "all";
       const hasText = !!dockerState.filter.trim();
-      let desc = "Não há contêineres em execução. Active «Incluir parados».";
+      let desc = "Não há contêineres em execução. Active "Incluir parados".";
       if (hasText || hasQuick) desc = "Ajuste os filtros rápidos ou a pesquisa.";
       else if (dockerState.showAll) desc = "Não há contêineres neste host.";
       CWUI.emptyState(box, {
@@ -1507,7 +1509,7 @@
   async function restartOne(c, compose = false) {
     const name = containerDisplayName(c);
     const confirmMsg = compose
-      ? `Recriar «${name}» via Compose?\n\nRemove e recria o contêiner para aplicar o YAML. Pode demorar vários minutos.`
+      ? `Recriar "${name}" via Compose?\n\nRemove e recria o contêiner para aplicar o YAML. Pode demorar vários minutos.`
       : `Recriar ${name}?\n\nRemove e recria o contêiner (compose --force-recreate quando disponível).`;
     if (!(await CWConfirm(confirmMsg))) return;
     const { errors } = await runRecreateFlow([c]);
@@ -1785,7 +1787,7 @@
       const status = $("#docker-logs-status");
       if (body) {
         body.innerHTML =
-          '<p class="error">Contêiner não encontrado no host (foi removido ou recriado). Feche e actualize a lista Docker.</p>';
+          '<p class="error">Contêiner não encontrado no host (foi removido ou recriado). Feche e atualize a lista Docker.</p>';
       }
       if (status) status.textContent = "Contêiner inexistente — live pausado";
       return;
@@ -1823,7 +1825,7 @@
         const autoBtn = $("#docker-logs-auto");
         if (autoBtn) autoBtn.textContent = "Live pausado";
         if (body) {
-          body.innerHTML = `<p class="error">${escapeHtml(msg)}</p><p class="muted">O contêiner pode ter sido recriado com outro ID. Actualize a lista e abra os logs de novo.</p>`;
+          body.innerHTML = `<p class="error">${escapeHtml(msg)}</p><p class="muted">O contêiner pode ter sido recriado com outro ID. Atualize a lista e abra os logs de novo.</p>`;
         }
       }
     }
@@ -1918,7 +1920,7 @@
     const id = containerId(c);
     const ws = new WebSocket(dockerExecWSUrl(id));
     dockerState.execSocket = ws;
-    ws.onopen = () => dockerState.execTerm.writeln("\r\n\x1b[32mLigado ao contêiner.\x1b[0m\r\n");
+    ws.onopen = () => dockerState.execTerm.writeln("\r\n\x1b[32mConectado ao contêiner.\x1b[0m\r\n");
     ws.onmessage = (ev) => dockerState.execTerm.write(ev.data);
     ws.onclose = () => dockerState.execTerm.writeln("\r\n\x1b[33mSessão terminada.\x1b[0m\r\n");
     dockerState.execTerm.onData((data) => {
@@ -1933,7 +1935,7 @@
       return;
     }
     showScreen("explorer");
-    CWUI.toast("Abra o explorador e seleccione o contêiner no painel remoto.", "info");
+    CWUI.toast("Abra o explorador e selecione o contêiner no painel remoto.", "info");
   }
 
   function volumeRefToContainer(ref) {
@@ -1954,7 +1956,7 @@
     if (cs.length === 1) {
       const c = cs[0];
       const title = escapeHtml(c.displayName || c.id);
-      return `<button type="button" class="btn btn-ghost btn-sm docker-vol-explore-btn" data-vol-explore="${escapeHtml(vol.name)}" data-container-id="${escapeHtml(c.idFull || c.id)}" title="Explorar ficheiros — ${title}">📁 Ficheiros</button>`;
+      return `<button type="button" class="btn btn-ghost btn-sm docker-vol-explore-btn" data-vol-explore="${escapeHtml(vol.name)}" data-container-id="${escapeHtml(c.idFull || c.id)}" title="Explorar arquivos — ${title}">📁 Arquivos</button>`;
     }
     const items = cs
       .map((c) => {
@@ -1962,7 +1964,7 @@
         return `<button type="button" class="btn btn-ghost btn-sm docker-vol-explore-pick" data-vol-explore="${escapeHtml(vol.name)}" data-container-id="${escapeHtml(c.idFull || c.id)}">${label}</button>`;
       })
       .join("");
-    return `<details class="panel-menu docker-vol-explore-menu"><summary class="btn btn-ghost btn-sm" title="Escolher contêiner para explorar ficheiros">📁 Ficheiros</summary><div class="panel-menu-list">${items}</div></details>`;
+    return `<details class="panel-menu docker-vol-explore-menu"><summary class="btn btn-ghost btn-sm" title="Escolher contêiner para explorar arquivos">📁 Arquivos</summary><div class="panel-menu-list">${items}</div></details>`;
   }
 
   function bindVolumeExploreActions(host) {
@@ -1996,7 +1998,7 @@
       CWUI.emptyState(host, {
         icon: "📦",
         title: dockerState.imagesFilter || dockerState.imagesDanglingOnly ? "Nenhum resultado" : "Nenhuma imagem",
-        desc: "Ajuste o filtro ou actualize a lista.",
+        desc: "Ajuste o filtro ou atualize a lista.",
         actionLabel: "Atualizar",
         onAction: loadDockerImages,
       });
@@ -2056,7 +2058,7 @@
   }
 
   async function removeDockerImage(id, label) {
-    if (!(await CWConfirm(`Remover imagem «${label || id}»?`, { danger: true }))) return;
+    if (!(await CWConfirm(`Remover imagem "${label || id}"?`, { danger: true }))) return;
     const img = dockerState.images.find((i) => (i.idFull || i.id) === id);
     let useForce = false;
     if (img && img.containers > 0) {
@@ -2148,7 +2150,7 @@
   }
 
   async function removeDockerVolume(name) {
-    if (!(await CWConfirm(`Remover volume «${name}»?`, { danger: true }))) return;
+    if (!(await CWConfirm(`Remover volume "${name}"?`, { danger: true }))) return;
     try {
       await dockerApi("/api/docker/volumes/remove", {
         method: "POST",
@@ -2236,7 +2238,7 @@
   }
 
   async function pruneDockerVolumes() {
-    if (!(await CWConfirm("Remover volumes não utilizados por nenhum contêiner?", { danger: true }))) return;
+    if (!(await CWConfirm("Remover volumes não usados por nenhum contêiner?", { danger: true }))) return;
     try {
       const res = await dockerApi("/api/docker/volumes/prune", { method: "POST", body: "{}" });
       CWUI.toast(`Libertados ${res.spaceReclaimedHuman || "—"}`, "success");
@@ -2526,7 +2528,7 @@
   }
 
   async function removeDockerNetwork(name, label) {
-    if (!(await CWConfirm(`Remover rede «${label || name}»?`, { danger: true }))) return;
+    if (!(await CWConfirm(`Remover rede "${label || name}"?`, { danger: true }))) return;
     try {
       await dockerApi("/api/docker/networks/remove", {
         method: "POST",
@@ -2704,6 +2706,10 @@
     $("#docker-volume-create-cancel")?.addEventListener("click", () => $("#docker-volume-create-dialog")?.close());
 
   }
+
+  window.dockerRestartPoll = function dockerRestartPoll() {
+    if (dockerState.autoRefresh) startAutoPoll();
+  };
 
   window.loadDocker = loadDocker;
   window.dockerOnScreenEnter = function () {

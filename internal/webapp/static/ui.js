@@ -2,7 +2,11 @@
 const CWUI = (() => {
   const $ = (sel, root = document) => root.querySelector(sel);
 
-  function toast(message, type = "info", ms = 4200) {
+  function toast(message, type = "info", ms) {
+    if (ms == null && window.CWWebPrefs?.toastDurationMs) {
+      ms = window.CWWebPrefs.toastDurationMs();
+    }
+    if (ms == null) ms = 4200;
     const box = $("#toast-stack");
     if (!box) return;
     const el = document.createElement("div");
@@ -159,7 +163,7 @@ const CWUI = (() => {
     document.documentElement.style.setProperty("--host-accent-dim", `hsla(${hue} 68% 58% / 0.18)`);
   }
 
-  function showSplash(label = "A ligar SSH…") {
+  function showSplash(label = "Conectando SSH…") {
     const el = $("#splash-overlay");
     if (!el) return;
     el.querySelector(".splash-label").textContent = label;

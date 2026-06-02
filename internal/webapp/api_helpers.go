@@ -3,7 +3,8 @@ package webapp
 import (
 	"errors"
 	"net/http"
-	"strings"
+
+	"containerway/internal/accessauth"
 )
 
 // errDockerUnavailable está definido em api_automations.go (partilhado no pacote webapp).
@@ -29,5 +30,5 @@ func (s *Server) requireSSH(w http.ResponseWriter, r *http.Request) (string, *ss
 
 // isAdminUser indica se o utilizador web é administrador.
 func isAdminUser(username string) bool {
-	return strings.EqualFold(strings.TrimSpace(username), "admin")
+	return accessauth.IsAdminUsername(username)
 }

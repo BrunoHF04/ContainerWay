@@ -45,7 +45,7 @@ func (s *Server) handleLocalOpenExternal(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if st, err := os.Stat(p); err != nil || st.IsDir() {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "ficheiro não encontrado"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "arquivo não encontrado"})
 		return
 	}
 	if err := openWithEditor(p, body.Editor); err != nil {
@@ -54,7 +54,7 @@ func (s *Server) handleLocalOpenExternal(w http.ResponseWriter, r *http.Request)
 	}
 	writeJSON(w, http.StatusOK, map[string]string{
 		"status":  "ok",
-		"message": "Ficheiro aberto no programa externo (alterações gravam no ficheiro local).",
+		"message": "Arquivo aberto no programa externo (alterações gravam no arquivo local).",
 	})
 }
 
@@ -112,7 +112,7 @@ func (s *Server) handleRemoteOpenExternal(w http.ResponseWriter, r *http.Request
 	})
 }
 
-// handleRemoteSyncExternal envia ficheiro temp editado de volta ao remoto.
+// handleRemoteSyncExternal envia arquivo temporário editado de volta ao remoto.
 func (s *Server) handleRemoteSyncExternal(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "método não permitido"})
@@ -147,10 +147,10 @@ func (s *Server) handleRemoteSyncExternal(w http.ResponseWriter, r *http.Request
 		b.markExternalSynced(body.SessionID, st.ModTime())
 	}
 	b.addOperation("Sincronizado: "+sess.RemotePath, "info")
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "message": "Ficheiro sincronizado com o servidor."})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "message": "Arquivo sincronizado com o servidor."})
 }
 
-// handleRemoteExternalStatus indica se o ficheiro temp foi alterado desde a última sincronização.
+// handleRemoteExternalStatus indica se o arquivo temporário foi alterado desde a última sincronização.
 func (s *Server) handleRemoteExternalStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "método não permitido"})
@@ -168,7 +168,7 @@ func (s *Server) handleRemoteExternalStatus(w http.ResponseWriter, r *http.Reque
 	}
 	st, err := os.Stat(sess.TempPath)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "ficheiro temp não encontrado"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "arquivo temporário não encontrado"})
 		return
 	}
 	modified := st.ModTime().After(sess.LastSynced.Add(500 * time.Millisecond))
