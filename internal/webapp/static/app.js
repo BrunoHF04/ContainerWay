@@ -40,40 +40,87 @@ function syncMascotIcons(theme) {
   }
 }
 
+function preloadMascotAssets() {
+  for (const theme of ["light", "dark"]) {
+    const icon = new Image();
+    icon.src = mascotIconSrc(theme);
+    const hero = new Image();
+    hero.src = mascotHeroSrc(theme);
+  }
+}
+
 function initTheme() {
   const saved = localStorage.getItem(THEME_KEY);
   const theme = saved === "light" || saved === "dark"
     ? saved
     : (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
   document.documentElement.setAttribute("data-theme", theme);
+  preloadMascotAssets();
   syncMascotIcons(theme);
+}
+
+const THEME_FALLBACK_MS = 760;
+
+function runThemeVeil(veil) {
+  if (!veil) return;
+  veil.classList.remove("theme-veil-run");
+  void veil.offsetWidth;
+  veil.classList.add("theme-veil-run");
+}
+
+function endThemeTransition(root) {
+  if (!root.classList.contains("theme-transition")) {
+    return;
+  }
+  root.classList.add("theme-transition-end");
+  requestAnimationFrame(() => {
+    root.classList.remove("theme-transition", "theme-transition-end");
+  });
+}
+
+function finishThemeSwap(root, veil, next) {
+  syncMascotIcons(next);
+  veil?.classList.remove("theme-veil-run");
+  endThemeTransition(root);
 }
 
 function toggleTheme() {
   const root = document.documentElement;
   const next = root.getAttribute("data-theme") === "light" ? "dark" : "light";
   const veil = $("#theme-veil");
-  const apply = () => {
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const applyTheme = () => {
     root.setAttribute("data-theme", next);
     localStorage.setItem(THEME_KEY, next);
+  };
+
+  const onThemeDone = () => {
+    requestAnimationFrame(() => finishThemeSwap(root, veil, next));
+  };
+
+  if (reduced) {
+    applyTheme();
     syncMascotIcons(next);
-  };
-  const finish = () => {
-    window.setTimeout(() => {
-      root.classList.remove("theme-transition");
-      veil?.classList.remove("theme-veil-active");
-    }, 1250);
-  };
-  root.classList.add("theme-transition");
-  veil?.classList.add("theme-veil-active");
-  if (typeof document.startViewTransition === "function") {
-    const vt = document.startViewTransition(apply);
-    if (vt?.finished) vt.finished.then(finish).catch(finish);
-    else finish();
     return;
   }
-  apply();
-  finish();
+
+  const useViewTransition = typeof document.startViewTransition === "function";
+  runThemeVeil(veil);
+
+  if (useViewTransition) {
+    const vt = document.startViewTransition(() => applyTheme());
+    if (vt?.finished) {
+      vt.finished.then(onThemeDone).catch(onThemeDone);
+    } else {
+      onThemeDone();
+    }
+    return;
+  }
+
+  root.classList.add("theme-transition");
+  applyTheme();
+  window.setTimeout(onThemeDone, THEME_FALLBACK_MS);
 }
 
 initTheme();
@@ -121,7 +168,11 @@ async function api(path, options = {}) {
     ...options,
   });
   const data = await res.json().catch(() => ({}));
-  if (res.status === 401 && !String(path).includes("/api/auth/login")) {
+  if (
+    res.status === 401 &&
+    !String(path).includes("/api/auth/login") &&
+    !String(path).includes("/api/auth/me")
+  ) {
     handleSessionExpired(data.error || "Sessão expirada — inicie sessão novamente.");
     throw new Error(data.error || "Sessão expirada");
   }
@@ -382,6 +433,12 @@ async function refreshSSH() {
 async function checkSession() {
   try {
     const me = await api("/api/auth/me");
+    if (me.authenticated === false) {
+      setAppTopbar(false);
+      showView("#view-login");
+      showLoginPhase("auth");
+      return;
+    }
     await afterAuthSuccess(me);
   } catch {
     setAppTopbar(false);

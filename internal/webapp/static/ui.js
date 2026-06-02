@@ -81,10 +81,18 @@ const CWUI = (() => {
       const cancelBtn = $("#confirm-cancel");
       okBtn.textContent = ok;
       okBtn.classList.toggle("btn-danger", danger);
-      const done = (v) => { dlg.close(); resolve(v); };
+      let settled = false;
+      const done = (v) => {
+        if (settled) return;
+        settled = true;
+        dlg.close();
+        resolve(v);
+      };
       okBtn.onclick = () => done(true);
       cancelBtn.onclick = () => done(false);
-      dlg.onclose = () => resolve(false);
+      dlg.onclose = () => {
+        if (!settled) done(false);
+      };
       dlg.showModal();
     });
   }
@@ -485,10 +493,15 @@ const CWUI = (() => {
 
   function closeSelectWrap(wrap) {
     if (!wrap) return;
-    wrap.classList.remove("is-open");
-    wrap.querySelector(".cw-select-list")?.classList.add("hidden");
-    wrap.querySelector(".cw-select-trigger")?.setAttribute("aria-expanded", "false");
-    openSelectWraps.delete(wrap);
+    const select = wrap.querySelector("select.cw-select-native");
+    const ctrl = select && selectControllers.get(select);
+    if (ctrl?.close) ctrl.close();
+    else {
+      wrap.classList.remove("is-open");
+      wrap.querySelector(".cw-select-list")?.classList.add("hidden");
+      wrap.querySelector(".cw-select-trigger")?.setAttribute("aria-expanded", "false");
+      openSelectWraps.delete(wrap);
+    }
   }
 
   function closeAllSelects(except) {
@@ -514,7 +527,7 @@ const CWUI = (() => {
     wrap.className = "cw-select";
     if (select.classList.contains("panel-select")) wrap.classList.add("cw-select--compact");
     if (select.classList.contains("explorer-lang-select")) wrap.classList.add("cw-select--compact");
-    if (select.classList.contains("docker-poll-select")) wrap.classList.add("cw-select--compact");
+    if (select.classList.contains("docker-poll-select")) wrap.classList.add("cw-select--poll");
     if (select.disabled) wrap.classList.add("is-disabled");
 
     select.classList.add("cw-select-native");
@@ -542,7 +555,60 @@ const CWUI = (() => {
     trigger.append(valueEl, chevron);
     wrap.append(trigger, list);
 
+    const listPlaceholder = document.createComment("cw-select-list");
+    let listPortaled = false;
     let focusIdx = -1;
+
+    function unportalList() {
+      list.classList.remove("cw-select-list--floating", "menu-anchor-up");
+      list.style.cssText = "";
+      if (listPortaled && listPlaceholder.parentNode) {
+        listPlaceholder.parentNode.insertBefore(list, listPlaceholder);
+        listPortaled = false;
+      }
+    }
+
+    function placeList() {
+      const ar = trigger.getBoundingClientRect();
+      const minW = wrap.classList.contains("cw-select--poll") ? 92 : ar.width;
+      list.style.display = "block";
+      const lh = list.offsetHeight || 200;
+      const lw = Math.max(list.offsetWidth || 0, minW);
+      let top = ar.bottom + 6;
+      let left = ar.left;
+      list.classList.remove("menu-anchor-up");
+      if (top + lh > window.innerHeight - 8 && ar.top > lh + 12) {
+        top = ar.top - lh - 6;
+        list.classList.add("menu-anchor-up");
+      }
+      left = Math.max(8, Math.min(left, window.innerWidth - lw - 8));
+      top = Math.max(8, Math.min(top, window.innerHeight - lh - 8));
+      list.style.cssText = `position:fixed;top:${top}px;left:${left}px;min-width:${Math.round(lw)}px;z-index:10140;`;
+    }
+
+    function portalList() {
+      if (!listPortaled) {
+        wrap.insertBefore(listPlaceholder, list);
+        document.body.appendChild(list);
+        listPortaled = true;
+      }
+      list.classList.add("cw-select-list--floating");
+      placeList();
+    }
+
+    function closeInternal() {
+      unportalList();
+      list.classList.add("hidden");
+      wrap.classList.remove("is-open");
+      trigger.setAttribute("aria-expanded", "false");
+      openSelectWraps.delete(wrap);
+    }
+
+    const onReposition = () => {
+      if (wrap.classList.contains("is-open") && listPortaled) placeList();
+    };
+    window.addEventListener("resize", onReposition);
+    window.addEventListener("scroll", onReposition, true);
 
     function syncDisabled() {
       const off = select.disabled;
@@ -594,13 +660,17 @@ const CWUI = (() => {
       wrap.classList.add("is-open");
       trigger.setAttribute("aria-expanded", "true");
       openSelectWraps.add(wrap);
-      const selBtn = list.querySelector(".cw-select-option.is-selected");
-      focusIdx = selBtn ? [...list.querySelectorAll(".cw-select-option:not(:disabled)")].indexOf(selBtn) : 0;
-      focusOption(focusIdx);
+      portalList();
+      requestAnimationFrame(() => {
+        placeList();
+        const selBtn = list.querySelector(".cw-select-option.is-selected");
+        focusIdx = selBtn ? [...list.querySelectorAll(".cw-select-option:not(:disabled)")].indexOf(selBtn) : 0;
+        focusOption(focusIdx);
+      });
     }
 
     function close() {
-      closeSelectWrap(wrap);
+      closeInternal();
     }
 
     function focusOption(idx) {
@@ -642,7 +712,7 @@ const CWUI = (() => {
 
     select.addEventListener("change", buildOptions);
 
-    selectControllers.set(select, { buildOptions, close });
+    selectControllers.set(select, { buildOptions, close: closeInternal, unportalList, listEl: list });
     buildOptions();
   }
 
@@ -659,6 +729,7 @@ const CWUI = (() => {
 
   document.addEventListener("pointerdown", (e) => {
     if (e.target.closest(".cw-select")) return;
+    if (e.target.closest(".cw-select-list--floating")) return;
     closeAllSelects();
   });
 

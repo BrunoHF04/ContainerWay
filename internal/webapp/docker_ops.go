@@ -150,20 +150,22 @@ func fetchContainerMetrics(ctx context.Context, cli client.APIClient, containerI
 
 func resolveContainerID(ctx context.Context, cli client.APIClient, idPrefix string) (string, error) {
 	idPrefix = strings.TrimSpace(idPrefix)
-	if len(idPrefix) >= 64 {
-		return idPrefix, nil
+	if idPrefix == "" {
+		return "", errors.New("id do contêiner vazio")
 	}
 	list, err := cli.ContainerList(ctx, dcontainer.ListOptions{All: true})
 	if err != nil {
 		return "", err
 	}
+	want := strings.ToLower(idPrefix)
 	for _, c := range list {
 		cid := strings.TrimPrefix(c.ID, "sha256:")
-		if strings.HasPrefix(cid, idPrefix) || strings.HasPrefix(c.ID, idPrefix) {
+		low := strings.ToLower(cid)
+		if low == want || strings.HasPrefix(low, want) || (len(want) >= 12 && strings.HasPrefix(low, want[:12])) {
 			return c.ID, nil
 		}
 	}
-	return idPrefix, nil
+	return "", fmt.Errorf("contêiner não encontrado (pode ter sido recriado — atualize a lista Docker)")
 }
 
 func restartComposeProject(ctx context.Context, b *sshBundle, containerID string) error {
@@ -177,6 +179,18 @@ func restartComposeProject(ctx context.Context, b *sshBundle, containerID string
 	return dockerutil.ForceRecreateComposeProject(ctx, b.Sess.Docker, b, fullID)
 }
 
+func restartContainerSimple(ctx context.Context, b *sshBundle, containerID string) error {
+	if b == nil || b.Sess == nil || b.Sess.Docker == nil {
+		return errors.New("Docker indisponível")
+	}
+	fullID, err := resolveContainerID(ctx, b.Sess.Docker, containerID)
+	if err != nil {
+		return err
+	}
+	timeout := 30
+	return b.Sess.Docker.ContainerRestart(ctx, fullID, dcontainer.StopOptions{Timeout: &timeout})
+}
+
 func smartRestartContainer(ctx context.Context, b *sshBundle, containerID string) error {
 	if b == nil || b.Sess == nil || b.Sess.Docker == nil {
 		return errors.New("Docker indisponível")
@@ -188,8 +202,7 @@ func smartRestartContainer(ctx context.Context, b *sshBundle, containerID string
 	}
 	err = dockerutil.ForceRecreateContainer(ctx, cli, b, fullID)
 	if errors.Is(err, dockerutil.ErrComposeMetadataMissing) {
-		timeout := 30
-		return cli.ContainerRestart(ctx, fullID, dcontainer.StopOptions{Timeout: &timeout})
+		return restartContainerSimple(ctx, b, containerID)
 	}
 	return err
 }

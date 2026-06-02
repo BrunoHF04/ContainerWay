@@ -14,6 +14,20 @@ import (
 	dcontainer "github.com/docker/docker/api/types/container"
 )
 
+// writeDockerErr mapeia erros Docker para HTTP (404 se o contêiner não existir).
+func writeDockerErr(w http.ResponseWriter, err error) {
+	if err == nil {
+		return
+	}
+	msg := err.Error()
+	low := strings.ToLower(msg)
+	status := http.StatusBadGateway
+	if strings.Contains(low, "não encontrado") || strings.Contains(low, "no such container") {
+		status = http.StatusNotFound
+	}
+	writeJSON(w, status, map[string]string{"error": msg})
+}
+
 func dockerClientFromBundle(b *sshBundle, w http.ResponseWriter) bool {
 	if b.Sess.Docker == nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "Docker/Podman indisponível nesta ligação"})
@@ -83,19 +97,29 @@ func (s *Server) handleDockerRestart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		ID string `json:"id"`
+		ID      string `json:"id"`
+		Compose bool   `json:"compose"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || strings.TrimSpace(body.ID) == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "ID obrigatório"})
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Minute)
+	timeout := 90 * time.Second
+	if body.Compose {
+		timeout = 5 * time.Minute
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
+	// compose up --force-recreate quando há labels Compose; senão reinício simples.
 	if err := smartRestartContainer(ctx, b, body.ID); err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "reiniciado"})
+	mode := "recriado"
+	if !body.Compose {
+		mode = "reiniciado"
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": mode})
 }
 
 // handleDockerRestartBatch reinicia vários contêineres em sequência.
@@ -236,13 +260,13 @@ func (s *Server) handleDockerLogs(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	fullID, err := resolveContainerID(ctx, b.Sess.Docker, id)
 	if err != nil {
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+		writeDockerErr(w, err)
 		return
 	}
 	since := strings.TrimSpace(r.URL.Query().Get("since"))
 	text, err := dockerutil.LoadContainerLogs(ctx, b.Sess.Docker, fullID, tail, since)
 	if err != nil {
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+		writeDockerErr(w, err)
 		return
 	}
 	if text == "" {

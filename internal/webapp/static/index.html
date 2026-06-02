@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/app.css" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
+  <link rel="stylesheet" href="/vendor/xterm/xterm.min.css" />
 </head>
 <body>
   <div id="theme-veil" class="theme-veil" aria-hidden="true"></div>
@@ -198,6 +198,7 @@
             <button type="button" class="btn btn-ghost btn-sm" id="btn-compact-explorer" title="Modo compacto">Compacto</button>
             <button type="button" class="btn btn-ghost btn-sm" id="btn-cancel-xfer" title="Cancelar fila pendente">Cancelar fila</button>
             <button type="button" class="btn btn-ghost btn-sm btn-sudo" id="btn-sudo" title="Activar sudo/root no host SFTP">Sudo</button>
+            <button type="button" class="btn btn-ghost btn-sm btn-icon" id="btn-toggle-preview" title="Mostrar ou ocultar pré-visualização" aria-pressed="false">◧</button>
             <button type="button" class="btn btn-ghost btn-sm btn-icon" id="btn-refresh-panels" title="Atualizar painéis">↻</button>
             <span id="transfer-status" class="transfer-status-pill muted hidden" title="Fila de transferências"></span>
             <button type="button" class="btn btn-ghost btn-sm btn-icon" id="btn-toggle-xfer-panel" title="Painel de progresso">▤</button>
@@ -289,7 +290,7 @@
             <footer class="panel-status" id="remote-status">—</footer>
           </article>
           </div>
-          <div class="explorer-splitter-h" id="explorer-splitter-preview" title="Pré-visualização" aria-hidden="true"></div>
+          <div class="explorer-splitter-h hidden" id="explorer-splitter-preview" title="Duplo clique: pré-visualização" aria-hidden="true"></div>
           <aside class="explorer-preview glass-panel hidden" id="explorer-preview" aria-label="Pré-visualização">
             <header class="preview-head">
               <strong>Pré-visualização</strong>
@@ -334,11 +335,15 @@
       </div>
 
       <div id="view-docker" class="subview">
-        <nav class="docker-module-tabs" role="tablist" aria-label="Secções Docker">
-          <button type="button" class="docker-module-tab active" data-docker-tab="containers" role="tab" aria-selected="true">Contêineres</button>
-          <button type="button" class="docker-module-tab" data-docker-tab="images" role="tab" aria-selected="false">Imagens</button>
-          <button type="button" class="docker-module-tab" data-docker-tab="volumes" role="tab" aria-selected="false">Volumes</button>
-        </nav>
+        <div class="docker-module-bar">
+          <nav class="docker-module-tabs" role="tablist" aria-label="Secções Docker">
+            <button type="button" class="docker-module-tab active" data-docker-tab="containers" role="tab" aria-selected="true">Contêineres</button>
+            <button type="button" class="docker-module-tab" data-docker-tab="images" role="tab" aria-selected="false">Imagens</button>
+            <button type="button" class="docker-module-tab" data-docker-tab="volumes" role="tab" aria-selected="false">Volumes</button>
+            <button type="button" class="docker-module-tab" data-docker-tab="networks" role="tab" aria-selected="false">Redes</button>
+          </nav>
+          <div id="docker-system-bar" class="docker-system-bar hidden" aria-live="polite"></div>
+        </div>
         <div id="docker-section-containers" class="docker-section">
         <header class="docker-page-header">
           <div class="docker-page-top">
@@ -350,6 +355,7 @@
               </div>
             </div>
             <div class="docker-page-primary-actions">
+              <button type="button" class="btn btn-ghost btn-sm" id="docker-create-container">Criar contêiner</button>
               <button type="button" class="btn btn-ghost btn-sm" id="docker-export" title="Exportar CSV">Exportar CSV</button>
               <button type="button" class="btn btn-primary btn-sm" id="docker-refresh">Atualizar</button>
             </div>
@@ -359,16 +365,15 @@
               <label class="checkbox-row docker-toggle-all">
                 <input type="checkbox" id="docker-show-all" /> Incluir parados
               </label>
-              <label class="checkbox-row docker-toggle-auto">
-                <input type="checkbox" id="docker-auto-refresh" checked /> Auto-atualizar
-              </label>
-              <label class="field-inline docker-poll-interval" title="Intervalo de atualização automática">
-                <span class="muted">cada</span>
+              <label class="checkbox-row docker-toggle-auto" title="Intervalo de atualização automática">
+                <input type="checkbox" id="docker-auto-refresh" checked />
+                <span>Auto-atualizar</span>
+                <span class="muted docker-toolbar-muted">cada</span>
                 <select id="docker-poll-interval" class="docker-sort docker-poll-select" aria-label="Intervalo de atualização">
                   <option value="5000">5 s</option>
-                  <option value="8000" selected>8 s</option>
+                  <option value="8000">8 s</option>
                   <option value="15000">15 s</option>
-                  <option value="30000">30 s</option>
+                  <option value="30000" selected>30 s</option>
                   <option value="60000">60 s</option>
                 </select>
               </label>
@@ -384,7 +389,7 @@
               <input type="search" id="docker-filter" class="docker-filter" placeholder="Filtrar por nome, imagem ou ID…" aria-label="Filtrar contêineres" />
             </div>
             <div class="docker-toolbar-group docker-toolbar-meta">
-              <select id="docker-sort" class="docker-sort" aria-label="Ordenar">
+              <select id="docker-sort" class="docker-sort docker-sort-compact" aria-label="Ordenar">
                 <option value="name">Nome A–Z</option>
                 <option value="name-desc">Nome Z–A</option>
                 <option value="cpu">CPU %</option>
@@ -401,16 +406,19 @@
                 </button>
               </div>
             </div>
-          </div>
-          <div class="docker-toolbar-filters" role="group" aria-label="Filtros rápidos">
-            <button type="button" class="docker-filter-chip active" data-quick="all">Todos</button>
-            <button type="button" class="docker-filter-chip" data-quick="running">Em execução</button>
-            <button type="button" class="docker-filter-chip" data-quick="stopped">Parados</button>
-            <button type="button" class="docker-filter-chip" data-quick="warn">Alerta</button>
-            <button type="button" class="docker-filter-chip" data-quick="critical">Críticos</button>
-            <button type="button" class="docker-filter-chip" data-quick="compose">Compose</button>
-            <button type="button" class="docker-filter-chip" data-quick="swarm">Swarm</button>
-            <div class="docker-toolbar-filters-end">
+            <div class="docker-toolbar-group docker-toolbar-filters">
+              <span class="muted docker-toolbar-filter-label">Filtros</span>
+              <select id="docker-quick-filter" class="docker-sort docker-quick-select" aria-label="Filtros">
+                <option value="all">Todos</option>
+                <option value="running">Em execução</option>
+                <option value="stopped">Parados</option>
+                <option value="warn">Alerta</option>
+                <option value="critical">Críticos</option>
+                <option value="compose">Compose</option>
+                <option value="swarm">Swarm</option>
+              </select>
+            </div>
+            <div class="docker-toolbar-group docker-toolbar-filters-end">
               <span class="docker-legend-hint muted" title="Neutro · amarelo ≥75% CPU/RAM · vermelho ≥90%">Legenda cores</span>
               <label class="checkbox-row docker-select-all-master" title="Marcar ou desmarcar todos os contêineres visíveis">
                 <input type="checkbox" id="docker-select-all-master" aria-label="Selecionar todos visíveis" />
@@ -421,8 +429,10 @@
           <div class="docker-batch-bar hidden" id="docker-batch-bar" role="toolbar" aria-label="Acções em lote">
             <span id="docker-batch-count" class="docker-batch-count">0 selecionados</span>
             <button type="button" class="btn btn-ghost btn-sm" id="docker-batch-start">Iniciar</button>
-            <button type="button" class="btn btn-ghost btn-sm" id="docker-batch-restart">Reiniciar</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="docker-batch-restart" title="Recria os contêineres (compose up --force-recreate) para aplicar alterações no YAML">Recriar</button>
             <button type="button" class="btn btn-ghost btn-sm" id="docker-batch-stop">Parar</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="docker-batch-pause">Pausar</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="docker-batch-unpause">Retomar</button>
             <button type="button" class="btn btn-ghost btn-sm btn-danger" id="docker-batch-remove">Remover</button>
             <button type="button" class="btn btn-ghost btn-sm" id="docker-batch-clear">Limpar</button>
           </div>
@@ -450,6 +460,7 @@
                 <p id="docker-images-status" class="muted docker-status-bar">—</p>
               </div>
               <div class="docker-page-primary-actions">
+                <button type="button" class="btn btn-ghost btn-sm btn-danger" id="docker-images-prune" title="Remove imagens dangling">Limpar dangling</button>
                 <button type="button" class="btn btn-primary btn-sm" id="docker-images-refresh">Atualizar</button>
               </div>
             </div>
@@ -475,6 +486,8 @@
                 <p id="docker-volumes-status" class="muted docker-status-bar">—</p>
               </div>
               <div class="docker-page-primary-actions">
+                <button type="button" class="btn btn-ghost btn-sm" id="docker-create-volume">Criar volume</button>
+                <button type="button" class="btn btn-ghost btn-sm btn-danger" id="docker-volumes-prune" title="Remove volumes não usados">Limpar não usados</button>
                 <button type="button" class="btn btn-primary btn-sm" id="docker-volumes-refresh">Atualizar</button>
               </div>
             </div>
@@ -486,6 +499,29 @@
           </header>
           <div class="docker-resource-scroll">
             <div id="docker-volumes-list" class="docker-resource-host"></div>
+          </div>
+        </div>
+
+        <div id="docker-section-networks" class="docker-section hidden">
+          <header class="docker-page-header docker-subpage-header">
+            <div class="docker-page-top">
+              <div class="docker-page-title-block">
+                <h2>Redes Docker</h2>
+                <p id="docker-networks-status" class="muted docker-status-bar">—</p>
+              </div>
+              <div class="docker-page-primary-actions">
+                <button type="button" class="btn btn-ghost btn-sm" id="docker-open-network-create">Criar rede</button>
+                <button type="button" class="btn btn-primary btn-sm" id="docker-networks-refresh">Atualizar</button>
+              </div>
+            </div>
+            <div class="docker-toolbar-row">
+              <div class="docker-toolbar-group docker-toolbar-search">
+                <input type="search" id="docker-networks-filter" class="docker-filter" placeholder="Filtrar por nome ou driver…" aria-label="Filtrar redes" />
+              </div>
+            </div>
+          </header>
+          <div class="docker-resource-scroll">
+            <div id="docker-networks-list" class="docker-resource-host"></div>
           </div>
         </div>
       </div>
@@ -794,6 +830,128 @@
     </div>
   </dialog>
 
+  <dialog id="docker-create-dialog" class="modal-dialog docker-form-dialog">
+    <form id="docker-create-form" class="modal-form" method="dialog">
+      <h3>Criar contêiner</h3>
+      <p class="muted docker-form-hint">Imagem obrigatória. Portas: <code>8080:80</code> ou <code>80</code> (várias separadas por vírgula).</p>
+      <label class="field">
+        <span>Imagem *</span>
+        <input type="text" id="docker-create-image" required placeholder="nginx:latest" autocomplete="off" list="docker-create-image-list" />
+        <datalist id="docker-create-image-list"></datalist>
+      </label>
+      <label class="field">
+        <span>Nome</span>
+        <input type="text" id="docker-create-name" placeholder="opcional" autocomplete="off" />
+      </label>
+      <label class="field">
+        <span>Comando</span>
+        <input type="text" id="docker-create-cmd" placeholder="ex.: nginx -g daemon off;" autocomplete="off" />
+      </label>
+      <label class="field">
+        <span>Variáveis de ambiente</span>
+        <textarea id="docker-create-env" rows="2" placeholder="Uma por linha: VAR=valor"></textarea>
+      </label>
+      <label class="field">
+        <span>Portas</span>
+        <input type="text" id="docker-create-ports" placeholder="8080:80, 443:443" autocomplete="off" />
+      </label>
+      <div class="field-row">
+        <label class="field">
+          <span>Reinício</span>
+          <select id="docker-create-restart" class="docker-sort">
+            <option value="no">Não</option>
+            <option value="unless-stopped" selected>A menos que parado</option>
+            <option value="always">Sempre</option>
+            <option value="on-failure">Em falha</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Rede</span>
+          <input type="text" id="docker-create-network" placeholder="bridge (opcional)" list="docker-create-network-list" autocomplete="off" />
+          <datalist id="docker-create-network-list"></datalist>
+        </label>
+      </div>
+      <p id="docker-create-error" class="error hidden" role="alert"></p>
+      <div class="btn-row end">
+        <button type="button" class="btn btn-ghost" id="docker-create-cancel">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="docker-create-submit">Criar e iniciar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="docker-network-create-dialog" class="modal-dialog docker-form-dialog">
+    <form id="docker-network-create-form" class="modal-form" method="dialog">
+      <h3>Criar rede</h3>
+      <label class="field">
+        <span>Nome *</span>
+        <input type="text" id="docker-network-create-name" required autocomplete="off" />
+      </label>
+      <label class="field">
+        <span>Driver</span>
+        <select id="docker-network-create-driver" class="docker-sort">
+          <option value="bridge" selected>bridge</option>
+          <option value="overlay">overlay</option>
+          <option value="macvlan">macvlan</option>
+          <option value="ipvlan">ipvlan</option>
+        </select>
+      </label>
+      <label class="checkbox-row">
+        <input type="checkbox" id="docker-network-create-internal" /> Rede interna
+      </label>
+      <p id="docker-network-create-error" class="error hidden" role="alert"></p>
+      <div class="btn-row end">
+        <button type="button" class="btn btn-ghost" id="docker-network-create-cancel">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Criar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="docker-volume-create-dialog" class="modal-dialog docker-form-dialog">
+    <form id="docker-volume-create-form" class="modal-form" method="dialog">
+      <h3>Criar volume</h3>
+      <label class="field">
+        <span>Nome *</span>
+        <input type="text" id="docker-volume-create-name" required autocomplete="off" />
+      </label>
+      <label class="field">
+        <span>Driver</span>
+        <input type="text" id="docker-volume-create-driver" value="local" autocomplete="off" />
+      </label>
+      <p id="docker-volume-create-error" class="error hidden" role="alert"></p>
+      <div class="btn-row end">
+        <button type="button" class="btn btn-ghost" id="docker-volume-create-cancel">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Criar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="docker-recreate-progress-dialog" class="modal-dialog docker-recreate-progress-dialog">
+    <div class="modal-form docker-recreate-progress-form">
+      <h3 id="docker-recreate-progress-title">A recriar contêineres</h3>
+      <p id="docker-recreate-progress-summary" class="muted">A preparar operação no host remoto…</p>
+      <div class="progress-track docker-recreate-progress-bar">
+        <div class="progress-fill" id="docker-recreate-progress-fill"></div>
+      </div>
+      <ul id="docker-recreate-progress-list" class="docker-recreate-progress-list" aria-live="polite"></ul>
+      <div class="btn-row end">
+        <button type="button" class="btn btn-primary btn-sm" id="docker-recreate-progress-close" disabled>Fechar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="docker-op-dialog" class="modal-dialog docker-op-dialog">
+    <div class="modal-form docker-op-form">
+      <h3 id="docker-op-title">A processar…</h3>
+      <p id="docker-op-message" class="muted">Aguarde enquanto o Docker executa o comando no host remoto.</p>
+      <p id="docker-op-step" class="docker-op-step muted"></p>
+      <div class="docker-op-progress-wrap hidden" id="docker-op-progress-wrap">
+        <div class="progress-track docker-op-progress-track"><div class="progress-fill" id="docker-op-progress-fill"></div></div>
+      </div>
+      <div class="docker-op-progress" aria-hidden="true"><span class="docker-op-spinner"></span></div>
+      <p id="docker-op-detail" class="docker-op-detail muted"></p>
+    </div>
+  </dialog>
+
   <dialog id="docker-exec-dialog" class="modal-dialog docker-exec-dialog">
     <div class="modal-form docker-panel-form">
       <div class="docker-panel-head">
@@ -824,8 +982,8 @@
     </form>
   </dialog>
 
-  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+  <script src="/vendor/xterm/xterm.min.js"></script>
+  <script src="/vendor/xterm/xterm-addon-fit.min.js"></script>
   <script src="/ui.js"></script>
   <script src="/app.js"></script>
   <script src="/docker-manager.js"></script>
@@ -835,5 +993,6 @@
   <script src="/explorer-complete.js"></script>
   <script src="/screen-help.js"></script>
   <script src="/app-ui.js"></script>
+  <script src="/motion.js"></script>
 </body>
 </html>

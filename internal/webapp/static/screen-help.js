@@ -115,25 +115,31 @@
     docker: {
       title: "Docker",
       html: `
-        <p class="muted">Gestão Docker no host remoto: <strong>Contêineres</strong>, <strong>Imagens</strong> e <strong>Volumes</strong>.</p>
+        <p class="muted">Gestão Docker no host remoto: <strong>Contêineres</strong>, <strong>Imagens</strong>, <strong>Volumes</strong> e <strong>Redes</strong>.</p>
         <h4>Abas</h4>
         <ul>
+          <li><strong>Resumo do sistema</strong> — chips sob as abas (uso de imagens, contêineres, volumes, dangling).</li>
           <li><strong>Contêineres</strong> — métricas, ciclo de vida, logs, consola, Compose.</li>
-          <li><strong>Imagens</strong> — listagem, filtro, dangling, remover (com confirmação).</li>
-          <li><strong>Volumes</strong> — listagem, copiar nome, remover.</li>
+          <li><strong>Imagens</strong> — listagem, filtro, dangling, remover, <strong>Limpar dangling</strong>.</li>
+          <li><strong>Volumes</strong> — listagem, <strong>Ficheiros</strong> (abre o explorador no contêiner que monta o volume), copiar nome, remover, <strong>Limpar não usados</strong>.</li>
+          <li><strong>Redes</strong> — listagem, criar, remover (excepto bridge/host/none), copiar nome.</li>
+          <li><strong>Criar contêiner</strong> — imagem, portas, env, rede, política de reinício.</li>
+          <li><strong>Criar volume</strong> — nome e driver (local por defeito).</li>
+          <li><strong>Limpar cache build</strong> — botão no resumo do sistema quando há cache.</li>
         </ul>
         <h4>Contêineres</h4>
         <ul>
           <li><strong>Lista</strong> / <strong>Grelha</strong> — alterne o modo de visualização (a preferência fica guardada).</li>
-          <li><strong>Filtros rápidos</strong> — Todos, em execução, parados, alerta, críticos, Compose, Swarm.</li>
+          <li><strong>Filtros</strong> — Lista (Todos, em execução, parados, alerta, críticos, Compose, Swarm).</li>
           <li><strong>Resumo</strong> — chips sob o título com totais e médias de CPU/RAM.</li>
           <li><strong>Agrupar Compose</strong> — secções por projeto; clique no cabeçalho para colapsar.</li>
           <li><strong>★ Fixar</strong> — mantém contêineres no topo da lista.</li>
           <li><strong>Cores dos cartões</strong> — neutro no normal; <strong>amarelo</strong> ≥75% CPU/RAM; <strong>vermelho</strong> ≥90%.</li>
           <li><strong>Clique num cartão</strong> — vista dividida com detalhes, sparklines e inspect.</li>
-          <li><strong>Ferramentas</strong> — copiar ID/nome, logs, stats, explorador, consola, ciclo de vida.</li>
+          <li><strong>Acções rápidas</strong> — ▶ iniciar, ■ parar, ↻ reiniciar, ⏸ pausar (no cartão e no detalhe).</li>
+          <li><strong>Ferramentas</strong> — copiar ID/nome, logs, stats, explorador, consola, ciclo de vida completo.</li>
           <li><strong>Portas</strong> — mapeamentos publicados no cartão quando existirem.</li>
-          <li>Seleção em lote: iniciar, reiniciar, parar, remover; checkbox <strong>Selecionar todos visíveis</strong>.</li>
+          <li>Seleção em lote: iniciar, reiniciar, parar, pausar, retomar, remover; checkbox <strong>Selecionar todos visíveis</strong>.</li>
           <li>URL <code>#docker=ID</code> — abre directamente o detalhe do contêiner.</li>
           <li><strong>Intervalo</strong> — auto-atualizar a cada 5–60 s (preferência guardada).</li>
           <li><strong>Logs</strong> — pesquisa, destaque de erros/stderr, «Desde reinício», quebra de linha, live.</li>

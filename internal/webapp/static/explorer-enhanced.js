@@ -719,6 +719,28 @@
   });
 
   const PREVIEW_INLINE_MAX = 12000;
+  const PREVIEW_OPEN_KEY = "cw-preview-open";
+
+  function isPreviewPanelOpen() {
+    return localStorage.getItem(PREVIEW_OPEN_KEY) === "1";
+  }
+
+  function setPreviewPanelOpen(open) {
+    if (open) localStorage.setItem(PREVIEW_OPEN_KEY, "1");
+    else localStorage.removeItem(PREVIEW_OPEN_KEY);
+  }
+
+  function applyPreviewPanelVisibility() {
+    const open = isPreviewPanelOpen();
+    $("#explorer-preview")?.classList.toggle("hidden", !open);
+    $("#explorer-splitter-preview")?.classList.toggle("hidden", !open);
+    const btn = $("#btn-toggle-preview");
+    if (btn) {
+      btn.classList.toggle("is-active", open);
+      btn.setAttribute("aria-pressed", open ? "true" : "false");
+      btn.title = open ? "Ocultar pré-visualização" : "Mostrar pré-visualização";
+    }
+  }
 
   function setPreviewFullscreenEnabled(on) {
     const btn = $("#btn-preview-fullscreen");
@@ -769,7 +791,7 @@
     state.previewCache = null;
     setPreviewFullscreenEnabled(false);
     if (!entry || entry.isDir || entry.name === "..") {
-      content.innerHTML = '<span class="muted">Selecione um ficheiro</span>';
+      if (isPreviewPanelOpen()) content.innerHTML = '<span class="muted">Selecione um ficheiro</span>';
       return;
     }
     const ext = entry.name.split(".").pop()?.toLowerCase() || "";
@@ -777,13 +799,11 @@
     const isTxt = /^(txt|md|json|ya?ml|xml|log|conf|ini|sh|bat|ps1|go|js|ts|css|html?|env)$/.test(ext);
     if (!isImg && !isTxt) {
       const html = `<p><strong>${escapeHtml(entry.name)}</strong></p><p class="muted">${entry.isDir ? "Pasta" : formatSize(entry.size)}</p>`;
-      content.innerHTML = html;
       state.previewCache = { kind: "meta", name: entry.name, html };
-      panel.classList.remove("hidden");
+      if (isPreviewPanelOpen()) content.innerHTML = html;
       return;
     }
-    content.innerHTML = '<span class="muted">A carregar…</span>';
-    panel.classList.remove("hidden");
+    if (isPreviewPanelOpen()) content.innerHTML = '<span class="muted">A carregar…</span>';
     (async () => {
       try {
         let url;
@@ -800,22 +820,35 @@
           const imgSrc = `data:${data.mimeType};base64,${data.content}`;
           state.previewCache = { kind: "image", name: entry.name, imgSrc };
           setPreviewFullscreenEnabled(true);
-          content.innerHTML = `<img class="preview-img" alt="" src="${imgSrc}" />`;
         } else if (typeof data.content === "string") {
-          const full = data.content;
-          const truncated = full.length > PREVIEW_INLINE_MAX;
-          state.previewCache = { kind: "text", name: entry.name, text: full };
+          state.previewCache = { kind: "text", name: entry.name, text: data.content };
           setPreviewFullscreenEnabled(true);
+        }
+        if (!isPreviewPanelOpen() || token !== state.previewToken || !state.previewCache) return;
+        if (state.previewCache.kind === "text") {
+          const full = state.previewCache.text;
+          const truncated = full.length > PREVIEW_INLINE_MAX;
           const pre = document.createElement("pre");
           pre.className = "preview-text";
           pre.textContent = truncated ? full.slice(0, PREVIEW_INLINE_MAX) + "\n… (use tela cheia para ver tudo)" : full;
           content.innerHTML = "";
           content.appendChild(pre);
+        } else {
+          renderPreviewInto(content, state.previewCache);
         }
       } catch {
-        if (token === state.previewToken) content.innerHTML = '<span class="muted">Pré-visualização indisponível</span>';
+        if (token === state.previewToken && isPreviewPanelOpen()) {
+          content.innerHTML = '<span class="muted">Pré-visualização indisponível</span>';
+        }
       }
     })();
+  }
+
+  function togglePreviewPanel(forceOpen) {
+    const open = forceOpen === true ? true : forceOpen === false ? false : !isPreviewPanelOpen();
+    setPreviewPanelOpen(open);
+    applyPreviewPanelVisibility();
+    if (open) schedulePreview(state.explorerFocus || "local");
   }
 
   $("#btn-preview-fullscreen")?.addEventListener("click", openPreviewFullscreen);
@@ -823,8 +856,9 @@
   $("#preview-fullscreen-dialog")?.addEventListener("click", (e) => {
     if (e.target === e.currentTarget) e.currentTarget.close();
   });
-  $("#btn-preview-close")?.addEventListener("click", () => $("#explorer-preview")?.classList.add("hidden"));
-  $("#explorer-splitter-preview")?.addEventListener("dblclick", () => $("#explorer-preview")?.classList.toggle("hidden"));
+  $("#btn-preview-close")?.addEventListener("click", () => togglePreviewPanel(false));
+  $("#btn-toggle-preview")?.addEventListener("click", () => togglePreviewPanel());
+  $("#explorer-splitter-preview")?.addEventListener("dblclick", () => togglePreviewPanel());
 
   // Splitter vertical entre painéis
   (function initVSplitter() {
@@ -963,7 +997,7 @@
       origShow(n);
       if (n === "explorer") {
         refreshExplorerNav();
-        $("#explorer-preview")?.classList.toggle("hidden", localStorage.getItem("cw-preview-hidden") === "1");
+        applyPreviewPanelVisibility();
       }
     };
   }
@@ -977,5 +1011,6 @@
     mo.observe(remoteSel, { childList: true });
   }
 
+  applyPreviewPanelVisibility();
   refreshExplorerNav();
 })();

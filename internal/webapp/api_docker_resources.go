@@ -117,3 +117,98 @@ func (s *Server) handleDockerVolumeRemove(w http.ResponseWriter, r *http.Request
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "removido"})
 }
+
+func (s *Server) handleDockerNetworks(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "método não permitido"})
+		return
+	}
+	_, b, ok := s.requireSSH(w, r)
+	if !ok || !dockerClientFromBundle(b, w) {
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+	defer cancel()
+	rows, err := listDockerNetworks(ctx, b.Sess.Docker)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"networks":  rows,
+		"count":     len(rows),
+		"updatedAt": time.Now().Format(time.RFC3339),
+	})
+}
+
+func (s *Server) handleDockerSystem(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "método não permitido"})
+		return
+	}
+	_, b, ok := s.requireSSH(w, r)
+	if !ok || !dockerClientFromBundle(b, w) {
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+	defer cancel()
+	usage, err := dockerSystemUsage(ctx, b.Sess.Docker)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"usage":     usage,
+		"updatedAt": time.Now().Format(time.RFC3339),
+	})
+}
+
+func (s *Server) handleDockerImagesPrune(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "método não permitido"})
+		return
+	}
+	_, b, ok := s.requireSSH(w, r)
+	if !ok || !dockerClientFromBundle(b, w) {
+		return
+	}
+	var body struct {
+		DanglingOnly bool `json:"danglingOnly"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
+	defer cancel()
+	reclaimed, err := pruneDockerImages(ctx, b.Sess.Docker, body.DanglingOnly)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":           "ok",
+		"spaceReclaimed":   reclaimed,
+		"spaceReclaimedHuman": formatBytesHuman(reclaimed),
+	})
+}
+
+func (s *Server) handleDockerVolumesPrune(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "método não permitido"})
+		return
+	}
+	_, b, ok := s.requireSSH(w, r)
+	if !ok || !dockerClientFromBundle(b, w) {
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
+	defer cancel()
+	reclaimed, err := pruneDockerVolumes(ctx, b.Sess.Docker)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":              "ok",
+		"spaceReclaimed":      reclaimed,
+		"spaceReclaimedHuman": formatBytesHuman(reclaimed),
+	})
+}

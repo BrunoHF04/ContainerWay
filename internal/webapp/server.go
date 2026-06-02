@@ -142,6 +142,15 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("/api/docker/volumes", s.handleDockerVolumes)
 	mux.HandleFunc("/api/docker/images/remove", s.handleDockerImageRemove)
 	mux.HandleFunc("/api/docker/volumes/remove", s.handleDockerVolumeRemove)
+	mux.HandleFunc("/api/docker/networks", s.handleDockerNetworks)
+	mux.HandleFunc("/api/docker/system", s.handleDockerSystem)
+	mux.HandleFunc("/api/docker/images/prune", s.handleDockerImagesPrune)
+	mux.HandleFunc("/api/docker/volumes/prune", s.handleDockerVolumesPrune)
+	mux.HandleFunc("/api/docker/buildcache/prune", s.handleDockerBuildCachePrune)
+	mux.HandleFunc("/api/docker/containers/create", s.handleDockerContainerCreate)
+	mux.HandleFunc("/api/docker/networks/create", s.handleDockerNetworkCreate)
+	mux.HandleFunc("/api/docker/networks/remove", s.handleDockerNetworkRemove)
+	mux.HandleFunc("/api/docker/volumes/create", s.handleDockerVolumeCreate)
 	mux.HandleFunc("/api/docker/stop", s.handleDockerLifecycle("stop"))
 	mux.HandleFunc("/api/docker/start", s.handleDockerLifecycle("start"))
 	mux.HandleFunc("/api/docker/pause", s.handleDockerLifecycle("pause"))
@@ -229,20 +238,27 @@ func (s *Server) handleAuthLogout(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// handleAuthMe devolve o utilizador autenticado na sessão web.
+// handleAuthMe devolve o utilizador autenticado ou authenticated:false (sem 401, para evitar ruído na consola ao abrir a app).
 func (s *Server) handleAuthMe(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "método não permitido"})
 		return
 	}
-	_, ws, ok := s.requireWebAuth(w, r)
+	tok, ok := sessionTokenFromRequest(r)
 	if !ok {
+		writeJSON(w, http.StatusOK, map[string]any{"authenticated": false})
+		return
+	}
+	ws, ok := s.store.getWebToken(tok)
+	if !ok {
+		writeJSON(w, http.StatusOK, map[string]any{"authenticated": false})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"username":    ws.Username,
-		"displayName": ws.DisplayName,
-		"isAdmin":     isAdminUser(ws.Username),
+		"authenticated": true,
+		"username":      ws.Username,
+		"displayName":   ws.DisplayName,
+		"isAdmin":       isAdminUser(ws.Username),
 	})
 }
 

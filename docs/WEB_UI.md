@@ -131,6 +131,15 @@ Listagem dentro de contêineres: `docker exec ls` (sem depender de `CopyFromCont
 | POST | `/api/docker/restart` | Reiniciar (Compose recreate se aplicável) |
 | POST | `/api/docker/restart-batch` | Reiniciar vários |
 | POST | `/api/docker/stop` \| `start` \| `pause` \| `unpause` \| `remove` | Ciclo de vida |
+| GET | `/api/docker/networks` | Redes |
+| GET | `/api/docker/system` | Uso de disco (system df) |
+| POST | `/api/docker/images/prune` | Limpar imagens dangling |
+| POST | `/api/docker/volumes/prune` | Limpar volumes não usados |
+| POST | `/api/docker/buildcache/prune` | Limpar cache de build |
+| POST | `/api/docker/containers/create` | Criar e iniciar contêiner |
+| POST | `/api/docker/networks/create` | Criar rede |
+| POST | `/api/docker/networks/remove` | Remover rede |
+| POST | `/api/docker/volumes/create` | Criar volume |
 | GET | `/api/docker/logs?id=` | Logs do contêiner |
 | GET | `/api/docker/stats?id=` | Métricas (`?raw=1` para JSON bruto) |
 | GET | `/api/docker/inspect?id=` | Inspect resumido |
