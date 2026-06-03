@@ -135,6 +135,8 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("/api/explorer/favorites", s.handleExplorerFavorites)
 	mux.HandleFunc("/api/explorer/clipboard", s.handleExplorerClipboard)
 	mux.HandleFunc("/api/explorer/paste", s.handleExplorerPaste)
+	mux.HandleFunc("/api/compose-opt/discover", s.handleComposeOptDiscover)
+	mux.HandleFunc("/api/compose-opt/analyze", s.handleComposeOptAnalyze)
 	mux.HandleFunc("/api/docker/containers", s.handleDockerContainers)
 	mux.HandleFunc("/api/docker/export", s.handleDockerExport)
 	mux.HandleFunc("/api/docker/restart", s.handleDockerRestart)

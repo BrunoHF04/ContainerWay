@@ -7,6 +7,7 @@ const (
 	ScreenDesktop      = "desktop"
 	ScreenExplorer     = "explorer"
 	ScreenDocker       = "docker"
+	ScreenComposeOpt   = "composeopt"
 	ScreenDisks        = "disks"
 	ScreenServices     = "services"
 	ScreenTerminal     = "terminal"
@@ -45,6 +46,7 @@ func AllScreens() []string {
 		ScreenDesktop,
 		ScreenExplorer,
 		ScreenDocker,
+		ScreenComposeOpt,
 		ScreenDisks,
 		ScreenServices,
 		ScreenTerminal,
@@ -89,6 +91,7 @@ func DefaultPermissions() Permissions {
 			ScreenDesktop,
 			ScreenExplorer,
 			ScreenDocker,
+			ScreenComposeOpt,
 			ScreenDisks,
 			ScreenServices,
 			ScreenTerminal,

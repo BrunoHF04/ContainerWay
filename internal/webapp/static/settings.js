@@ -8,6 +8,7 @@
     { id: "desktop", label: "Ambiente Linux (simplificado)" },
     { id: "explorer", label: "Gerenciador de arquivos" },
     { id: "docker", label: "Contêineres Docker" },
+    { id: "composeopt", label: "Otimizador Compose YAML" },
     { id: "disks", label: "Discos e armazenamento" },
     { id: "services", label: "Serviços (systemd)" },
     { id: "terminal", label: "Terminal SSH" },

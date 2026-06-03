@@ -1668,7 +1668,7 @@ select.cw-select-native {
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(135deg, transparent, var(--card-accent, var(--accent)));
+  background: linear-gradient(135deg, transparent, var(--border-strong, var(--border)));
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
@@ -1702,15 +1702,6 @@ select.cw-select-native {
   transform: translateZ(28px);
   transition: transform 0.12s ease-out;
 }
-
-.hub-card-3d[data-accent="cyan"] { --card-accent: #38bdf8; }
-.hub-card-3d[data-accent="indigo"] { --card-accent: #818cf8; }
-.hub-card-3d[data-accent="emerald"] { --card-accent: #34d399; }
-.hub-card-3d[data-accent="amber"] { --card-accent: #fbbf24; }
-.hub-card-3d[data-accent="rose"] { --card-accent: #fb7185; }
-.hub-card-3d[data-accent="violet"] { --card-accent: #a78bfa; }
-.hub-card-3d[data-accent="sky"] { --card-accent: #38bdf8; }
-.hub-card-3d[data-accent="teal"] { --card-accent: #2dd4bf; }
 
 /* —— Serviços (systemd) —— */
 #view-services.subview.active {
@@ -4500,7 +4491,12 @@ html.reduce-motion *::after {
   .linux-files-toolbar,
   .linux-auto-log,
   .linux-auto-rules,
-  .linux-monitor-grid
+  .linux-monitor-grid,
+  .copt-file-list,
+  .copt-findings,
+  .copt-editor,
+  .copt-diff-pre,
+  .copt-folder-dirs
 ) {
   scrollbar-gutter: stable;
   scrollbar-width: thin;
@@ -4519,6 +4515,11 @@ html.reduce-motion *::after {
   .data-list,
   .table-wrap,
   .code-block,
+  .copt-file-list,
+  .copt-findings,
+  .copt-editor,
+  .copt-diff-pre,
+  .copt-folder-dirs,
   .docker-list-scroll,
   .docker-resource-scroll,
   .docker-detail-content,
@@ -4561,7 +4562,12 @@ html.reduce-motion *::after {
   .linux-files-toolbar,
   .linux-auto-log,
   .linux-auto-rules,
-  .linux-monitor-grid
+  .linux-monitor-grid,
+  .copt-file-list,
+  .copt-findings,
+  .copt-editor,
+  .copt-diff-pre,
+  .copt-folder-dirs
 )::-webkit-scrollbar {
   width: var(--scrollbar-size);
   height: var(--scrollbar-size);
@@ -9811,4 +9817,736 @@ body:has(#app.app-desktop-mode) > .ambient {
 .linux-table--compact th {
   padding: 0.25rem 0.4rem;
   font-size: 0.72rem;
+}
+
+/* —— Otimizador Compose / Swarm —— */
+#view-composeopt.subview.active {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+#view-composeopt > .subview-body.copt-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0 0.55rem 0.55rem;
+  box-sizing: border-box;
+}
+.composeopt-module .copt-toolbar {
+  flex-shrink: 0;
+  padding: 0.38rem 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.composeopt-module .copt-toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  min-width: 0;
+}
+.composeopt-module .copt-toolbar-row--folders {
+  padding-top: 0.2rem;
+  border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  gap: 0.25rem;
+}
+.composeopt-module .copt-toolbar.is-folders-collapsed .copt-folders-panel {
+  display: none;
+}
+.composeopt-module .copt-folders-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  flex: 1;
+  min-width: 0;
+}
+.composeopt-module .copt-collapse-btn {
+  flex-shrink: 0;
+  width: 1.35rem;
+  height: 1.35rem;
+  padding: 0;
+  border: 1px solid var(--border, #334155);
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.35);
+  color: var(--text-secondary);
+  font-size: 0.62rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.composeopt-module .copt-collapse-btn:hover {
+  border-color: var(--accent, #6366f1);
+  color: var(--accent, #a5b4fc);
+}
+.composeopt-module .copt-findings-wrap.is-collapsed .copt-findings {
+  display: none;
+}
+.composeopt-module .copt-findings-count {
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.2);
+  color: var(--accent, #a5b4fc);
+}
+.composeopt-module .copt-toolbar-spacer {
+  flex: 1;
+  min-width: 0.5rem;
+}
+.composeopt-module .copt-screen-title {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.composeopt-module .copt-swarm-badge {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  white-space: nowrap;
+}
+.composeopt-module .copt-updated {
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+.composeopt-module .copt-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+.composeopt-module .copt-mode-tabs {
+  display: inline-flex;
+  border-radius: var(--radius-sm, 8px);
+  border: 1px solid var(--border, #334155);
+  overflow: hidden;
+}
+.composeopt-module .copt-mode-tab {
+  padding: 0.2rem 0.5rem;
+  font-size: 0.68rem;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.composeopt-module .copt-mode-tab.is-active {
+  background: rgba(99, 102, 241, 0.25);
+  color: var(--accent, #a5b4fc);
+}
+.composeopt-module .copt-folder-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  flex: 1;
+}
+.composeopt-module .copt-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--border, #334155);
+  background: rgba(15, 23, 42, 0.4);
+  overflow: hidden;
+}
+.composeopt-module .copt-chip.is-on {
+  border-color: var(--accent, #6366f1);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.35);
+}
+.composeopt-module .copt-chip-main {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 0.72rem;
+  font-family: ui-monospace, monospace;
+  padding: 0.25rem 0.45rem;
+  cursor: pointer;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.composeopt-module .copt-chip-x {
+  border: none;
+  background: transparent;
+  color: var(--muted, #94a3b8);
+  padding: 0 0.35rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+.composeopt-module .copt-auto-scan {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.68rem;
+  margin-left: auto;
+  white-space: nowrap;
+}
+.composeopt-module .copt-workspace {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(168px, 196px) 1fr;
+  gap: 0.35rem;
+  align-items: stretch;
+}
+@media (max-width: 960px) {
+  .composeopt-module .copt-workspace {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+}
+.composeopt-module .copt-panel {
+  padding: 0.4rem 0.5rem;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.composeopt-module .copt-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.3rem;
+  flex-shrink: 0;
+}
+.composeopt-module .copt-panel-head h3 {
+  margin: 0;
+  font-size: 0.78rem;
+  flex: 1;
+}
+.composeopt-module .copt-search {
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  font-size: 0.78rem;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--border, #334155);
+  background: var(--input-bg, rgba(15, 23, 42, 0.5));
+  color: inherit;
+}
+.composeopt-module .copt-stacks {
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border, #334155);
+}
+.composeopt-module .copt-stacks-label {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  color: var(--muted, #94a3b8);
+}
+.composeopt-module .copt-stack-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.composeopt-module .copt-stack-chip {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(234, 179, 8, 0.12);
+  border: 1px solid rgba(234, 179, 8, 0.3);
+}
+.composeopt-module .copt-file-list {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.composeopt-module .copt-empty {
+  font-size: 0.8rem;
+  padding: 0.5rem;
+}
+.composeopt-module .copt-file-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  text-align: left;
+  padding: 0.35rem 0.45rem;
+  border-radius: var(--radius-sm, 8px);
+  border: 1px solid transparent;
+  background: rgba(15, 23, 42, 0.25);
+  color: inherit;
+  cursor: pointer;
+  width: 100%;
+}
+.composeopt-module .copt-file-card:hover,
+.composeopt-module .copt-file-card.is-active {
+  border-color: var(--accent, #6366f1);
+  background: rgba(99, 102, 241, 0.14);
+}
+.composeopt-module .copt-file-icon {
+  font-size: 1.1rem;
+  line-height: 1.2;
+}
+.composeopt-module .copt-file-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.composeopt-module .copt-file-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  word-break: break-word;
+}
+.composeopt-module .copt-file-dir {
+  font-size: 0.68rem;
+  font-family: ui-monospace, monospace;
+  word-break: break-all;
+}
+.composeopt-module .copt-kind-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.12rem 0.35rem;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.composeopt-module .copt-kind-badge--compose {
+  background: rgba(59, 130, 246, 0.2);
+  color: #93c5fd;
+}
+.composeopt-module .copt-kind-badge--swarm {
+  background: rgba(234, 179, 8, 0.2);
+  color: #fcd34d;
+}
+.composeopt-module .copt-strip {
+  flex-shrink: 0;
+  padding: 0.22rem 0.45rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.45rem;
+  font-size: 0.68rem;
+  min-width: 0;
+  line-height: 1.25;
+}
+.composeopt-module .copt-selected-inline {
+  min-width: 0;
+  flex: 1 1 12rem;
+  word-break: break-all;
+  font-family: ui-monospace, monospace;
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+.composeopt-module .copt-selected-inline strong {
+  font-weight: 600;
+}
+.composeopt-module .copt-host-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.45rem;
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+}
+.composeopt-module .copt-host-inline-label {
+  font-weight: 600;
+}
+.composeopt-module .copt-findings-wrap {
+  flex-shrink: 0;
+  padding: 0.28rem 0.45rem;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.composeopt-module .copt-findings-wrap:not(.is-collapsed) {
+  max-height: min(14vh, 5.5rem);
+}
+.composeopt-module .copt-findings-wrap.is-collapsed {
+  padding-bottom: 0.22rem;
+}
+.composeopt-module .copt-findings-head {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-bottom: 0;
+  flex-shrink: 0;
+  cursor: pointer;
+  user-select: none;
+}
+.composeopt-module .copt-findings-wrap:not(.is-collapsed) .copt-findings-head {
+  margin-bottom: 0.2rem;
+}
+.composeopt-module .copt-findings-head h3 {
+  margin: 0;
+  font-size: 0.72rem;
+  flex: 1;
+  min-width: 0;
+}
+.composeopt-module .copt-findings-head .copt-kind-badge {
+  margin-left: auto;
+}
+.copt-save-dialog {
+  max-width: min(640px, 96vw);
+  width: min(640px, 96vw);
+}
+.copt-save-form h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+.copt-save-path {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  font-family: ui-monospace, monospace;
+  word-break: break-all;
+}
+.copt-save-summary {
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.copt-save-changes {
+  margin: 0 0 0.5rem;
+  max-height: min(42vh, 280px);
+  overflow: auto;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  font-family: var(--mono, ui-monospace, Consolas, monospace);
+  border: 1px solid var(--border, #334155);
+  border-radius: var(--radius-sm, 6px);
+  background: rgba(0, 0, 0, 0.28);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.copt-save-hint {
+  margin: 0 0 0.65rem;
+  font-size: 0.72rem;
+}
+.copt-folder-dialog {
+  max-width: 480px;
+  width: min(96vw, 480px);
+}
+.copt-folder-dirs {
+  max-height: 280px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.5rem 0;
+  padding: 0.35rem;
+  border: 1px solid var(--border, #334155);
+  border-radius: var(--radius-sm, 8px);
+}
+.copt-dir-item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  text-align: left;
+  padding: 0.4rem 0.5rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+.copt-dir-item:hover {
+  background: rgba(99, 102, 241, 0.15);
+}
+.copt-folder-bc {
+  font-size: 0.78rem;
+  margin: 0.35rem 0;
+}
+.composeopt-module .copt-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  flex: 1;
+}
+.composeopt-module .copt-findings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  font-size: 0.72rem;
+}
+.composeopt-module .copt-findings--err {
+  color: #f87171;
+  border-left: 3px solid #ef4444;
+  padding-left: 0.5rem;
+}
+.composeopt-module .copt-finding {
+  padding: 0.3rem 0.4rem;
+  border-radius: var(--radius-sm, 6px);
+  border-left: 3px solid var(--muted, #64748b);
+  background: rgba(15, 23, 42, 0.35);
+}
+.composeopt-module .copt-finding--warn {
+  border-left-color: #f59e0b;
+}
+.composeopt-module .copt-finding--suggest {
+  border-left-color: #6366f1;
+}
+.composeopt-module .copt-finding--info {
+  border-left-color: #22c55e;
+}
+.composeopt-module .copt-finding header {
+  font-size: 0.78rem;
+  margin-bottom: 0.2rem;
+}
+.composeopt-module .copt-finding p {
+  margin: 0;
+}
+.composeopt-module .copt-finding-cur {
+  opacity: 0.75;
+}
+.composeopt-module .copt-finding-sug {
+  color: var(--accent, #818cf8);
+  font-weight: 600;
+}
+.composeopt-module .copt-doc {
+  font-size: 0.72rem;
+}
+.composeopt-module .copt-diff {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 0.25rem 0.35rem;
+  overflow: hidden;
+  align-items: stretch;
+}
+.composeopt-module .copt-pane {
+  display: contents;
+}
+.composeopt-module .copt-pane-head,
+.composeopt-module .copt-diff-pre {
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--glass-bg, rgba(15, 23, 42, 0.45));
+  box-shadow: var(--glass-shadow, 0 1px 2px rgba(0, 0, 0, 0.12));
+}
+.composeopt-module .copt-pane--orig .copt-pane-head {
+  grid-column: 1;
+  grid-row: 2;
+}
+.composeopt-module .copt-pane--orig .copt-diff-pre {
+  grid-column: 1;
+  grid-row: 3;
+  border-top: none;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+.composeopt-module .copt-pane--opt .copt-pane-head {
+  grid-column: 2;
+  grid-row: 2;
+}
+.composeopt-module .copt-pane--opt .copt-diff-pre {
+  grid-column: 2;
+  grid-row: 3;
+  border-top: none;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+.composeopt-module .copt-pane--orig .copt-pane-head {
+  border-bottom: none;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.composeopt-module .copt-pane--opt .copt-pane-head {
+  border-bottom: none;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.composeopt-module .copt-diff-meta {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem 0.5rem;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.composeopt-module .copt-diff-legend {
+  margin: 0;
+  padding: 0;
+  font-size: 0.6rem;
+  line-height: 1.2;
+  flex: 1;
+  min-width: 0;
+}
+.composeopt-module .copt-diff-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+.copt-fullscreen-dialog {
+  max-width: 98vw;
+  width: min(1600px, 98vw);
+  max-height: 96vh;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+}
+.copt-fullscreen-inner {
+  display: flex;
+  flex-direction: column;
+  max-height: 94vh;
+  min-height: min(82vh, 94vh);
+}
+.copt-fullscreen-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.65rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.copt-fullscreen-title {
+  font-size: 0.78rem;
+  font-family: ui-monospace, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+.copt-fullscreen-dialog .copt-diff--fs {
+  flex: 1;
+  min-height: 0;
+  margin: 0.35rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+  overflow: hidden;
+}
+.copt-fullscreen-dialog .copt-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0.25rem 0.35rem 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--glass-bg, rgba(15, 23, 42, 0.45));
+}
+.copt-fullscreen-dialog .copt-diff-pre {
+  flex: 1;
+  min-height: 0;
+}
+@media (max-width: 1100px) {
+  .composeopt-module .copt-diff {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto auto auto;
+  }
+  .composeopt-module .copt-pane--orig .copt-pane-head {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .composeopt-module .copt-pane--orig .copt-diff-pre {
+    grid-column: 1;
+    grid-row: 3;
+  }
+  .composeopt-module .copt-pane--opt .copt-pane-head {
+    grid-column: 1;
+    grid-row: 4;
+  }
+  .composeopt-module .copt-pane--opt .copt-diff-pre {
+    grid-column: 1;
+    grid-row: 5;
+  }
+}
+.composeopt-module .copt-pane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0.28rem 0.4rem;
+  min-height: 2rem;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.composeopt-module .copt-pane-head h3 {
+  margin: 0;
+  font-size: 0.7rem;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.composeopt-module .copt-pane-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+.composeopt-module .copt-pane-head .btn-sm {
+  padding: 0.15rem 0.4rem;
+  font-size: 0.65rem;
+  white-space: nowrap;
+}
+.composeopt-module .copt-diff-pre {
+  min-height: 0;
+  margin: 0;
+  overflow: auto;
+  font-size: 0.66rem;
+  line-height: 1.32;
+  padding: 0.35rem 0;
+  background: rgba(0, 0, 0, 0.28);
+  color: inherit;
+  font-family: var(--mono, ui-monospace, Consolas, monospace);
+  white-space: pre;
+  tab-size: 2;
+}
+.composeopt-module .copt-diff-pre--edit {
+  outline: none;
+}
+.composeopt-module .copt-diff-pre--edit:focus {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.composeopt-module .copt-line {
+  display: block;
+  padding: 0 0.35rem;
+  min-height: 1.32em;
+}
+.composeopt-module .copt-line--same {
+  background: transparent;
+  color: inherit;
+}
+.composeopt-module .copt-line--pad {
+  background: transparent;
+  color: transparent;
+  user-select: none;
+}
+.composeopt-module .copt-line--del {
+  background: color-mix(in srgb, #ef4444 28%, transparent);
+  color: #fecaca;
+}
+.composeopt-module .copt-line--add {
+  background: color-mix(in srgb, #22c55e 26%, transparent);
+  color: #bbf7d0;
+}
+[data-theme="light"] .composeopt-module .copt-line--del {
+  background: color-mix(in srgb, #ef4444 18%, #fff);
+  color: #b91c1c;
+}
+[data-theme="light"] .composeopt-module .copt-line--add {
+  background: color-mix(in srgb, #22c55e 16%, #fff);
+  color: #15803d;
 }

@@ -921,6 +921,158 @@
         </div>
       </dialog>
 
+      <div id="view-composeopt" class="subview composeopt-module">
+        <div class="subview-body copt-body">
+        <header class="copt-toolbar glass-card" title="Compose e Swarm — otimização de YAML">
+          <div class="copt-toolbar-row copt-toolbar-row--main">
+            <h2 class="copt-screen-title" data-i18n="copt.title">Otimizador YAML</h2>
+            <span id="copt-swarm-badge" class="copt-swarm-badge hidden" aria-live="polite"></span>
+            <div class="copt-mode-tabs" role="tablist" aria-label="Modo de análise">
+              <button type="button" class="copt-mode-tab is-active" data-mode="auto" role="tab" data-i18n="copt.mode.auto">Auto</button>
+              <button type="button" class="copt-mode-tab" data-mode="compose" role="tab" data-i18n="copt.mode.compose">Compose</button>
+              <button type="button" class="copt-mode-tab" data-mode="swarm" role="tab" data-i18n="copt.mode.swarm">Swarm</button>
+            </div>
+            <span class="copt-toolbar-spacer"></span>
+            <button type="button" class="btn btn-primary btn-sm" id="copt-discover" data-i18n="copt.discover">Buscar</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="copt-analyze" data-i18n="copt.analyze" disabled>Analisar</button>
+            <span id="copt-updated" class="copt-updated muted">—</span>
+          </div>
+          <div class="copt-toolbar-row copt-toolbar-row--folders">
+            <button type="button" id="copt-folders-toggle" class="copt-collapse-btn copt-collapse-btn--folders" aria-expanded="true" aria-controls="copt-folders-panel" title=""></button>
+            <div id="copt-folders-panel" class="copt-folders-panel">
+              <span class="copt-label" data-i18n="copt.folders">Pastas</span>
+              <div id="copt-folder-chips" class="copt-folder-chips"></div>
+              <button type="button" class="btn btn-ghost btn-sm" id="copt-pick-folder" data-i18n="copt.pickFolder">Pasta…</button>
+              <label class="copt-auto-scan">
+                <input type="checkbox" id="copt-auto-scan" checked />
+                <span data-i18n="copt.autoScan">Auto</span>
+              </label>
+            </div>
+          </div>
+        </header>
+
+        <div class="copt-workspace">
+          <aside class="copt-panel glass-card">
+            <div class="copt-panel-head">
+              <h3 data-i18n="copt.files">Arquivos YAML</h3>
+              <input type="search" id="copt-file-filter" class="copt-search" data-i18n="copt.filter.ph" data-i18n-mode="placeholder" placeholder="Filtrar…" />
+            </div>
+            <div id="copt-stacks" class="copt-stacks hidden"></div>
+            <div id="copt-file-list" class="copt-file-list cw-scroll" role="list"></div>
+          </aside>
+
+          <div class="copt-main">
+            <div class="copt-strip glass-card">
+              <div id="copt-selected" class="copt-selected-inline muted" data-i18n="copt.pickFile">Selecione um arquivo na lista</div>
+              <section id="copt-host" class="copt-host-inline hidden" aria-live="polite"></section>
+            </div>
+            <section id="copt-findings-wrap" class="copt-findings-wrap glass-card is-collapsed">
+              <div class="copt-findings-head">
+                <button type="button" id="copt-findings-toggle" class="copt-collapse-btn" aria-expanded="false" aria-controls="copt-findings" title=""></button>
+                <h3 data-i18n="copt.findings">Sugestões</h3>
+                <span id="copt-findings-count" class="copt-findings-count hidden"></span>
+                <span id="copt-mode-badge" class="copt-kind-badge hidden"></span>
+              </div>
+              <div id="copt-findings" class="copt-findings cw-scroll muted" data-i18n="copt.findings.empty">Selecione um arquivo na lista.</div>
+            </section>
+            <div class="copt-diff">
+              <div class="copt-diff-meta">
+                <p class="copt-diff-legend muted" data-i18n="copt.diff.legend">Sem cor = sem alteração sugerida · Vermelho/verde = mudança real na mesma linha</p>
+                <div class="copt-diff-tools">
+                  <button type="button" class="btn btn-ghost btn-sm" id="copt-fullscreen" data-i18n="copt.fullscreen" disabled>Tela cheia</button>
+                  <button type="button" class="btn btn-ghost btn-sm" id="copt-notepad" data-i18n="copt.notepad" disabled>Notepad++</button>
+                  <button type="button" class="btn btn-ghost btn-sm hidden" id="copt-sync-external" data-i18n="copt.syncExternal">Sincronizar do Notepad++</button>
+                </div>
+              </div>
+              <div class="copt-pane glass-card copt-pane--orig">
+                <div class="copt-pane-head">
+                  <h3 data-i18n="copt.original">YAML original</h3>
+                  <div class="copt-pane-actions">
+                    <button type="button" class="btn btn-ghost btn-sm" id="copt-copy-orig" data-i18n="copt.copy">Copiar</button>
+                  </div>
+                </div>
+                <pre id="copt-yaml-orig-pre" class="copt-diff-pre cw-scroll" aria-readonly="true"></pre>
+              </div>
+              <div class="copt-pane glass-card copt-pane--opt">
+                <div class="copt-pane-head">
+                  <h3 data-i18n="copt.optimized">YAML sugerido</h3>
+                  <div class="copt-pane-actions">
+                    <button type="button" class="btn btn-ghost btn-sm" id="copt-undo" data-i18n="copt.undo" disabled>Desfazer</button>
+                    <button type="button" class="btn btn-ghost btn-sm" id="copt-copy-opt" data-i18n="copt.copy">Copiar</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="copt-save" data-i18n="copt.save" disabled>Gravar no servidor</button>
+                  </div>
+                </div>
+                <pre id="copt-yaml-opt-pre" class="copt-diff-pre cw-scroll copt-diff-pre--edit" contenteditable="true" spellcheck="false"></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        </div>
+      </div>
+
+      <dialog id="copt-fullscreen-dialog" class="modal-dialog copt-fullscreen-dialog">
+        <div class="copt-fullscreen-inner">
+          <header class="copt-fullscreen-head">
+            <strong id="copt-fullscreen-title" class="copt-fullscreen-title">—</strong>
+            <div class="copt-pane-actions">
+              <button type="button" class="btn btn-ghost btn-sm" id="copt-fs-notepad" data-i18n="copt.notepad">Notepad++</button>
+              <button type="button" class="btn btn-ghost btn-sm hidden" id="copt-fs-sync-external" data-i18n="copt.syncExternal">Sincronizar do Notepad++</button>
+              <button type="button" class="btn btn-primary btn-sm" id="copt-fs-save" data-i18n="copt.save" disabled>Gravar no servidor</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="copt-fullscreen-close" data-i18n="common.close">Fechar</button>
+            </div>
+          </header>
+          <div class="copt-diff copt-diff--fs">
+            <div class="copt-pane copt-pane--orig">
+              <div class="copt-pane-head">
+                <h3 data-i18n="copt.original">YAML original</h3>
+                <div class="copt-pane-actions">
+                  <button type="button" class="btn btn-ghost btn-sm" id="copt-fs-copy-orig" data-i18n="copt.copy">Copiar</button>
+                </div>
+              </div>
+              <pre id="copt-fs-yaml-orig-pre" class="copt-diff-pre cw-scroll" aria-readonly="true"></pre>
+            </div>
+            <div class="copt-pane copt-pane--opt">
+              <div class="copt-pane-head">
+                <h3 data-i18n="copt.optimized">YAML sugerido</h3>
+                <div class="copt-pane-actions">
+                  <button type="button" class="btn btn-ghost btn-sm" id="copt-fs-undo" data-i18n="copt.undo" disabled>Desfazer</button>
+                  <button type="button" class="btn btn-ghost btn-sm" id="copt-fs-copy-opt" data-i18n="copt.copy">Copiar</button>
+                </div>
+              </div>
+              <pre id="copt-fs-yaml-opt-pre" class="copt-diff-pre cw-scroll copt-diff-pre--edit" contenteditable="true" spellcheck="false"></pre>
+            </div>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="copt-save-dialog" class="modal-dialog copt-save-dialog">
+        <div class="modal-form copt-save-form">
+          <h3 data-i18n="copt.save.confirmTitle">Confirmar gravação no servidor</h3>
+          <p id="copt-save-path" class="copt-save-path muted"></p>
+          <p id="copt-save-summary" class="copt-save-summary"></p>
+          <pre id="copt-save-changes" class="copt-save-changes cw-scroll" aria-label="Alterações"></pre>
+          <p class="muted copt-save-hint" data-i18n="copt.save.confirmHint">O arquivo remoto será substituído pelo YAML sugerido. Confirme apenas se tem certeza.</p>
+          <div class="btn-row end">
+            <button type="button" class="btn btn-ghost btn-sm" id="copt-save-cancel" data-i18n="common.cancel">Cancelar</button>
+            <button type="button" class="btn btn-primary btn-sm btn-danger" id="copt-save-ok" data-i18n="copt.save.confirmOk">Sim, gravar no servidor</button>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="copt-folder-dialog" class="modal-dialog copt-folder-dialog">
+        <form method="dialog" class="modal-form copt-folder-form">
+          <h3 data-i18n="copt.folderDlg.title">Escolher pasta no servidor</h3>
+          <p class="muted" data-i18n="copt.folderDlg.hint">Navegue e adicione pastas à busca ou busque só nesta pasta.</p>
+          <div class="copt-folder-bc" id="copt-folder-bc" aria-label="Caminho"></div>
+          <div id="copt-folder-dirs" class="copt-folder-dirs cw-scroll"></div>
+          <div class="btn-row end">
+            <button type="button" class="btn btn-ghost btn-sm" id="copt-folder-cancel" data-i18n="common.cancel">Cancelar</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="copt-folder-add" data-i18n="copt.folderDlg.add">Adicionar à busca</button>
+            <button type="button" class="btn btn-primary btn-sm" id="copt-folder-scan" data-i18n="copt.folderDlg.scan">Buscar só aqui</button>
+          </div>
+        </form>
+      </dialog>
+
       <div id="view-terminal" class="subview">
         <div class="subview-body">
         <div class="page-head glass-bar-inline"><h2 data-i18n="term.page.title">Terminal SSH</h2>
@@ -1671,6 +1823,7 @@
   <script src="/terminal-tools.js"></script>
   <script src="/settings.js"></script>
   <script src="/docker-manager.js"></script>
+  <script src="/compose-opt-manager.js"></script>
   <script src="/disks-manager.js"></script>
   <script src="/services-manager.js"></script>
   <script src="/explorer.js"></script>

@@ -146,6 +146,7 @@ bindThemeButtons();
 const MODULES = [
   { id: "explorer", icon: "📁", accent: "cyan", title: "Gerenciador de arquivos", desc: "Painel duplo local/remoto, enviar e receber arquivos.", kw: "arquivos sftp transferência" },
   { id: "docker", icon: "🐳", accent: "indigo", title: "Contêineres Docker", desc: "Lista, métricas, logs, consola e ciclo de vida.", kw: "docker container" },
+  { id: "composeopt", icon: "📋", accent: "indigo", title: "Otimizador YAML", desc: "Compose e Swarm: localiza YAML, compara hardware e sugere CPU, RAM e JVM.", kw: "compose swarm stack yaml docker otimizar memoria cpu java" },
   { id: "disks", icon: "💾", accent: "emerald", title: "Discos e armazenamento", desc: "lsblk, uso de pastas, LVM e ampliação.", kw: "disco lsblk armazenamento lvm ncdu treesize" },
   { id: "services", icon: "⚡", accent: "teal", title: "Serviços", desc: "systemd: estado agora, iniciar/parar e início automático ao ligar o servidor.", kw: "serviço systemd systemctl nginx apache boot enable" },
   { id: "terminal", icon: "⌨️", accent: "amber", title: "Terminal SSH", desc: "Consola remota interativa.", kw: "terminal ssh shell" },
@@ -304,6 +305,7 @@ function showScreen(name) {
     loadDocker();
     window.dockerOnScreenEnter?.();
   }
+  if (name === "composeopt") window.composeOptOnScreenEnter?.();
   if (prevScreen === "disks" && name !== "disks") window.disksOnScreenLeave?.();
   if (name === "disks") loadDisks();
   if (prevScreen === "services" && name !== "services") window.servicesOnScreenLeave?.();

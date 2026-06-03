@@ -1,0 +1,33 @@
+services:
+    libreofficesiplan_228:
+        image: 'atualizadorspcm.com.br:27/libreofficesiplan:latest'
+        deploy:
+            mode: global
+            resources:
+                limits:
+                    memory: 1G
+                reservations:
+                    memory: 512M
+    # orionpro:
+         #image: 'atualizadorspcm.com.br:27/orionpro:02.00.03.GED'
+         #deploy:
+         #    mode: global
+         #    resources:
+         #       limits:
+         #           memory: 4096M
+    mysql:
+        image: 'atualizadorspcm.com.br:27/mysql:5.7'
+        deploy:
+            mode: global
+            resources:
+                limits:
+                    memory: 1G
+                reservations:
+                    memory: 512M
+    sgassiplan:
+        image: 'atualizadorspcm.com.br:27/sgaspcm:latest'
+        deploy:
+            mode: global
+            resources:
+                limits:
+                    memory: 1G

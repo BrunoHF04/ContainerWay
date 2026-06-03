@@ -49,6 +49,8 @@ func permissionForRequest(method, path string) string {
 		path == "/api/desktop/network/iface",
 		path == "/api/desktop/service/control":
 		return accessauth.ActionSudoUse
+	case strings.HasPrefix(path, "/api/compose-opt/"):
+		return accessauth.ActionDockerView
 	case strings.HasPrefix(path, "/api/docker/"):
 		return dockerPermission(method, path)
 	case strings.HasPrefix(path, "/api/transfer/"):
