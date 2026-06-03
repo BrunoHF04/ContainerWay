@@ -162,6 +162,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("/api/docker/stats", s.handleDockerStats)
 	mux.HandleFunc("/api/docker/inspect", s.handleDockerInspect)
 	mux.HandleFunc("/api/docker/exec/ws", s.handleDockerExecWS)
+	mux.HandleFunc("/api/desktop/overview", s.handleDesktopOverview)
 	mux.HandleFunc("/api/disks/summary", s.handleDisksSummary)
 	mux.HandleFunc("/api/disks/probe", s.handleDisksProbe)
 	mux.HandleFunc("/api/disks/extend-lv", s.handleDisksExtendLV)

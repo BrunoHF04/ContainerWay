@@ -144,6 +144,7 @@ function bindThemeButtons() {
 bindThemeButtons();
 
 const MODULES = [
+  { id: "desktop", icon: "🖥️", accent: "sky", title: "Ambiente Linux", desc: "Interface gráfica simplificada — ícones e menus para iniciantes.", kw: "linux desktop ubuntu gui gráfico leigo iniciante ambiente" },
   { id: "explorer", icon: "📁", accent: "cyan", title: "Gerenciador de arquivos", desc: "Painel duplo local/remoto, enviar e receber arquivos.", kw: "arquivos sftp transferência" },
   { id: "docker", icon: "🐳", accent: "indigo", title: "Contêineres Docker", desc: "Lista, métricas, logs, consola e ciclo de vida.", kw: "docker container" },
   { id: "disks", icon: "💾", accent: "emerald", title: "Discos e armazenamento", desc: "lsblk, uso de pastas, LVM e ampliação.", kw: "disco lsblk armazenamento lvm ncdu treesize" },
@@ -308,6 +309,8 @@ function showScreen(name) {
     stopAutoPoll();
   }
   if (name === "terminal") openTerminal();
+  if (name === "desktop") window.CWDesktop?.onEnter?.();
+  if (prevScreen === "desktop" && name !== "desktop") window.CWDesktop?.onLeave?.();
   if (name === "settings") window.CWSettings?.loadSettings?.();
   if (name === "explorer") {
     loadLocal(state.localPath);

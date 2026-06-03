@@ -26,6 +26,7 @@
         <p class="muted">Escolha o módulo depois de conectado ao SSH. Use a pesquisa para filtrar cartões.</p>
         <h4>Módulos</h4>
         <ul>
+          <li><strong>Ambiente Linux</strong> — simulação de desktop no browser para utilizadores leigos (atalhos para os outros módulos).</li>
           <li><strong>Gerenciador de arquivos</strong> — painel duplo local/remoto, SFTP e Docker.</li>
           <li><strong>Contêineres Docker</strong> — lista, logs, estatísticas e reinício.</li>
           <li><strong>Discos e armazenamento</strong> — <code>lsblk</code> e <code>df</code> no host.</li>
@@ -199,6 +200,23 @@
           <li><strong>Regras</strong> — criar, editar, ativar; gatilho "contêiner parado" → reinício.</li>
           <li><strong>Histórico</strong> — eventos recentes; <strong>Limpar</strong> apaga o histórico.</li>
           <li><strong>Atualizar</strong> — recarrega regras e histórico do disco.</li>
+        </ul>
+      `,
+    },
+    desktop: {
+      title: "Ambiente Linux (simplificado)",
+      html: `
+        <p class="muted">Simula uma interface gráfica no browser — o Ubuntu Server <strong>continua sem GUI</strong>; só a experiência no ContainerWay muda.</p>
+        <h4>Como usar</h4>
+        <ul>
+          <li>Ícones no ambiente ou menu <strong>CW</strong> (canto superior esquerdo) abrem ficheiros, Docker, discos, terminal e automações.</li>
+          <li><strong>Sobre o servidor</strong> — memória, disco e tempo ligado (dados via SSH).</li>
+          <li><strong>Menu técnico</strong> — volta ao hub com todos os módulos avançados.</li>
+        </ul>
+        <h4>Atalhos</h4>
+        <ul class="shortcut-list">
+          <li><kbd>Esc</kbd> Fechar menu ou janela</li>
+          <li><kbd>?</kbd> Ajuda</li>
         </ul>
       `,
     },

@@ -116,8 +116,19 @@
     $("#docker-section-images")?.classList.toggle("hidden", tab !== "images");
     $("#docker-section-volumes")?.classList.toggle("hidden", tab !== "volumes");
     $("#docker-section-networks")?.classList.toggle("hidden", tab !== "networks");
-    const section = document.getElementById(`docker-section-${tab}`);
-    window.CWMotion?.pulseEnter?.(section, "section-enter");
+    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      const section = document.getElementById(`docker-section-${tab}`);
+      if (section && !section.classList.contains("hidden")) {
+        section.classList.remove("section-enter");
+        void section.offsetWidth;
+        section.classList.add("section-enter");
+        section.addEventListener(
+          "animationend",
+          () => section.classList.remove("section-enter"),
+          { once: true }
+        );
+      }
+    }
   }
 
   function refreshDockerModule() {
@@ -1251,7 +1262,7 @@
     if (!filtered.length) {
       const hasQuick = dockerState.quickFilter !== "all";
       const hasText = !!dockerState.filter.trim();
-      let desc = "Não há contêineres em execução. Active "Incluir parados".";
+      let desc = 'Não há contêineres em execução. Active "Incluir parados".';
       if (hasText || hasQuick) desc = "Ajuste os filtros rápidos ou a pesquisa.";
       else if (dockerState.showAll) desc = "Não há contêineres neste host.";
       CWUI.emptyState(box, {

@@ -7,6 +7,7 @@
     const can = (id) => (typeof window.canScreen === "function" ? window.canScreen(id) : true);
     const all = [
       { id: "hub", title: "Início (hub)", sub: "Menu principal", kw: "hub", run: () => { showScreen("hub"); renderHub(); } },
+      { id: "desktop", title: "Ambiente Linux", sub: "Interface simplificada", screen: "desktop", run: () => showScreen("desktop") },
       {
         id: "connect",
         title: "Conexão SSH",

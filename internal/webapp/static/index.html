@@ -164,6 +164,45 @@
         </div>
       </div>
 
+      <div id="view-desktop" class="subview desktop-module" aria-label="Ambiente Linux simplificado">
+        <div class="linux-desktop" id="linux-desktop">
+          <header class="linux-panel" role="banner">
+            <div class="linux-panel-start">
+              <button type="button" class="linux-panel-btn" id="linux-btn-menu" title="Menu iniciar" aria-label="Menu iniciar" aria-expanded="false" aria-controls="linux-start-menu">
+                <span class="linux-panel-logo" aria-hidden="true">CW</span>
+              </button>
+              <span class="linux-panel-title" id="linux-panel-host">Servidor</span>
+            </div>
+            <div class="linux-panel-center">
+              <span class="linux-panel-pill" id="linux-panel-ssh">SSH</span>
+            </div>
+            <div class="linux-panel-end">
+              <button type="button" class="linux-panel-link" id="linux-btn-hub" title="Menu técnico (hub)">Menu técnico</button>
+              <time class="linux-panel-clock" id="linux-panel-clock" datetime=""></time>
+            </div>
+          </header>
+
+          <main class="linux-workspace">
+            <div class="linux-icons" id="linux-icons" role="list" aria-label="Atalhos do ambiente"></div>
+            <div class="linux-window-layer" id="linux-window-layer" hidden></div>
+          </main>
+
+          <nav class="linux-dock" id="linux-dock" aria-label="Barra de aplicativos"></nav>
+
+          <div class="linux-start-menu" id="linux-start-menu" role="dialog" aria-label="Menu iniciar" hidden>
+            <div class="linux-start-menu-inner glass-card">
+              <p class="linux-start-greeting">Bem-vindo ao ambiente simplificado</p>
+              <p class="muted linux-start-hint">Estes atalhos abrem as ferramentas do ContainerWay no servidor remoto. Não instala interface gráfica no Ubuntu — é uma simulação no browser.</p>
+              <div class="linux-start-grid" id="linux-start-grid"></div>
+              <div class="linux-start-footer">
+                <button type="button" class="btn btn-ghost btn-sm" id="linux-start-close">Fechar menu</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="linux-start-hub">Abrir menu técnico</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div id="view-explorer" class="subview">
         <div class="explorer-toolbar glass-bar-inline">
           <div class="explorer-toolbar-start">
@@ -337,6 +376,7 @@
       </div>
 
       <div id="view-docker" class="subview">
+        <div class="subview-body">
         <div class="docker-module-bar">
           <nav class="docker-module-tabs" role="tablist" aria-label="Seções Docker">
             <button type="button" class="docker-module-tab active" data-docker-tab="containers" role="tab" aria-selected="true">Contêineres</button>
@@ -525,6 +565,7 @@
           <div class="docker-resource-scroll">
             <div id="docker-networks-list" class="docker-resource-host"></div>
           </div>
+        </div>
         </div>
       </div>
 
@@ -832,6 +873,7 @@
                 <label class="field">Tela inicial após conectar SSH
                   <select name="homeScreen" class="panel-select">
                     <option value="hub">Hub (menu)</option>
+                    <option value="desktop">Ambiente Linux (simplificado)</option>
                     <option value="explorer">Gerenciador de arquivos</option>
                     <option value="docker">Contêineres Docker</option>
                     <option value="disks">Discos</option>
@@ -1416,6 +1458,7 @@
   <script src="/i18n.js"></script>
   <script src="/explorer-complete.js"></script>
   <script src="/screen-help.js"></script>
+  <script src="/desktop.js"></script>
   <script src="/app-ui.js"></script>
   <script src="/motion.js"></script>
 </body>

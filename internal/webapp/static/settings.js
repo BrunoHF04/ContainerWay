@@ -4,6 +4,7 @@
   const $$ = (sel) => document.querySelectorAll(sel);
 
   const PERM_SCREENS = [
+    { id: "desktop", label: "Ambiente Linux (simplificado)" },
     { id: "explorer", label: "Gerenciador de arquivos" },
     { id: "docker", label: "Contêineres Docker" },
     { id: "disks", label: "Discos e armazenamento" },
@@ -585,6 +586,7 @@
     if (home && home !== "hub" && typeof canScreen === "function" && canScreen(home)) {
       showScreen(home);
       if (home === "docker") loadDocker();
+      if (home === "desktop") window.CWDesktop?.onEnter?.();
       return;
     }
     showScreen("hub");

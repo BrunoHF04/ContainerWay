@@ -4,6 +4,7 @@ import "strings"
 
 // IDs de telas (módulos) da interface web.
 const (
+	ScreenDesktop      = "desktop"
 	ScreenExplorer     = "explorer"
 	ScreenDocker       = "docker"
 	ScreenDisks        = "disks"
@@ -38,6 +39,7 @@ type Permissions struct {
 // AllScreens devolve todos os módulos da web.
 func AllScreens() []string {
 	return []string{
+		ScreenDesktop,
 		ScreenExplorer,
 		ScreenDocker,
 		ScreenDisks,
@@ -78,6 +80,7 @@ func FullPermissions() Permissions {
 func DefaultPermissions() Permissions {
 	return Permissions{
 		Screens: []string{
+			ScreenDesktop,
 			ScreenExplorer,
 			ScreenDocker,
 			ScreenDisks,

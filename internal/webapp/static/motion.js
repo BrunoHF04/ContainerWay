@@ -68,9 +68,6 @@ const CWMotion = (() => {
     if (name === "disks") {
       pulseClass(document.querySelector("#view-disks .disks-section.active"), "section-enter");
     }
-    if (name === "docker") {
-      pulseClass(document.querySelector("#view-docker .docker-section:not(.hidden)"), "section-enter");
-    }
   }
 
   function bloomShell() {
