@@ -55,8 +55,8 @@ No cabeçalho do painel **Remoto**:
 | Apagar | Sim | Sim (com confirmação) |
 | Copiar / colar entre painéis | Sim | Sim (clipboard no servidor) |
 | Comparar pastas atuais | Sim | Sim (relatório em diálogo) |
-| Enviar / Receber item | Sim | Sim |
-| Lote (itens visíveis) | Sim | Sim (`Lote→` / `←Lote`) |
+| Enviar / Receber item | Sim | Sim (com **confirmação** na web) |
+| Lote (itens visíveis) | Sim | Sim (`Lote→` / `←Lote`, com confirmação na web) |
 | Abrir pasta (duplo clique) | Sim | Sim |
 | Editar ficheiro no browser | — | Sim (texto ≤ 2 MB; imagem ≤ 8 MB) |
 | Abrir com app Windows | Sim (local e remoto monitorizado) | Sim (predefinido / Notepad++; remoto com **Sincronizar remoto**) |
@@ -79,7 +79,7 @@ Características:
 - Pastas recursivas;
 - Fila com workers paralelos (1–16, configurável no login desktop);
 - No desktop: drag-and-drop e «Enviar visíveis» / «Receber visíveis» com confirmação;
-- Na web: painel de progresso e histórico de transferências; upload SFTP de ficheiro único pode **omitir** se o destino já tiver o mesmo tamanho (comportamento partilhado com o motor).
+- Na web: **confirmação** em Enviar, Receber e Lote (`CWConfirm`); painel de progresso e histórico; upload SFTP de ficheiro único pode **omitir** se o destino já tiver o mesmo tamanho (comportamento partilhado com o motor).
 
 ---
 

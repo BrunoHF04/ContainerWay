@@ -15,9 +15,9 @@ df -B1 -T 2>/dev/null | awk 'NR>1 && $1 ~ /^\/dev\// {print $1}' | sort -u | whi
   printf '%s\t%s\n' "$dev" "$c"
 done
 printf '\n%s\n' '===LVS==='
-lvs -a -o lv_path,vg_name,lv_size 2>&1 || true
+lvs -a -o lv_path,vg_name,lv_size,lv_attr,origin,lv_name --separator ';' --noheadings --units g 2>&1 || true
 printf '\n%s\n' '===VGS==='
-vgs -a -o vg_name,vg_free,vg_size 2>&1 || true
+vgs -o vg_name,vg_size,vg_free --separator ';' --noheadings --units g 2>&1 || true
 printf '\n%s\n' '===PVS==='
 pvs 2>&1 || true
 printf '\n%s\n' '===FIM==='

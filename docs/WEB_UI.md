@@ -72,7 +72,7 @@ Guia completo (desktop + web, atalhos, paridade): **[ARQUIVOS.md](ARQUIVOS.md)**
 | Navegação | Breadcrumbs, subir, favoritos, atalhos (Home, Desktop, …), filtro por nome |
 | Mudança de contexto | Ao trocar SFTP↔Docker ou contêiner, a vista **reinicia em `/`** |
 | Operações | Nova pasta, renomear, apagar, copiar/colar entre painéis, comparar pastas |
-| Transferências | Enviar / Receber, lote dos itens visíveis, fila com painel de progresso e histórico |
+| Transferências | Enviar / Receber, lote dos itens visíveis — **confirmação antes de enfileirar**; fila com painel de progresso e histórico |
 | **Sudo** | Só em modo **SFTP**: eleva privilégios para pastas/ficheiros protegidos no host |
 | **Editor** | Abrir/editar texto (até 2 MB); pré-visualização de imagens (até 8 MB) |
 | **Abrir externamente** | Programa predefinido do Windows ou Notepad++; remoto grava cópia local temporária com opção **Sincronizar remoto** |
@@ -145,9 +145,22 @@ Listagem dentro de contêineres: `docker exec ls` (sem depender de `CopyFromCont
 | GET | `/api/docker/inspect?id=` | Inspect resumido |
 | WS | `/api/docker/exec/ws?id=` | Consola no contêiner |
 | GET | `/api/disks/summary` | Discos (legado, resumo simples) |
-| GET | `/api/disks/probe` | Discos: lsblk, df, LVM, tabela host |
-| POST | `/api/disks/extend-lv` | Ampliar volume LVM (sudo) |
+| GET | `/api/disks/probe` | Discos: lsblk, df, LVM (`lvRecords`, `vgStats`), tabela host |
+| POST | `/api/disks/extend-lv` | Ampliar LV (`sizeMode`: `delta` ou `absolute`) + resize FS |
+| POST | `/api/disks/shrink-lv` | Reduzir LV (ext/btrfs; xfs bloqueado na UI) |
+| POST | `/api/disks/fsck` | Verificar FS (read-only) |
+| POST | `/api/disks/snapshot-create` | Criar snapshot LVM |
+| POST | `/api/disks/snapshot-remove` | Remover snapshot |
+| POST | `/api/disks/lv-create` | Criar LV no VG (+ `mkfs` opcional) |
+| POST | `/api/disks/resize-fs` | Só redimensionar FS (`grow`: true/false) |
+| POST | `/api/disks/lv-rename` | Renomear LV |
+| POST | `/api/disks/vg-change` | Activar/desactivar VG (`activate`) |
+| POST | `/api/disks/fstrim` | `fstrim` no ponto de montagem |
+| GET | `/api/disks/smart?dev=` | SMART (`smartctl`) do disco físico |
 | GET | `/api/disks/usage?path=` | Uso por pasta (TreeSize/ncdu) |
+| GET | `/api/services` | Lista serviços systemd |
+| POST | `/api/services/control` | start/stop/restart/reload |
+| GET | `/api/services/logs` | Logs de unidade (`?unit=&lines=`) |
 | GET / PUT | `/api/automations/rules` | Regras do host |
 | GET / DELETE | `/api/automations/history` | Histórico / limpar |
 | GET / POST | `/api/automations/engine` | Motor (`start` \| `stop`) |
@@ -164,7 +177,8 @@ Listagem dentro de contêineres: `docker exec ls` (sem depender de `CopyFromCont
 | Hub / menu da sessão | Sim |
 | Explorador dual (SFTP + Docker, sudo, editor, externo, favoritos, lote, comparar) | Sim |
 | Contêineres Docker (métricas, ciclo de vida, lote, logs live, consola, CSV) | Sim |
-| Discos (lsblk, LVM, assistente, arquivos, técnico) | Sim |
+| Discos (lsblk, LVM completo, snapshots, SMART, arquivos, técnico) | Sim |
+| Serviços systemd (lista, controlo, logs) | Sim |
 | Terminal SSH (WebSocket + xterm) | Sim |
 | Automações (regras, motor, histórico) | Sim |
 | Admin: utilizadores e SMTP | Sim |
@@ -179,11 +193,25 @@ Listagem dentro de contêineres: `docker exec ls` (sem depender de `CopyFromCont
 - Toolbar do explorador numa única barra (Ações \| transferências \| Sudo / fila)
 - Diálogos centrados; editor com pré-visualização de imagens
 
+## Discos e LVM (assistente web)
+
+| Funcionalidade | Detalhe |
+|----------------|---------|
+| Sondagem | `lsblk`, `df`, `lvs`/`vgs`/`pvs`; resposta JSON com `lvRecords` e `vgStats` |
+| Resumo VG | Espaço total e livre do VG do LV seleccionado |
+| Tamanho | Modo **+/- GiB** ou **tamanho final** (absoluto) para ampliar/reduzir |
+| Snapshots | Criar, listar por LV de origem, remover (confirmação forte) |
+| Manutenção | Verificar FS, só resize FS, fstrim, renomear/criar LV, `vgchange` |
+| Host | Seleccionar linha → **SMART do disco** |
+| Arquivos | **Analisar montagem** abre a aba Arquivos no path montado |
+
+Código: `internal/diskutil/` (scripts bash), `internal/webapp/disks.go`, `disks_ops.go`, `static/disks-manager.js`.
+
 ## Próximas fases (explorador web)
 
-1. i18n (PT / EN / ES)
-2. Assistente LVM completo (paridade desktop)
-3. Sincronização espelhada de pastas
+1. i18n completo (PT / EN / ES) em todos os novos textos do assistente LVM
+2. Sincronização espelhada de pastas
+3. Paridade desktop: redução de LV também na UI Fyne (`diskstorage.go`)
 
 ## Estrutura
 
@@ -191,6 +219,10 @@ Listagem dentro de contêineres: `docker exec ls` (sem depender de `CopyFromCont
 |---------|------------------|
 | `cmd/containerway-web/` | Entrada do servidor HTTP |
 | `internal/webapp/` | API, sessões, UI em `static/` |
+| `internal/webapp/disks_ops.go` | Operações LVM (fsck, snapshot, smart, …) |
+| `internal/diskutil/` | `ProbeScript`, parse LVS/VGS, scripts `grow`/`shrink`/`ops` |
+| `internal/webapp/static/disks-manager.js` | Módulo Discos na UI |
+| `internal/webapp/static/services-manager.js` | Módulo Serviços systemd |
 | `internal/webapp/api_editor.go` | Leitura/gravação de ficheiros para editor |
 | `internal/webapp/api_open_external.go` | Abrir no Windows e sincronizar remoto |
 | `internal/webapp/api_sudo.go` | API sudo |

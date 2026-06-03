@@ -147,6 +147,7 @@ const MODULES = [
   { id: "explorer", icon: "📁", accent: "cyan", title: "Gerenciador de arquivos", desc: "Painel duplo local/remoto, enviar e receber arquivos.", kw: "arquivos sftp transferência" },
   { id: "docker", icon: "🐳", accent: "indigo", title: "Contêineres Docker", desc: "Lista, métricas, logs, consola e ciclo de vida.", kw: "docker container" },
   { id: "disks", icon: "💾", accent: "emerald", title: "Discos e armazenamento", desc: "lsblk, uso de pastas, LVM e ampliação.", kw: "disco lsblk armazenamento lvm ncdu treesize" },
+  { id: "services", icon: "⚡", accent: "teal", title: "Serviços", desc: "systemd: estado, iniciar, parar, reiniciar e arranque automático.", kw: "serviço systemd systemctl nginx apache" },
   { id: "terminal", icon: "⌨️", accent: "amber", title: "Terminal SSH", desc: "Consola remota interativa.", kw: "terminal ssh shell" },
   { id: "automations", icon: "⚙️", accent: "violet", title: "Central de automações", desc: "Regras e histórico por host.", kw: "automação regras" },
   { id: "settings", icon: "🔧", accent: "rose", title: "Configurações", desc: "Conta, interface, SSH, módulos e administração.", kw: "configurações admin", adminOnly: true },
@@ -304,6 +305,8 @@ function showScreen(name) {
   }
   if (prevScreen === "disks" && name !== "disks") window.disksOnScreenLeave?.();
   if (name === "disks") loadDisks();
+  if (prevScreen === "services" && name !== "services") window.servicesOnScreenLeave?.();
+  if (name === "services") window.loadServices?.();
   if (name === "automations") {
     loadAutomations();
     startAutoPoll();

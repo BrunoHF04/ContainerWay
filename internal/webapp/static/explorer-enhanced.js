@@ -418,9 +418,55 @@
     CWUI.toast(`Recebido (${items.length})`, "success");
   }
 
+  function visibleItems(side) {
+    const entries = side === "local" ? state.localEntries : state.remoteEntries;
+    const q = side === "local" ? state.localFilter : state.remoteFilter;
+    const list =
+      typeof window.cwPanelFilter === "function"
+        ? window.cwPanelFilter(entries, q)
+        : (entries || []).filter((e) => e.name !== ".." && (!q || e.name.toLowerCase().includes(String(q).toLowerCase())));
+    return list.filter((e) => e.name !== "..");
+  }
+
+  async function batchTransfer(direction) {
+    const items = direction === "push" ? visibleItems("local") : visibleItems("remote");
+    if (!items.length) {
+      CWUI.toast("Nenhum item visível para transferir.", "error");
+      return;
+    }
+    const dest = direction === "push" ? state.remotePath : state.localPath;
+    const msg =
+      direction === "push"
+        ? `Enviar ${items.length} item(ns) visíveis para ${dest}?`
+        : `Receber ${items.length} item(ns) visíveis para ${dest}?`;
+    if (!(await CWConfirm(msg))) return;
+    await api("/api/transfer/batch", {
+      method: "POST",
+      body: JSON.stringify({
+        direction,
+        localDir: state.localPath,
+        remoteDir: state.remotePath,
+        containerId:
+          state.remoteTarget === "container" ? state.remoteContainerId : "",
+        items: items.map((e) => ({ name: e.name, path: e.path, isDir: !!e.isDir })),
+      }),
+    });
+    state.transferLogPinned = false;
+    showTransferLog();
+    refreshTransferStatus();
+    CWUI.toast(`Lote enfileirado (${items.length} itens)`, "success");
+  }
+
+  rebindBtn("#btn-batch-send", () => batchTransfer("push"));
+  rebindBtn("#btn-batch-receive", () => batchTransfer("pull"));
+
   rebindBtn("#btn-send", async () => {
     const items = selectedEntries("local");
     if (!items.length && state.selLocal && state.selLocal.name !== "..") items.push(state.selLocal);
+    if (!items.length) {
+      CWUI.toast(window.CWI18n?.t("explorer.toast.selectLocal") || "Selecione um arquivo ou pasta no painel local.", "error");
+      return;
+    }
     if (!(await CWConfirm(`Enviar ${items.length} item(ns) para ${state.remotePath}?`))) return;
     try {
       await transferPushEntries(items);
@@ -432,6 +478,10 @@
   rebindBtn("#btn-receive", async () => {
     const items = selectedEntries("remote");
     if (!items.length && state.selRemote && state.selRemote.name !== "..") items.push(state.selRemote);
+    if (!items.length) {
+      CWUI.toast("Selecione um item no painel remoto.", "error");
+      return;
+    }
     if (!(await CWConfirm(`Receber ${items.length} item(ns) para ${state.localPath}?`))) return;
     try {
       await transferPullEntries(items);

@@ -39,6 +39,12 @@ func permissionForRequest(method, path string) string {
 			return accessauth.ActionDisksView
 		}
 		return accessauth.ActionDisksManage
+	case path == "/api/services":
+		return accessauth.ActionServicesView
+	case path == "/api/services/logs":
+		return accessauth.ActionServicesView
+	case path == "/api/services/control":
+		return accessauth.ActionServicesControl
 	case path == "/api/desktop/network/apply",
 		path == "/api/desktop/network/iface",
 		path == "/api/desktop/service/control":

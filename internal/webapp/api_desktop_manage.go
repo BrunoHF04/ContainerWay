@@ -94,17 +94,7 @@ func scriptIfaceLink(iface, action string) string {
 }
 
 func scriptSystemctl(unit, action string) string {
-	q := shellQuote(unit)
-	switch action {
-	case "start":
-		return "set -e\nsystemctl start " + q + "\n"
-	case "stop":
-		return "set -e\nsystemctl stop " + q + "\n"
-	case "restart":
-		return "set -e\nsystemctl restart " + q + "\n"
-	default:
-		return ""
-	}
+	return scriptServiceAction(unit, action)
 }
 
 func (s *Server) handleDesktopNetworkApply(w http.ResponseWriter, r *http.Request) {

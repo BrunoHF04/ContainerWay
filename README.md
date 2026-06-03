@@ -2,14 +2,14 @@
 
 ![ContainerWay - Gestão de Arquivos e Contêineres Remotos](assets/containerway-banner-simple.png)
 
-Gestor de ficheiros em painel duplo (estilo WinSCP) para **Windows desktop** e **interface web** local no browser (branch `dev_browser`) — SSH/SFTP, Docker remoto, explorador de contêineres e módulos operacionais no host Linux.
+Gestor de ficheiros em painel duplo (estilo WinSCP) para **Windows desktop** e **interface web** local no browser (branch `dev_browser`) — SSH/SFTP, Docker remoto, explorador de contêineres, **LVM no host** (ampliar/reduzir, snapshots, SMART) e módulos operacionais no host Linux.
 
 ## Início rápido
 
 | Objetivo | Comando |
 |----------|---------|
 | **App desktop** (Windows) | `.\scripts\build.ps1` → `.\ContainerWay.exe` |
-| **App web** (browser, branch `dev_browser`) | Duplo clique em **`ContainerWay Web.exe`** (ou `.deb` Linux) — abre o browser; explorador com SFTP/Docker, editor, sudo e transferências — ver [docs/WEB_UI.md](docs/WEB_UI.md) |
+| **App web** (browser, branch `dev_browser`) | Duplo clique em **`ContainerWay Web.exe`** (ou `.deb` Linux) — explorador (SFTP/Docker, confirmação antes de transferir), discos/LVM, serviços systemd, editor e sudo — ver [docs/WEB_UI.md](docs/WEB_UI.md) |
 | **Documentação completa** | [docs/GUIA.md](docs/GUIA.md) |
 
 ## Documentação
@@ -58,6 +58,7 @@ ContainerWay/
 │   ├── webapp/               # API + UI estática web
 │   ├── session/              # SSH, SFTP, Docker
 │   ├── hostfs/, containerfs/, localfs/
+│   ├── diskutil/               # Sondagem LVM e scripts (extend/shrink/…)
 │   ├── transfer/, tarxfer/
 │   ├── connectcfg/, accessauth/, configdir/
 │   └── …

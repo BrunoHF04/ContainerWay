@@ -20,7 +20,10 @@
     rows: [],
     technical: "",
     lvs: "",
+    lvRecords: [],
+    vgStats: [],
     lvOptions: [],
+    hostSel: null,
     loading: false,
     autoTimer: null,
     probeDebounce: null,
@@ -397,12 +400,27 @@
     return params.toString();
   }
 
+  function hostDiskPath(row) {
+    if (!row?.devPath) return "";
+    const lt = (row.lsblkType || "").toLowerCase();
+    if (lt === "disk") return row.devPath;
+    const idx = state.rows.indexOf(row);
+    if (idx < 0) return "";
+    for (let i = idx - 1; i >= 0; i--) {
+      const r = state.rows[i];
+      if ((r.lsblkType || "").toLowerCase() === "disk" && (r.depth || 0) < (row.depth || 0)) return r.devPath;
+    }
+    return "";
+  }
+
   function renderHostList(rows) {
     const list = $("#disks-host-list");
+    const smartBtn = $("#disks-host-smart");
     if (!list) return;
     if (!rows?.length) {
       list.innerHTML =
         `<div class="disks-row disks-row-empty" role="listitem"><span class="disks-col-dev">${escapeHtml(t("disks.noData"))}</span></div>`;
+      if (smartBtn) smartBtn.disabled = true;
       return;
     }
     list.innerHTML = rows
@@ -411,7 +429,9 @@
           r.hasDf && r.totalDf > 0
             ? `<div class="disks-usage-bar" role="progressbar" aria-valuenow="${Math.round(r.usePct)}" aria-valuemin="0" aria-valuemax="100"><div class="disks-usage-fill" style="width:${Math.min(100, Math.max(0, r.usePct))}%"></div></div>`
             : "";
-        return `<div class="disks-row" role="listitem">
+        const sel = state.hostSel === r.devPath ? " is-selected" : "";
+        const disk = hostDiskPath(r);
+        return `<div class="disks-row${sel}" role="listitem" data-dev="${escapeHtml(r.devPath)}" data-disk="${escapeHtml(disk)}" tabindex="0">
           <span class="disks-col-dev" title="${escapeHtml(r.devPath)}">${indent(r.depth)}${escapeHtml(r.displayName)}</span>
           <span class="disks-col-type">${escapeHtml(r.typeLabel)}</span>
           <span class="disks-col-mount">${escapeHtml(emptyDash(r.mount))}</span>
@@ -419,6 +439,25 @@
         </div>`;
       })
       .join("");
+    list.querySelectorAll(".disks-row[data-dev]").forEach((el) => {
+      const pick = () => {
+        state.hostSel = el.dataset.dev || null;
+        const disk = el.dataset.disk || "";
+        if (smartBtn) smartBtn.disabled = !disk;
+        renderHostList(state.rows);
+      };
+      el.addEventListener("click", pick);
+      el.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          pick();
+        }
+      });
+    });
+    if (smartBtn) {
+      const row = state.rows.find((r) => r.devPath === state.hostSel);
+      smartBtn.disabled = !hostDiskPath(row);
+    }
   }
 
   function enhanceDiskControls() {
@@ -513,9 +552,19 @@
         ? t("disks.vg.found", { vg })
         : t("disks.vg.missing");
     }
+    refreshVgSummary(dev);
+    renderSnapList(dev);
+    const analyzeBtn = $("#disks-analyze-mount");
+    if (analyzeBtn) {
+      const row = findRowForLv(dev);
+      analyzeBtn.disabled = !row?.mount;
+    }
   }
 
   function findVgForDev(dev) {
+    for (const r of state.lvRecords || []) {
+      if (r.path === dev && r.vg) return r.vg;
+    }
     const lines = (state.lvs || "").split("\n");
     for (const line of lines) {
       const t = line.trim();
@@ -524,6 +573,88 @@
       if (fields[0] === dev && fields[1]) return fields[1];
     }
     return "";
+  }
+
+  function findRowForLv(dev) {
+    return state.rows.find((r) => r.devPath === dev);
+  }
+
+  function refreshVgSummary(dev) {
+    const box = $("#disks-vg-summary");
+    if (!box) return;
+    const vg = findVgForDev(dev);
+    if (!vg) {
+      box.textContent = "";
+      return;
+    }
+    const st = (state.vgStats || []).find((x) => x.name === vg);
+    if (!st) {
+      box.textContent = t("disks.vg.summaryShort", { vg });
+      return;
+    }
+    box.textContent = t("disks.vg.summary", {
+      vg,
+      size: st.sizeHuman || st.sizeGiB,
+      free: st.freeHuman || st.freeGiB,
+    });
+  }
+
+  function renderSnapList(dev) {
+    const sel = $("#disks-snap-list");
+    if (!sel) return;
+    const snaps = (state.lvRecords || []).filter((r) => r.isSnapshot && r.origin === dev);
+    const cur = sel.value;
+    sel.innerHTML =
+      `<option value="">—</option>` +
+      snaps
+        .map(
+          (s) =>
+            `<option value="${escapeHtml(s.path)}">${escapeHtml(s.lvName || s.path)} (${escapeHtml(s.sizeHuman || "")})</option>`
+        )
+        .join("");
+    if (cur && snaps.some((s) => s.path === cur)) sel.value = cur;
+    CWUI?.refreshSelect?.(sel);
+    const rm = $("#disks-snap-remove");
+    if (rm) rm.disabled = !sel.value;
+  }
+
+  function parseGiBInput() {
+    const gStr = ($("#disks-add-gib")?.value || "").trim().replace(",", ".");
+    return parseFloat(gStr, 10);
+  }
+
+  function assistantContext() {
+    const lv = $("#disks-lv-path")?.value?.trim() || selectedLvPath();
+    const fs = ($("#disks-fs-select")?.value || "ext4").toLowerCase();
+    const gib = parseGiBInput();
+    const sizeMode = $("#disks-size-mode")?.value === "absolute" ? "absolute" : "delta";
+    const vg = findVgForDev(lv);
+    const row = findRowForLv(lv);
+    return { lv, fs, gib, sizeMode, vg, row, mount: row?.mount || "" };
+  }
+
+  async function requireSudoDisks() {
+    const sudo = await fetchSudoStatus();
+    if (!sudo.enabled) {
+      CWUI.toast(t("disks.toast.needSudo"), "warn");
+      return false;
+    }
+    return true;
+  }
+
+  async function diskPost(path, body, titleKey, okKey) {
+    const res = await api(path, { method: "POST", body: JSON.stringify(body) });
+    CWUI.toast(t(okKey), "success");
+    showLvResultDialog(titleKey, res.output, okKey);
+    await runProbe();
+    return res;
+  }
+
+  function updateSizeModeLabel() {
+    const mode = $("#disks-size-mode")?.value;
+    const lbl = $("#disks-gib-label");
+    if (!lbl) return;
+    lbl.textContent = t(mode === "absolute" ? "disks.targetGib" : "disks.addGib");
   }
 
   function scheduleProbe() {
@@ -543,6 +674,8 @@
       state.rows = data.rows || [];
       state.technical = data.technical || "";
       state.lvs = data.lvs || "";
+      state.lvRecords = data.lvRecords || [];
+      state.vgStats = data.vgStats || [];
       state.lvOptions = data.lvOptions || [];
       state.files.mountRoots = data.usageRoots || [];
       if (state.files.mountRoots.length) renderFilesRoots(state.files.mountRoots);
@@ -601,6 +734,16 @@
     }
   }
 
+  function showLvResultDialog(titleKey, output, fallbackMsg) {
+    const outEl = $("#disks-extend-output");
+    const dlg = $("#disks-extend-dialog");
+    if (!outEl || !dlg) return;
+    const h = dlg.querySelector("h3");
+    if (h) h.textContent = t(titleKey);
+    outEl.textContent = output || t(fallbackMsg);
+    dlg.showModal();
+  }
+
   async function extendLV() {
     const lv = $("#disks-lv-path")?.value?.trim() || selectedLvPath();
     if (!lv) {
@@ -619,25 +762,68 @@
       return;
     }
     const fs = $("#disks-fs-select")?.value || "ext4";
-    const ok = await CWConfirm(t("disks.confirm.extend", { lv, gib, fs }));
+    const sizeMode = $("#disks-size-mode")?.value === "absolute" ? "absolute" : "delta";
+    const ok = await CWConfirm(
+      t(sizeMode === "absolute" ? "disks.confirm.extendAbs" : "disks.confirm.extend", { lv, gib, fs })
+    );
     if (!ok) return;
     const btn = $("#disks-extend-lv");
     if (btn) btn.disabled = true;
     try {
       const res = await api("/api/disks/extend-lv", {
         method: "POST",
-        body: JSON.stringify({ lv, gib, fs }),
+        body: JSON.stringify({ lv, gib, fs, sizeMode }),
       });
       CWUI.toast(t("disks.extend.ok"), "success");
-      const outEl = $("#disks-extend-output");
-      const dlg = $("#disks-extend-dialog");
-      if (outEl && dlg) {
-        outEl.textContent = res.output || t("disks.extend.ok");
-        dlg.showModal();
-      }
+      showLvResultDialog("disks.extend.title", res.output, "disks.extend.ok");
       await runProbe();
     } catch (e) {
       CWUI.toast(e.message || "Falha ao ampliar LV", "error");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function shrinkLV() {
+    const lv = $("#disks-lv-path")?.value?.trim() || selectedLvPath();
+    if (!lv) {
+      CWUI.toast("Indique o caminho do volume lógico.", "warn");
+      return;
+    }
+    const sudo = await fetchSudoStatus();
+    if (!sudo.enabled) {
+      CWUI.toast("Active o sudo para reduzir volumes LVM.", "warn");
+      return;
+    }
+    const gStr = ($("#disks-add-gib")?.value || "").trim().replace(",", ".");
+    const gib = parseFloat(gStr, 10);
+    if (!gib || gib <= 0) {
+      CWUI.toast("Indique um valor positivo em GiB.", "warn");
+      return;
+    }
+    const fs = ($("#disks-fs-select")?.value || "ext4").toLowerCase();
+    if (fs === "xfs") {
+      CWUI.toast(t("disks.shrink.xfsUnsupported"), "error", 8000);
+      return;
+    }
+    const sizeMode = $("#disks-size-mode")?.value === "absolute" ? "absolute" : "delta";
+    const ok = await CWConfirm(
+      t(sizeMode === "absolute" ? "disks.confirm.shrinkAbs" : "disks.confirm.shrink", { lv, gib, fs }),
+      { danger: true, ok: t("disks.shrink") }
+    );
+    if (!ok) return;
+    const btn = $("#disks-shrink-lv");
+    if (btn) btn.disabled = true;
+    try {
+      const res = await api("/api/disks/shrink-lv", {
+        method: "POST",
+        body: JSON.stringify({ lv, gib, fs, sizeMode }),
+      });
+      CWUI.toast(t("disks.shrink.ok"), "success");
+      showLvResultDialog("disks.shrink.title", res.output, "disks.shrink.ok");
+      await runProbe();
+    } catch (e) {
+      CWUI.toast(e.message || "Falha ao reduzir LV", "error");
     } finally {
       if (btn) btn.disabled = false;
     }
@@ -652,6 +838,183 @@
     const end2 = rest.indexOf("\n\n===FIM===");
     if (end2 > 0) rest = rest.slice(0, end2);
     return rest.trim();
+  }
+
+  async function fsckLV() {
+    const { lv, fs } = assistantContext();
+    if (!lv) {
+      CWUI.toast(t("disks.toast.needLv"), "warn");
+      return;
+    }
+    if (!(await requireSudoDisks())) return;
+    if (!(await CWConfirm(t("disks.confirm.fsck", { lv, fs })))) return;
+    try {
+      await diskPost("/api/disks/fsck", { lv, fs }, "disks.op.fsckTitle", "disks.op.fsckOk");
+    } catch (e) {
+      CWUI.toast(e.message, "error");
+    }
+  }
+
+  async function createSnapshot() {
+    const { lv, gib } = assistantContext();
+    const name = ($("#disks-snap-name")?.value || "").trim();
+    if (!lv || !name) {
+      CWUI.toast(t("disks.toast.snapNeed"), "warn");
+      return;
+    }
+    if (!gib || gib <= 0) {
+      CWUI.toast(t("disks.toast.needGib"), "warn");
+      return;
+    }
+    if (!(await requireSudoDisks())) return;
+    if (!(await CWConfirm(t("disks.confirm.snapCreate", { lv, name, gib })))) return;
+    try {
+      await diskPost("/api/disks/snapshot-create", { lv, name, gib }, "disks.snap.createTitle", "disks.snap.createOk");
+    } catch (e) {
+      CWUI.toast(e.message, "error");
+    }
+  }
+
+  async function removeSnapshot() {
+    const snapPath = $("#disks-snap-list")?.value?.trim();
+    if (!snapPath) {
+      CWUI.toast(t("disks.toast.snapPick"), "warn");
+      return;
+    }
+    if (!(await requireSudoDisks())) return;
+    if (!(await CWConfirm(t("disks.confirm.snapRemove", { snap: snapPath }), { danger: true, ok: t("disks.snap.remove") })))
+      return;
+    try {
+      await diskPost("/api/disks/snapshot-remove", { snapPath }, "disks.snap.removeTitle", "disks.snap.removeOk");
+    } catch (e) {
+      CWUI.toast(e.message, "error");
+    }
+  }
+
+  async function resizeFsOnly(grow) {
+    const { lv, fs, gib } = assistantContext();
+    if (!lv || !gib || gib <= 0) {
+      CWUI.toast(t("disks.toast.needGib"), "warn");
+      return;
+    }
+    if (!grow && fs === "xfs") {
+      CWUI.toast(t("disks.shrink.xfsUnsupported"), "error");
+      return;
+    }
+    if (!(await requireSudoDisks())) return;
+    const key = grow ? "disks.confirm.resizeFsGrow" : "disks.confirm.resizeFsShrink";
+    if (!(await CWConfirm(t(key, { lv, gib, fs }), { danger: !grow }))) return;
+    try {
+      await diskPost("/api/disks/resize-fs", { lv, gib, fs, grow }, "disks.op.resizeFsTitle", "disks.op.resizeFsOk");
+    } catch (e) {
+      CWUI.toast(e.message, "error");
+    }
+  }
+
+  async function fstrimLv() {
+    const { lv, mount } = assistantContext();
+    if (!lv) {
+      CWUI.toast(t("disks.toast.needLv"), "warn");
+      return;
+    }
+    if (!mount) {
+      CWUI.toast(t("disks.toast.needMount"), "warn");
+      return;
+    }
+    if (!(await requireSudoDisks())) return;
+    if (!(await CWConfirm(t("disks.confirm.fstrim", { mount })))) return;
+    try {
+      await diskPost("/api/disks/fstrim", { lv }, "disks.op.fstrimTitle", "disks.op.fstrimOk");
+    } catch (e) {
+      CWUI.toast(e.message, "error");
+    }
+  }
+
+  async function renameLv() {
+    const { lv, vg } = assistantContext();
+    if (!lv || !vg) {
+      CWUI.toast(t("disks.toast.needLv"), "warn");
+      return;
+    }
+    const newName = await CWUI?.nameInputDialog?.({
+      title: t("disks.op.rename"),
+      label: t("disks.rename.label"),
+      ok: t("disks.rename.ok"),
+    });
+    if (!newName) return;
+    if (!(await requireSudoDisks())) return;
+    if (!(await CWConfirm(t("disks.confirm.rename", { lv, newName }), { danger: true }))) return;
+    try {
+      await diskPost("/api/disks/lv-rename", { lv, newName }, "disks.op.renameTitle", "disks.op.renameOk");
+    } catch (e) {
+      CWUI.toast(e.message, "error");
+    }
+  }
+
+  async function createLv() {
+    const { vg, gib, fs } = assistantContext();
+    if (!vg) {
+      CWUI.toast(t("disks.vg.missing"), "warn");
+      return;
+    }
+    const name = await CWUI?.nameInputDialog?.({
+      title: t("disks.op.createLv"),
+      label: t("disks.createLv.label"),
+    });
+    if (!name) return;
+    if (!gib || gib <= 0) {
+      CWUI.toast(t("disks.toast.needGib"), "warn");
+      return;
+    }
+    if (!(await requireSudoDisks())) return;
+    const mkfs = await CWConfirm(t("disks.confirm.createLvMkfs", { vg, name, gib, fs }));
+    if (!(await CWConfirm(t("disks.confirm.createLv", { vg, name, gib, mkfs: mkfs ? fs : "—" }), { danger: true }))) return;
+    try {
+      await diskPost("/api/disks/lv-create", { vg, name, gib, fs, mkfs }, "disks.op.createLvTitle", "disks.op.createLvOk");
+    } catch (e) {
+      CWUI.toast(e.message, "error");
+    }
+  }
+
+  async function vgChange(activate) {
+    const { vg } = assistantContext();
+    if (!vg) {
+      CWUI.toast(t("disks.vg.missing"), "warn");
+      return;
+    }
+    if (!(await requireSudoDisks())) return;
+    const key = activate ? "disks.confirm.vgAy" : "disks.confirm.vgAn";
+    if (!(await CWConfirm(t(key, { vg }), { danger: !activate }))) return;
+    try {
+      await diskPost("/api/disks/vg-change", { vg, activate }, "disks.op.vgTitle", "disks.op.vgOk");
+    } catch (e) {
+      CWUI.toast(e.message, "error");
+    }
+  }
+
+  function analyzeMount() {
+    const { mount } = assistantContext();
+    if (!mount) {
+      CWUI.toast(t("disks.toast.needMount"), "warn");
+      return;
+    }
+    setTab("files");
+    void scanFilesPath(mount);
+  }
+
+  async function hostSmart() {
+    const row = state.rows.find((r) => r.devPath === state.hostSel);
+    const disk = hostDiskPath(row);
+    if (!disk) {
+      CWUI.toast(t("disks.toast.pickDisk"), "warn");
+      return;
+    }
+    try {
+      const res = await api(`/api/disks/smart?dev=${encodeURIComponent(disk)}`);
+      showLvResultDialog("disks.op.smartTitle", res.output, "disks.op.smartOk");
+    } catch (e) {
+      CWUI.toast(e.message, "error");
+    }
   }
 
   function jumpToVGS() {
@@ -707,10 +1070,29 @@
     $("#disks-open-tech-vgs")?.addEventListener("click", jumpToVGS);
     $("#disks-jump-vgs")?.addEventListener("click", jumpToVGS);
     $("#disks-extend-lv")?.addEventListener("click", () => void extendLV());
-    $("#disks-shrink-info")?.addEventListener("click", () => {
-      CWUI.toast(t("disks.shrink.body"), "info", 8000);
+    $("#disks-shrink-lv")?.addEventListener("click", () => void shrinkLV());
+    $("#disks-size-mode")?.addEventListener("change", updateSizeModeLabel);
+    $("#disks-snap-list")?.addEventListener("change", () => {
+      const rm = $("#disks-snap-remove");
+      if (rm) rm.disabled = !$("#disks-snap-list")?.value;
     });
-    $("#disks-extend-close")?.addEventListener("click", () => $("#disks-extend-dialog")?.close());
+    $("#disks-snap-create")?.addEventListener("click", () => void createSnapshot());
+    $("#disks-snap-remove")?.addEventListener("click", () => void removeSnapshot());
+    $("#disks-fsck")?.addEventListener("click", () => void fsckLV());
+    $("#disks-resize-fs-grow")?.addEventListener("click", () => void resizeFsOnly(true));
+    $("#disks-resize-fs-shrink")?.addEventListener("click", () => void resizeFsOnly(false));
+    $("#disks-fstrim")?.addEventListener("click", () => void fstrimLv());
+    $("#disks-lv-rename")?.addEventListener("click", () => void renameLv());
+    $("#disks-lv-create")?.addEventListener("click", () => void createLv());
+    $("#disks-vg-activate")?.addEventListener("click", () => void vgChange(true));
+    $("#disks-vg-deactivate")?.addEventListener("click", () => void vgChange(false));
+    $("#disks-analyze-mount")?.addEventListener("click", analyzeMount);
+    $("#disks-host-smart")?.addEventListener("click", () => void hostSmart());
+    $("#disks-extend-close")?.addEventListener("click", () => {
+      $("#disks-extend-dialog")?.close();
+      const h = $("#disks-extend-dialog")?.querySelector("h3");
+      if (h) h.textContent = t("disks.extend.title");
+    });
     $("#disks-vgs-close")?.addEventListener("click", () => $("#disks-vgs-dialog")?.close());
     $("#disks-vgs-goto-tech")?.addEventListener("click", () => {
       $("#disks-vgs-dialog")?.close();
@@ -721,6 +1103,7 @@
     });
     document.addEventListener("cw-lang-change", () => {
       applyDisksStatic();
+      updateSizeModeLabel();
       refreshAssistantDetail();
       renderFilesList();
       renderHostList(state.rows);
@@ -755,6 +1138,7 @@
     bindEvents();
     applyDisksStatic();
     renderLvSelect();
+    updateSizeModeLabel();
     enhanceDiskControls();
     renderFilesRoots([{ label: "Raiz /", path: "/" }]);
     renderFilesBreadcrumb("/");

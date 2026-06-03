@@ -461,6 +461,12 @@
       CWUI.toast("Nenhum item visível para transferir.", "error");
       return;
     }
+    const dest = direction === "push" ? state.remotePath : state.localPath;
+    const msg =
+      direction === "push"
+        ? `Enviar ${items.length} item(ns) visíveis para ${dest}?`
+        : `Receber ${items.length} item(ns) visíveis para ${dest}?`;
+    if (!(await CWConfirm(msg))) return;
     await api("/api/transfer/batch", {
       method: "POST",
       body: JSON.stringify({

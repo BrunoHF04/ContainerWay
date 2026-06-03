@@ -418,30 +418,6 @@ func AssistantOptions(rows []Row) []LVOption {
 	return opts
 }
 
-// ParseLVPathToVG mapeia caminho LV → nome do VG a partir da saída lvs.
-func ParseLVPathToVG(lvsBlock string) map[string]string {
-	m := make(map[string]string)
-	for _, line := range strings.Split(lvsBlock, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(strings.ToLower(line), "warning") || strings.HasPrefix(strings.ToLower(line), "file descriptor") {
-			continue
-		}
-		if strings.HasPrefix(line, "LV Path") || strings.HasPrefix(line, "Path") {
-			continue
-		}
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-		lvPath := strings.TrimSpace(fields[0])
-		vg := strings.TrimSpace(fields[1])
-		if strings.HasPrefix(lvPath, "/dev/") {
-			m[lvPath] = vg
-		}
-	}
-	return m
-}
-
 // FindRowByDev devolve a linha pelo caminho do dispositivo.
 func FindRowByDev(rows []Row, dev string) (Row, bool) {
 	d := strings.TrimSpace(dev)

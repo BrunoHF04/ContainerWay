@@ -21,6 +21,7 @@
       { id: "explorer", title: "Explorador", sub: "Arquivos SFTP", screen: "explorer", run: () => showScreen("explorer") },
       { id: "docker", title: "Docker", sub: "Contêineres", screen: "docker", run: () => showScreen("docker") },
       { id: "disks", title: "Discos", sub: "Armazenamento", screen: "disks", run: () => showScreen("disks") },
+      { id: "services", title: "Serviços", sub: "systemd", screen: "services", run: () => showScreen("services") },
       { id: "terminal", title: "Terminal", sub: "SSH interativo", screen: "terminal", run: () => showScreen("terminal") },
       { id: "auto", title: "Automações", sub: "Regras", screen: "automations", run: () => showScreen("automations") },
       { id: "settings", title: "Configurações", sub: "Conta / usuários / SMTP", screen: "settings", run: () => showScreen("settings") },

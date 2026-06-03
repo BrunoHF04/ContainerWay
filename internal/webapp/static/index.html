@@ -698,25 +698,34 @@
         </nav>
         <div id="disks-section-assistant" class="disks-section active">
           <div class="disks-assistant glass-card disks-panel">
-            <h3 class="disks-panel-title" data-i18n="disks.assistant.title">Assistente: ampliar volume lógico</h3>
+            <h3 class="disks-panel-title" data-i18n="disks.assistant.title">Assistente: volume lógico (LVM)</h3>
             <label class="field disks-lv-field">
               <span data-i18n="disks.assistant.lv">Volume lógico (última atualização)</span>
               <select id="disks-lv-select" class="disks-control"></select>
             </label>
             <div id="disks-assistant-detail" class="disks-assistant-detail"></div>
+            <div id="disks-vg-summary" class="disks-vg-summary" aria-live="polite"></div>
             <p id="disks-vg-hint" class="disks-vg-hint muted"></p>
             <div class="disks-assistant-actions">
               <button type="button" class="btn btn-ghost btn-sm" id="disks-copy-path" data-i18n="disks.copyPath">Copiar caminho</button>
               <button type="button" class="btn btn-ghost btn-sm" id="disks-open-tech-vgs" data-i18n="disks.viewVgs">Ver VGS</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="disks-analyze-mount" data-i18n="disks.analyzeMount">Analisar montagem</button>
             </div>
             <hr class="disks-sep" />
-            <div class="disks-form-grid">
+            <div class="disks-form-grid disks-form-grid-assistant">
               <label class="field disks-field-path">
                 <span data-i18n="disks.lvPath">Caminho do LV</span>
                 <input type="text" class="disks-control" id="disks-lv-path" placeholder="/dev/mapper/…" autocomplete="off" />
               </label>
+              <label class="field disks-field-mode">
+                <span data-i18n="disks.sizeMode">Modo de tamanho</span>
+                <select id="disks-size-mode" class="disks-control">
+                  <option value="delta" data-i18n="disks.sizeMode.delta">+/- GiB (relativo)</option>
+                  <option value="absolute" data-i18n="disks.sizeMode.absolute">Tamanho final (GiB)</option>
+                </select>
+              </label>
               <label class="field disks-field-gib">
-                <span data-i18n="disks.addGib">+ GiB</span>
+                <span id="disks-gib-label" data-i18n="disks.addGib">GiB</span>
                 <input type="text" class="disks-control" id="disks-add-gib" placeholder="5" inputmode="decimal" autocomplete="off" />
               </label>
               <label class="field disks-field-fs">
@@ -730,10 +739,40 @@
                 </select>
               </label>
             </div>
-            <p class="disks-add-hint muted" data-i18n="disks.addHint">É preciso espaço livre no VG; erros aparecem no detalhe técnico.</p>
+            <p class="disks-add-hint muted" data-i18n="disks.addHint">Ampliar: espaço livre no VG. Reduzir: faça backup; xfs não suporta redução automática.</p>
             <div class="disks-expand-actions">
               <button type="button" class="btn btn-primary btn-sm" id="disks-extend-lv" data-i18n="disks.extend">Ampliar LV (LVM)</button>
-              <button type="button" class="btn btn-ghost btn-sm" id="disks-shrink-info" data-i18n="disks.shrink">Redução de LV</button>
+              <button type="button" class="btn btn-ghost btn-sm btn-danger-text" id="disks-shrink-lv" data-i18n="disks.shrink">Reduzir LV (LVM)</button>
+            </div>
+            <div class="disks-tool-section">
+              <h4 class="disks-tool-heading" data-i18n="disks.tools.snapshots">Snapshots</h4>
+              <div class="disks-snap-row">
+                <label class="field">
+                  <span data-i18n="disks.snap.list">Snapshots deste LV</span>
+                  <select id="disks-snap-list" class="disks-control"><option value="">—</option></select>
+                </label>
+                <button type="button" class="btn btn-ghost btn-sm btn-danger-text" id="disks-snap-remove" data-i18n="disks.snap.remove">Remover snapshot</button>
+              </div>
+              <div class="disks-snap-row">
+                <label class="field">
+                  <span data-i18n="disks.snap.name">Nome do novo snapshot</span>
+                  <input type="text" class="disks-control" id="disks-snap-name" placeholder="snap-2026-06-03" autocomplete="off" />
+                </label>
+                <button type="button" class="btn btn-ghost btn-sm" id="disks-snap-create" data-i18n="disks.snap.create">Criar snapshot</button>
+              </div>
+            </div>
+            <div class="disks-tool-section">
+              <h4 class="disks-tool-heading" data-i18n="disks.tools.more">Mais operações</h4>
+              <div class="disks-tools-grid">
+                <button type="button" class="btn btn-ghost btn-sm" id="disks-fsck" data-i18n="disks.op.fsck">Verificar FS</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="disks-resize-fs-grow" data-i18n="disks.op.resizeFsGrow">Só FS: ampliar</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="disks-resize-fs-shrink" data-i18n="disks.op.resizeFsShrink">Só FS: reduzir</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="disks-fstrim" data-i18n="disks.op.fstrim">fstrim (SSD)</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="disks-lv-rename" data-i18n="disks.op.rename">Renomear LV</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="disks-lv-create" data-i18n="disks.op.createLv">Criar LV no VG</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="disks-vg-activate" data-i18n="disks.op.vgAy">Activar VG</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="disks-vg-deactivate" data-i18n="disks.op.vgAn">Desactivar VG</button>
+              </div>
             </div>
           </div>
         </div>
@@ -748,6 +787,7 @@
                 </label>
               </div>
               <div class="disks-host-toolbar">
+                <button type="button" class="btn btn-ghost btn-sm" id="disks-host-smart" disabled data-i18n="disks.op.smart">SMART do disco</button>
                 <input type="search" id="disks-filter" class="disks-control disks-filter" data-i18n="disks.host.filter" placeholder="Filtrar…" aria-label="Filtrar tabela" />
                 <label class="disks-sort-row">
                   <span data-i18n="disks.host.sort">Ordenação</span>
@@ -808,6 +848,64 @@
         </div>
         </div>
       </div>
+
+      <div id="view-services" class="subview services-module">
+        <div class="subview-body">
+        <header class="svc-top-bar glass-card">
+          <div class="svc-top-primary">
+            <h2 class="svc-screen-title">Serviços do sistema</h2>
+            <p class="svc-meta muted">systemd no host SSH · iniciar, parar, reiniciar e arranque automático</p>
+          </div>
+          <div class="svc-top-actions">
+            <span id="svc-sudo-status" class="svc-sudo-chip muted" title=""></span>
+            <button type="button" class="btn btn-primary btn-sm" id="svc-refresh">Atualizar</button>
+            <label class="checkbox-row svc-auto-check">
+              <input type="checkbox" id="svc-auto-refresh" />
+              <span>Auto 30 s</span>
+            </label>
+            <button type="button" class="btn btn-primary btn-sm" id="svc-sudo-on">Ativar sudo</button>
+            <button type="button" class="btn btn-ghost btn-sm hidden" id="svc-sudo-off">Desativar sudo</button>
+            <span id="svc-updated-at" class="svc-updated muted">—</span>
+          </div>
+        </header>
+        <div class="svc-toolbar glass-card">
+          <input type="search" id="svc-filter" class="svc-filter" placeholder="Filtrar por nome ou descrição…" aria-label="Filtrar serviços" />
+          <select id="svc-state-filter" class="svc-control" aria-label="Estado">
+            <option value="all">Todos os estados</option>
+            <option value="active">Em execução</option>
+            <option value="inactive">Parados</option>
+            <option value="failed">Com falha</option>
+          </select>
+          <select id="svc-sort" class="svc-control" aria-label="Ordenar">
+            <option value="name">Nome (A–Z)</option>
+            <option value="state">Estado</option>
+          </select>
+          <span id="svc-summary" class="svc-summary muted" aria-live="polite">—</span>
+        </div>
+        <div class="svc-table-header" aria-hidden="true">
+          <span class="svc-col-name">Serviço</span>
+          <span class="svc-col-state">Estado</span>
+          <span class="svc-col-boot">Arranque</span>
+          <span class="svc-col-desc">Descrição</span>
+          <span class="svc-col-actions">Ações</span>
+        </div>
+        <div id="svc-list" class="svc-list" role="list"></div>
+        </div>
+      </div>
+
+      <dialog id="svc-logs-dialog" class="glass-dialog svc-logs-dialog">
+        <form method="dialog">
+          <header class="dialog-head">
+            <h3 id="svc-logs-title">Logs do serviço</h3>
+            <button type="submit" class="btn btn-ghost btn-sm" value="cancel" aria-label="Fechar">×</button>
+          </header>
+          <pre id="svc-logs-body" class="svc-logs-body"></pre>
+          <div class="btn-row end">
+            <button type="button" class="btn btn-ghost" id="svc-logs-refresh">Atualizar</button>
+            <button type="submit" class="btn btn-primary" value="cancel">Fechar</button>
+          </div>
+        </form>
+      </dialog>
 
       <div id="view-terminal" class="subview">
         <div class="subview-body">
@@ -945,6 +1043,7 @@
                     <option value="explorer">Gerenciador de arquivos</option>
                     <option value="docker">Contêineres Docker</option>
                     <option value="disks">Discos</option>
+                    <option value="services">Serviços</option>
                     <option value="terminal">Terminal SSH</option>
                     <option value="automations">Automações</option>
                   </select>
@@ -1559,6 +1658,7 @@
   <script src="/settings.js"></script>
   <script src="/docker-manager.js"></script>
   <script src="/disks-manager.js"></script>
+  <script src="/services-manager.js"></script>
   <script src="/explorer.js"></script>
   <script src="/explorer-enhanced.js"></script>
   <script src="/i18n.js"></script>

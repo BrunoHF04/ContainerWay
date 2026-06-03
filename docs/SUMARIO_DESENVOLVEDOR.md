@@ -66,7 +66,11 @@ Este arquivo serve como guia rapido para manutencao do projeto `ContainerWay`.
 - `internal/appui/securityui.go`: dicas de primeiro acesso, dialogo de politica de seguranca, exportacao de auditoria para CSV, abertura do dialogo «Comparar pastas».
 - `internal/appui/automations.go`: central de automacoes (regras JSON por host, motor, webhook opcional, historico).
 - `internal/appui/dockercontainers.go`: listagem de conteineres, metricas e reinicio/recriacao de servicos Docker Compose na UI.
-- `internal/appui/diskstorage.go`: modulo **Discos e armazenamento** (hub): sondagem remota (`lsblk`, `df`, LVM), abas assistente / host / detalhe tecnico, lista com uso e correcao de layout (colunas fixas a esquerda + `Border` para area «Tamanho / uso» expandir).
+- `internal/appui/diskstorage.go`: modulo **Discos e armazenamento** (desktop Fyne): sondagem remota (`lsblk`, `df`, LVM), abas assistente / host / detalhe tecnico.
+- `internal/diskutil/`: sondagem (`ProbeScript`), parse `lvs`/`vgs`, scripts LVM (`grow.go`, `shrink.go`, `ops.go`).
+- `internal/webapp/disks.go`, `disks_ops.go`: API web de discos (probe, extend/shrink, fsck, snapshots, smart, …).
+- `internal/webapp/static/disks-manager.js`: UI do modulo Discos na web.
+- `internal/webapp/services.go`, `api_services.go`, `static/services-manager.js`: servicos systemd na web.
 - `internal/appui/theme.go`: definicao e aplicacao de tema visual.
 - `internal/appui/window_maximize_darwin.go`: comportamento de maximizar janela no macOS.
 - `internal/appui/window_maximize_windows.go`: comportamento de maximizar janela no Windows.
@@ -101,7 +105,7 @@ Este arquivo serve como guia rapido para manutencao do projeto `ContainerWay`.
 
 ## Notas recentes de manutencao
 
-- **Web (`dev_browser`):** explorador com toggle SFTP/Docker; reset para `/` ao mudar contêiner ou modo remoto; editor + open-external + sudo; listagem de contêineres por `exec` em `containerfs`.
+- **Web (`dev_browser`):** explorador com toggle SFTP/Docker; **CWConfirm** antes de transferencias (Enviar/Receber/Lote); reset para `/` ao mudar contêiner; editor + open-external + sudo; assistente LVM completo em `disks-manager.js`; modulo servicos systemd.
 - **Politica local:** `internal/policy` + ficheiro `%APPDATA%\\ContainerWay\\policy.json` (ou equivalente) com `forbidInsecureHostKey`, ou env `CONTAINERWAY_FORBID_INSECURE_HOSTKEY`; UI em login e botao **Políticas** na central de automacoes (`securityui.go`).
 - **Docker/Podman remoto:** campo de socket na ligacao (`connections.json` / `savedConnection.dockerSocket`) → `session.Credentials.DockerUnixSocket`.
 - **Explorador:** botao **Comparar** (`foldercompare.go`); favoritos do painel direito por host/contexto em preferencias (`remoteFavoritesPreferenceKey` em `appui.go`); fila de transferencias mostra `Queued`/`Running` (`internal/transfer/transfer.go`); upload SFTP ficheiro unico pode omitir se destino ja tem mesmo tamanho (`hostfs.Stat` + `appui.go`).

@@ -8,6 +8,7 @@ const (
 	ScreenExplorer     = "explorer"
 	ScreenDocker       = "docker"
 	ScreenDisks        = "disks"
+	ScreenServices     = "services"
 	ScreenTerminal     = "terminal"
 	ScreenAutomations  = "automations"
 	ScreenSettings     = "settings"
@@ -24,6 +25,8 @@ const (
 	ActionDockerManage       = "docker.manage"
 	ActionDisksView          = "disks.view"
 	ActionDisksManage        = "disks.manage"
+	ActionServicesView       = "services.view"
+	ActionServicesControl    = "services.control"
 	ActionTerminalUse        = "terminal.use"
 	ActionAutomationsManage  = "automations.manage"
 	ActionSudoUse            = "sudo.use"
@@ -43,6 +46,7 @@ func AllScreens() []string {
 		ScreenExplorer,
 		ScreenDocker,
 		ScreenDisks,
+		ScreenServices,
 		ScreenTerminal,
 		ScreenAutomations,
 		ScreenSettings,
@@ -61,6 +65,8 @@ func AllActions() []string {
 		ActionDockerManage,
 		ActionDisksView,
 		ActionDisksManage,
+		ActionServicesView,
+		ActionServicesControl,
 		ActionTerminalUse,
 		ActionAutomationsManage,
 		ActionSudoUse,
@@ -84,6 +90,7 @@ func DefaultPermissions() Permissions {
 			ScreenExplorer,
 			ScreenDocker,
 			ScreenDisks,
+			ScreenServices,
 			ScreenTerminal,
 			ScreenAutomations,
 			ScreenSettings,

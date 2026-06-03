@@ -30,6 +30,7 @@
           <li><strong>Gerenciador de arquivos</strong> — painel duplo local/remoto, SFTP e Docker.</li>
           <li><strong>Contêineres Docker</strong> — lista, logs, estatísticas e reinício.</li>
           <li><strong>Discos e armazenamento</strong> — <code>lsblk</code> e <code>df</code> no host.</li>
+          <li><strong>Serviços</strong> — systemd: estado, iniciar/parar/reiniciar, arranque automático e logs.</li>
           <li><strong>Terminal SSH</strong> — consola interativa no browser.</li>
           <li><strong>Central de automações</strong> — regras e motor por host.</li>
           <li><strong>Configurações</strong> — usuários e SMTP (admin).</li>
@@ -166,12 +167,26 @@
         </ul>
       `,
     },
+    services: {
+      title: "Serviços do sistema",
+      html: `
+        <p class="muted">Lista unidades <code>systemd</code> instaladas no host SSH e permite controlar o ciclo de vida.</p>
+        <ul>
+          <li><strong>Atualizar</strong> / auto 30 s — recarrega a lista.</li>
+          <li><strong>Filtros</strong> — pesquisa por nome/descrição e filtro por estado (ativo, parado, falha).</li>
+          <li><strong>Iniciar / Parar / Reiniciar</strong> — requer sudo activo (como em Discos).</li>
+          <li><strong>Activar / Desactivar</strong> — arranque automático no boot (sudo).</li>
+          <li><strong>Logs</strong> — últimas linhas do <code>journalctl</code> ou <code>systemctl status</code>.</li>
+        </ul>
+      `,
+    },
     disks: {
       title: "Discos e armazenamento",
       html: `
         <p class="muted">Paridade com o desktop: <code>lsblk</code>, <code>df</code>, LVM, gerenciamento de arquivos e assistente de ampliação.</p>
         <ul>
-          <li><strong>Assistente</strong> — escolher LV, ver VG e ampliar com <code>lvextend</code> (requer sudo; diálogo com saída dos comandos).</li>
+          <li><strong>Assistente</strong> — LV/VG, ampliar/reduzir (relativo ou tamanho final), snapshots, verificar FS, só redimensionar FS, fstrim, renomear/criar LV, activar/desactivar VG, analisar montagem na aba Arquivos. Requer sudo nas alterações.</li>
+          <li><strong>SMART</strong> — na aba host, seleccione uma linha e use «SMART do disco».</li>
           <li><strong>Armazenamento no host</strong> — tabela com filtro, ordenação, barras de uso e opção loop (Snap).</li>
           <li><strong>Detalhe técnico</strong> — saída bruta df/LVS/VGS/PVS; botão VGS abre extração em diálogo.</li>
           <li><strong>Arquivos</strong> — uso por pasta (estilo TreeSize/ncdu): navegue, filtre, abra no explorador ou exclua (sudo ajuda em pastas protegidas).</li>

@@ -37,7 +37,8 @@ Depois de **Conectar** com sucesso, abre-se primeiro a **tela inicial da sessão
 - **Pesquisar módulos** (filtro por palavra-chave);
 - **Gerenciador de arquivos** — abre o explorador em painel duplo (no Windows/macOS a janela tende a **maximizar**); ver também **[ARQUIVOS.md](ARQUIVOS.md)**;
 - **Contêineres Docker** — lista e ações no host remoto;
-- **Discos e armazenamento** — visão de `lsblk`, uso por `df`, LVM e assistente para ampliar LV (com sudo no host);
+- **Discos e armazenamento** — `lsblk`, `df`, LVM (ampliar/reduzir, snapshots, verificar FS, SMART, uso por pasta);
+- **Serviços** — lista e controlo de unidades **systemd** no host (start/stop/restart, logs);
 - **Central de automações** — regras com gatilho/ação, motor de execução e histórico operacional;
 - **Terminal SSH** — console remoto integrado para executar comandos no host;
 - **Configurações** (somente **admin**) — atalhos para **Usuários** e **Alertas por e-mail**.
@@ -222,8 +223,10 @@ Somente o usuário **admin** vê **E-mail** na barra do explorador ou no cartão
 - Acesso pelo cartão **Discos e armazenamento** na tela inicial da sessão (também encontrável na pesquisa de módulos).
 - Dados obtidos por script remoto: `lsblk -J`, `df`, mapeamento `df` ↔ dispositivos (`readlink -f`), blocos LVM (`lvs`/`vgs`/`pvs` quando disponíveis).
 - Aba **Armazenamento no host**: lista com dispositivo, tipo, montagem, tamanho e barra de uso quando há `df`; filtro de texto; ordenação; opção de mostrar dispositivos loop (Snap); actualização manual e opcional automática a cada 90 s com a aba visível.
-- Aba **Assistente LVM**: escolha de LV, indicação de espaço livre no VG e ampliação do LV (requer **sudo** no servidor — botão para activar credenciais).
-- Aba **Detalhe técnico**: saída bruta para depuração.
+- Aba **Assistente LVM** (web: paridade alargada; desktop: ampliação): escolha de LV, resumo do VG (total/livre), modo de tamanho **relativo (+/- GiB)** ou **absoluto**, ampliar e **reduzir** LV, snapshots (criar/listar/remover), verificar FS, redimensionar só o FS, fstrim, renomear/criar LV, activar/desactivar VG, atalho **Analisar montagem** (aba Arquivos). Requer **sudo** para alterações.
+- Aba **Armazenamento no host** (web): seleccionar linha e consultar **SMART** do disco físico.
+- Aba **Arquivos** (web): uso por pasta (estilo TreeSize), com sudo em caminhos protegidos.
+- Aba **Detalhe técnico**: saída bruta (`df`, LVS, VGS, PVS) para depuração.
 - Layout da lista usa `Border` no Fyne (em vez de `HBox` sozinho) para a coluna **Tamanho / uso** ocupar o espaço horizontal restante; a barra de progresso fica à esquerda dessa zona e o texto expande à direita.
 
 ### Terminal SSH (integrado)
@@ -303,9 +306,10 @@ Versão **experimental** (branch `dev_browser`): o mesmo motor Go (SSH/SFTP) com
 - Sudo no host SFTP; editor de texto e pré-visualização de imagens; abrir com programa predefinido / Notepad++ (Windows);
 - Favoritos, comparar pastas, copiar/colar entre painéis;
 - Ao mudar de contêiner ou de SFTP para Docker, a pasta remota **reinicia em `/`**;
-- Módulos Docker (lista, logs, stats), discos, terminal WebSocket, automações e gestão de utilizadores/SMTP (admin).
+- Módulos Docker (lista, logs, stats), discos (assistente LVM completo na web), serviços systemd, terminal WebSocket, automações e gestão de utilizadores/SMTP (admin).
+- Explorador: confirmação antes de **Enviar**, **Receber** e transferências em **lote**.
 
-**Ainda só no desktop (ou planeado na web):** i18n completo, assistente LVM, multi-seleção e drag-and-drop no explorador web.
+**Ainda só no desktop (ou em evolução na web):** i18n completo de todos os textos novos; redução de LV na UI Fyne do assistente; algumas acções do diálogo «Comparar pastas» sem confirmação individual.
 
 Documentação do explorador: [ARQUIVOS.md](ARQUIVOS.md). API e UI web: [WEB_UI.md](WEB_UI.md).
 

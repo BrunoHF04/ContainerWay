@@ -770,3 +770,4 @@ const CWUI = (() => {
 })();
 
 window.CWUI = CWUI;
+window.CWConfirm = (msg, opts) => CWUI.confirmDialog(msg, opts);

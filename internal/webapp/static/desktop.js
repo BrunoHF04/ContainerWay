@@ -502,7 +502,7 @@
     if (!app?.screen || typeof canScreen !== "function") return true;
     if (canScreen(app.screen)) return true;
     if (canScreen("desktop")) {
-      const allowedViaDesktop = ["explorer", "terminal", "docker", "disks", "automations", "desktop"];
+      const allowedViaDesktop = ["explorer", "terminal", "docker", "disks", "services", "automations", "desktop"];
       if (allowedViaDesktop.includes(app.screen)) return true;
     }
     return false;
