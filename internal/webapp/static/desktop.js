@@ -516,7 +516,7 @@
       return null;
     }
     if (!state.ssh.connected && appId !== "help") {
-      CWUI.toast("Ligue-se ao SSH primeiro.", "error");
+      CWUI.toast("Conecte-se ao SSH primeiro.", "error");
       return null;
     }
     closeStartMenu();

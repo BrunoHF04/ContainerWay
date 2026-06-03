@@ -139,7 +139,7 @@
   // Sync espelhada
   $("#btn-sync-mirror")?.addEventListener("click", async () => {
     if (!state.ssh.connected) {
-      U.toast("Ligue-se ao SSH.", "error");
+      U.toast("Conecte-se ao SSH.", "error");
       return;
     }
     const direction = await new Promise((resolve) => {

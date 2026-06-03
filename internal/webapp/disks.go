@@ -110,7 +110,7 @@ func (s *Server) handleDisksExtendLV(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.GiB <= 0 {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "indique um valor positivo em GiB"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "indique um valor positivo em GB"})
 		return
 	}
 	fs := strings.TrimSpace(req.FS)
@@ -157,7 +157,7 @@ func (s *Server) handleDisksExtendLV(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": fmt.Sprintf("redimensionar FS: %v", e2), "output": msg})
 		return
 	}
-	b.addOperation(fmt.Sprintf("LV ampliado: %s +%.4g GiB (%s)", lv, req.GiB, fs), "info")
+	b.addOperation(fmt.Sprintf("LV ampliado: %s +%.4g GB (%s)", lv, req.GiB, fs), "info")
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":     true,
 		"output": msg,
@@ -192,7 +192,7 @@ func (s *Server) handleDisksShrinkLV(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.GiB <= 0 {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "indique um valor positivo em GiB"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "indique um valor positivo em GB"})
 		return
 	}
 	fs := strings.TrimSpace(req.FS)
@@ -225,10 +225,14 @@ func (s *Server) handleDisksShrinkLV(w http.ResponseWriter, r *http.Request) {
 		msg += "stderr:\n" + strings.TrimSpace(stderr)
 	}
 	if err != nil {
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": fmt.Sprintf("reduzir LV: %v", err), "output": msg})
+		hint := diskutil.InterpretLVCmdError(stderr, out, err)
+		writeJSON(w, http.StatusBadGateway, map[string]string{
+			"error":  fmt.Sprintf("reduzir LV: %s", hint),
+			"output": msg,
+		})
 		return
 	}
-	b.addOperation(fmt.Sprintf("LV reduzido: %s -%.4g GiB (%s)", lv, req.GiB, fs), "info")
+	b.addOperation(fmt.Sprintf("LV reduzido: %s -%.4g GB (%s)", lv, req.GiB, fs), "info")
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":     true,
 		"output": msg,

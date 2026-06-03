@@ -56,7 +56,7 @@ func DefaultRules() []Rule {
 			Name:        "Proteção de disco (em breve)",
 			Description: "Limpeza automática quando o disco enche.",
 			Trigger:     "Uso de disco acima do limite",
-			Action:      "Limpar ficheiros temporários",
+			Action:      "Limpar arquivos temporários",
 			Target:      "/var",
 			CooldownSec: 60,
 			Enabled:     false,
@@ -232,7 +232,7 @@ func (e *Engine) Stop() {
 
 func runOnce(docker client.APIClient, rulesPath string, lastActionAt map[string]time.Time, onEvent func(string)) {
 	if docker == nil {
-		onEvent("Docker indisponível nesta ligação.")
+		onEvent("Docker indisponível nesta conexão.")
 		return
 	}
 	rules, err := LoadRules(rulesPath)

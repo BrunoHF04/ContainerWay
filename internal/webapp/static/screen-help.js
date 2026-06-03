@@ -26,7 +26,7 @@
         <p class="muted">Escolha o módulo depois de conectado ao SSH. Use a pesquisa para filtrar cartões.</p>
         <h4>Módulos</h4>
         <ul>
-          <li><strong>Ambiente Linux</strong> — simulação de desktop no browser para utilizadores leigos (atalhos para os outros módulos).</li>
+          <li><strong>Ambiente Linux</strong> — simulação de desktop no browser para usuários leigos (atalhos para os outros módulos).</li>
           <li><strong>Gerenciador de arquivos</strong> — painel duplo local/remoto, SFTP e Docker.</li>
           <li><strong>Contêineres Docker</strong> — lista, logs, estatísticas e reinício.</li>
           <li><strong>Discos e armazenamento</strong> — <code>lsblk</code> e <code>df</code> no host.</li>
@@ -174,8 +174,8 @@
         <ul>
           <li><strong>Atualizar</strong> / auto 30 s — recarrega a lista.</li>
           <li><strong>Filtros</strong> — pesquisa por nome/descrição e filtro por estado (ativo, parado, falha).</li>
-          <li><strong>Iniciar / Parar / Reiniciar</strong> — requer sudo activo (como em Discos).</li>
-          <li><strong>Activar / Desactivar</strong> — arranque automático no boot (sudo).</li>
+          <li><strong>Iniciar / Parar / Reiniciar</strong> — controlam o serviço <em>agora</em> (systemctl start/stop/restart). Requer sudo.</li>
+          <li><strong>Habilitar / Desabilitar no boot</strong> — definem se o serviço sobe <em>automaticamente ao ligar o servidor</em> (systemctl enable/disable). Não substituem Iniciar/Parar.</li>
           <li><strong>Logs</strong> — últimas linhas do <code>journalctl</code> ou <code>systemctl status</code>.</li>
         </ul>
       `,
@@ -185,8 +185,8 @@
       html: `
         <p class="muted">Paridade com o desktop: <code>lsblk</code>, <code>df</code>, LVM, gerenciamento de arquivos e assistente de ampliação.</p>
         <ul>
-          <li><strong>Assistente</strong> — LV/VG, ampliar/reduzir (relativo ou tamanho final), snapshots, verificar FS, só redimensionar FS, fstrim, renomear/criar LV, activar/desactivar VG, analisar montagem na aba Arquivos. Requer sudo nas alterações.</li>
-          <li><strong>SMART</strong> — na aba host, seleccione uma linha e use «SMART do disco».</li>
+          <li><strong>Assistente</strong> — LV/VG, ampliar/reduzir (relativo ou tamanho final), snapshots, verificar FS, só redimensionar FS, fstrim, renomear/criar LV, ativar/desativar VG, analisar montagem na aba Arquivos. Requer sudo nas alterações.</li>
+          <li><strong>SMART</strong> — na aba host, selecione uma linha e use «SMART do disco».</li>
           <li><strong>Armazenamento no host</strong> — tabela com filtro, ordenação, barras de uso e opção loop (Snap).</li>
           <li><strong>Detalhe técnico</strong> — saída bruta df/LVS/VGS/PVS; botão VGS abre extração em diálogo.</li>
           <li><strong>Arquivos</strong> — uso por pasta (estilo TreeSize/ncdu): navegue, filtre, abra no explorador ou exclua (sudo ajuda em pastas protegidas).</li>
@@ -221,7 +221,7 @@
     desktop: {
       title: "Ambiente Linux (simplificado)",
       html: `
-        <p class="muted">Desktop funcional no browser — janelas com apps reais (ficheiros, terminal, Docker, etc.). O Ubuntu Server <strong>continua sem GUI</strong> instalada.</p>
+        <p class="muted">Desktop funcional no browser — janelas com apps reais (arquivos, terminal, Docker, etc.). O Ubuntu Server <strong>continua sem GUI</strong> instalada.</p>
         <h4>Aplicações em janelas</h4>
         <ul>
           <li><strong>Arquivos</strong> — navegar, criar pasta, excluir, baixar para o PC, abrir editor.</li>
@@ -234,7 +234,7 @@
         </ul>
         <h4>Janelas e snap</h4>
         <ul>
-          <li>Arrastar à <strong>topo</strong> maximiza; às <strong>bordas</strong> metade do ecrã (pré-visualização ao arrastar).</li>
+          <li>Arrastar à <strong>topo</strong> maximiza; às <strong>bordas</strong> metade da tela (pré-visualização ao arrastar).</li>
           <li><kbd>Duplo clique</kbd> na barra de título maximiza ou restaura.</li>
         </ul>
         <h4>Atalhos</h4>

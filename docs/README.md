@@ -10,5 +10,6 @@
 | [SUMARIO_DESENVOLVEDOR.md](SUMARIO_DESENVOLVEDOR.md) | Desenvolvedor | Mapa de pastas, pacotes Go, convenções |
 | [SECURITY.md](SECURITY.md) | Admin / auditoria | Política local, host key, ameaças |
 | [SCRIPTS.md](SCRIPTS.md) | Todos | Referência de `scripts/` (`.ps1`, `.bat`, `.sh`) |
+| [LOCALE_PT-BR.md](LOCALE_PT-BR.md) | Agentes / devs | **Obrigatório:** português do projeto = pt-BR (não pt-PT) |
 
 A entrada do repositório no GitHub é o [README.md](../README.md) na raiz (resumo + estrutura).

@@ -30,7 +30,7 @@ var explorerStrings = map[string]map[string]string{
 		"ex_recv_visible":  "Receber visíveis",
 		"ex_ctx_host_folders": "Pastas do servidor (fora dos contêineres)",
 		"ex_docker_card_title": "Docker / Podman",
-		"ex_docker_card_sub":   "Verifique o socket Unix nas preferências da ligação e permissões no servidor.",
+		"ex_docker_card_sub":   "Verifique o socket Unix nas preferências da conexão e permissões no servidor.",
 		"ex_docker_err_fmt":    "Não foi possível usar o Docker neste servidor: %v",
 		"ex_docker_close":      "Encerrar sessão",
 		"ex_type_dir":          "pasta",

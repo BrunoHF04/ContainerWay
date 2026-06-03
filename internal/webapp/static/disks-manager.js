@@ -77,12 +77,12 @@
 
   function formatBytes(n) {
     const v = Number(n) || 0;
-    if (v < 1024) return `${v} B`;
-    const u = ["KiB", "MiB", "GiB", "TiB"];
-    let x = v / 1024;
+    if (v < 1000) return `${v} B`;
+    const u = ["KB", "MB", "GB", "TB"];
+    let x = v / 1000;
     let i = 0;
-    while (x >= 1024 && i < u.length - 1) {
-      x /= 1024;
+    while (x >= 1000 && i < u.length - 1) {
+      x /= 1000;
       i++;
     }
     return `${x < 10 ? x.toFixed(1) : Math.round(x)} ${u[i]}`;
@@ -554,6 +554,7 @@
     }
     refreshVgSummary(dev);
     renderSnapList(dev);
+    updateSizeModeHint();
     const analyzeBtn = $("#disks-analyze-mount");
     if (analyzeBtn) {
       const row = findRowForLv(dev);
@@ -618,15 +619,160 @@
     if (rm) rm.disabled = !sel.value;
   }
 
-  function parseGiBInput() {
+  function parseGBInput() {
     const gStr = ($("#disks-add-gib")?.value || "").trim().replace(",", ".");
     return parseFloat(gStr, 10);
+  }
+
+  function bytesToGB(bytes) {
+    const n = Number(bytes) || 0;
+    return n > 0 ? n / 1e9 : 0;
+  }
+
+  function lvSizeGB(row) {
+    if (!row) return 0;
+    const b = row.totalDf || row.sizeBytes || row.blockBytes;
+    return bytesToGB(b);
+  }
+
+  function formatGb(n) {
+    const x = Number(n);
+    if (!x || x <= 0) return "—";
+    return x < 100 ? x.toFixed(1) : String(Math.round(x));
+  }
+
+  function projectedSizeGB(action, gib, sizeMode, row) {
+    const current = lvSizeGB(row);
+    if (sizeMode === "absolute") return gib;
+    if (current <= 0) return 0;
+    return action === "extend" ? current + gib : Math.max(0, current - gib);
+  }
+
+  function buildResizeConfirm(action) {
+    const { lv, fs, gib, sizeMode, row } = assistantContext();
+    const absolute = sizeMode === "absolute";
+    const mount = row?.mount || "—";
+    const current = lvSizeGB(row);
+    const used = row?.hasDf ? bytesToGB(row.usedBytes) : 0;
+    const after = projectedSizeGB(action, gib, sizeMode, row);
+    const vars = {
+      lv,
+      fs,
+      gib: String(gib),
+      mount,
+      current: formatGb(current),
+      after: formatGb(after),
+      used: formatGb(used),
+      mode: t(absolute ? "disks.sizeMode.absolute" : "disks.sizeMode.delta"),
+    };
+    const detailKey = absolute
+      ? action === "extend"
+        ? "disks.confirm.extendAbsDetail"
+        : "disks.confirm.shrinkAbsDetail"
+      : action === "extend"
+        ? "disks.confirm.extendDeltaDetail"
+        : "disks.confirm.shrinkDeltaDetail";
+    let body = t(detailKey, vars);
+    if (action === "shrink" && row?.mount === "/") {
+      body += "\n\n" + t("disks.shrink.rootWarn");
+    }
+    return {
+      title: t(action === "extend" ? "disks.confirm.extendTitle" : "disks.confirm.shrinkTitle"),
+      body,
+      danger: action === "shrink",
+      ok: t(action === "extend" ? "disks.extend" : "disks.shrink"),
+    };
+  }
+
+  function updateSizeModeHint() {
+    const el = $("#disks-size-mode-hint");
+    if (!el) return;
+    const { gib, sizeMode, row } = assistantContext();
+    const lv = $("#disks-lv-path")?.value?.trim() || selectedLvPath();
+    if (!lv) {
+      el.textContent = "";
+      return;
+    }
+    if (!gib || gib <= 0) {
+      el.textContent = t("disks.sizeHint.needValue");
+      return;
+    }
+    const current = lvSizeGB(row);
+    const afterShrink = projectedSizeGB("shrink", gib, sizeMode, row);
+    const afterExtend = projectedSizeGB("extend", gib, sizeMode, row);
+    if (sizeMode === "absolute") {
+      el.textContent = t("disks.sizeHint.absolute", {
+        gib: String(gib),
+        current: formatGb(current),
+      });
+    } else {
+      el.textContent = t("disks.sizeHint.delta", {
+        gib: String(gib),
+        current: formatGb(current),
+        afterShrink: formatGb(afterShrink),
+        afterExtend: formatGb(afterExtend),
+      });
+    }
+  }
+
+  async function apiPostDisks(path, body) {
+    const res = await fetch(path, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = new Error(data.error || res.statusText || "Erro");
+      err.output = data.output || "";
+      throw err;
+    }
+    return data;
+  }
+
+  function validateShrinkLV({ gib, sizeMode, row }) {
+    const marginGB = 0.5;
+    let targetGB;
+    if (sizeMode === "absolute") {
+      targetGB = gib;
+    } else {
+      const curGB = lvSizeGB(row);
+      if (curGB > 0) {
+        targetGB = curGB - gib;
+        if (gib >= curGB - marginGB) {
+          return {
+            ok: false,
+            key: "disks.shrink.deltaTooLarge",
+            vars: { cur: curGB.toFixed(1), gib: String(gib) },
+          };
+        }
+      } else {
+        targetGB = 0;
+      }
+    }
+    if (targetGB > 0 && targetGB <= marginGB) {
+      return { ok: false, key: "disks.shrink.targetZero" };
+    }
+    const usedGB = row?.hasDf ? bytesToGB(row.usedBytes) : 0;
+    if (usedGB > 0 && targetGB > 0 && targetGB < usedGB + marginGB) {
+      const vars = { used: usedGB.toFixed(1), target: targetGB.toFixed(1), gib: String(gib) };
+      return {
+        ok: false,
+        key: sizeMode === "absolute" ? "disks.shrink.belowUsedAbs" : "disks.shrink.belowUsed",
+        vars,
+      };
+    }
+    const warns = [];
+    if (row?.mount === "/") warns.push("root");
+    if (!row?.hasDf) warns.push("nodf");
+    return { ok: true, warns };
   }
 
   function assistantContext() {
     const lv = $("#disks-lv-path")?.value?.trim() || selectedLvPath();
     const fs = ($("#disks-fs-select")?.value || "ext4").toLowerCase();
-    const gib = parseGiBInput();
+    const gib = parseGBInput();
     const sizeMode = $("#disks-size-mode")?.value === "absolute" ? "absolute" : "delta";
     const vg = findVgForDev(lv);
     const row = findRowForLv(lv);
@@ -655,6 +801,7 @@
     const lbl = $("#disks-gib-label");
     if (!lbl) return;
     lbl.textContent = t(mode === "absolute" ? "disks.targetGib" : "disks.addGib");
+    updateSizeModeHint();
   }
 
   function scheduleProbe() {
@@ -758,14 +905,17 @@
     const gStr = ($("#disks-add-gib")?.value || "").trim().replace(",", ".");
     const gib = parseFloat(gStr, 10);
     if (!gib || gib <= 0) {
-      CWUI.toast("Indique um valor positivo em GiB.", "warn");
+      CWUI.toast(t("disks.toast.needGib"), "warn");
       return;
     }
     const fs = $("#disks-fs-select")?.value || "ext4";
     const sizeMode = $("#disks-size-mode")?.value === "absolute" ? "absolute" : "delta";
-    const ok = await CWConfirm(
-      t(sizeMode === "absolute" ? "disks.confirm.extendAbs" : "disks.confirm.extend", { lv, gib, fs })
-    );
+    const confirm = buildResizeConfirm("extend");
+    const ok = await CWConfirm(confirm.body, {
+      title: confirm.title,
+      ok: confirm.ok,
+      cancel: t("disks.confirm.cancel"),
+    });
     if (!ok) return;
     const btn = $("#disks-extend-lv");
     if (btn) btn.disabled = true;
@@ -795,10 +945,9 @@
       CWUI.toast("Active o sudo para reduzir volumes LVM.", "warn");
       return;
     }
-    const gStr = ($("#disks-add-gib")?.value || "").trim().replace(",", ".");
-    const gib = parseFloat(gStr, 10);
+    const gib = parseGBInput();
     if (!gib || gib <= 0) {
-      CWUI.toast("Indique um valor positivo em GiB.", "warn");
+      CWUI.toast(t("disks.toast.needGib"), "warn");
       return;
     }
     const fs = ($("#disks-fs-select")?.value || "ext4").toLowerCase();
@@ -807,23 +956,30 @@
       return;
     }
     const sizeMode = $("#disks-size-mode")?.value === "absolute" ? "absolute" : "delta";
-    const ok = await CWConfirm(
-      t(sizeMode === "absolute" ? "disks.confirm.shrinkAbs" : "disks.confirm.shrink", { lv, gib, fs }),
-      { danger: true, ok: t("disks.shrink") }
-    );
+    const row = findRowForLv(lv);
+    const check = validateShrinkLV({ gib, sizeMode, row });
+    if (!check.ok) {
+      CWUI.toast(t(check.key, check.vars), "error", 10000);
+      return;
+    }
+    const confirm = buildResizeConfirm("shrink");
+    const ok = await CWConfirm(confirm.body, {
+      title: confirm.title,
+      ok: confirm.ok,
+      cancel: t("disks.confirm.cancel"),
+      danger: true,
+    });
     if (!ok) return;
     const btn = $("#disks-shrink-lv");
     if (btn) btn.disabled = true;
     try {
-      const res = await api("/api/disks/shrink-lv", {
-        method: "POST",
-        body: JSON.stringify({ lv, gib, fs, sizeMode }),
-      });
+      const res = await apiPostDisks("/api/disks/shrink-lv", { lv, gib, fs, sizeMode });
       CWUI.toast(t("disks.shrink.ok"), "success");
       showLvResultDialog("disks.shrink.title", res.output, "disks.shrink.ok");
       await runProbe();
     } catch (e) {
-      CWUI.toast(e.message || "Falha ao reduzir LV", "error");
+      CWUI.toast(e.message || "Falha ao reduzir LV", "error", 12000);
+      if (e.output) showLvResultDialog("disks.shrink.failTitle", e.output, "disks.shrink.failTitle");
     } finally {
       if (btn) btn.disabled = false;
     }
@@ -1072,6 +1228,7 @@
     $("#disks-extend-lv")?.addEventListener("click", () => void extendLV());
     $("#disks-shrink-lv")?.addEventListener("click", () => void shrinkLV());
     $("#disks-size-mode")?.addEventListener("change", updateSizeModeLabel);
+    $("#disks-add-gib")?.addEventListener("input", updateSizeModeHint);
     $("#disks-snap-list")?.addEventListener("change", () => {
       const rm = $("#disks-snap-remove");
       if (rm) rm.disabled = !$("#disks-snap-list")?.value;

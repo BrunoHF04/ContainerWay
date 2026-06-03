@@ -106,7 +106,7 @@ func Build(leftTitle, rightTitle, leftPath, rightPath string, leftRows, rightRow
 			b.WriteString("\n")
 		}
 	}
-	b.WriteString("\nNota: compara nomes, tipo (ficheiro/pasta), tamanho e data de modificação na listagem atual.\n")
+	b.WriteString("\nNota: compara nomes, tipo (arquivo/pasta), tamanho e data de modificação na listagem atual.\n")
 	return Report{
 		OnlyLeft: onlyLeft, OnlyRight: onlyRight, Mismatch: mismatch, Text: b.String(),
 		OnlyLeftItems: onlyLeftItems, OnlyRightItems: onlyRightItems, MismatchItems: mismatchItems,
@@ -118,7 +118,7 @@ func formatLine(e fsutil.DirEntry, left bool) string {
 	if !left {
 		side = "remoto"
 	}
-	kind := "ficheiro"
+	kind := "arquivo"
 	if e.IsDir {
 		kind = "pasta"
 	}
@@ -137,5 +137,5 @@ func typeLabel(isDir bool) string {
 	if isDir {
 		return "pasta"
 	}
-	return "ficheiro"
+	return "arquivo"
 }

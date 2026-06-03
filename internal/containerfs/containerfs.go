@@ -233,7 +233,7 @@ func (f *FS) OpenFileReader(ctx context.Context, filePath string) (io.ReadCloser
 	if err == nil && code == 0 {
 		data := []byte(stdout)
 		if len(data) > maxContainerCatBytes {
-			return nil, 0, fmt.Errorf("ficheiro demasiado grande no contêiner")
+			return nil, 0, fmt.Errorf("arquivo grande demais no contêiner")
 		}
 		return io.NopCloser(bytes.NewReader(data)), int64(len(data)), nil
 	}
@@ -260,7 +260,7 @@ func (f *FS) OpenFileReader(ctx context.Context, filePath string) (io.ReadCloser
 	}
 	if hdr.FileInfo().IsDir() {
 		_ = rc.Close()
-		return nil, 0, fmt.Errorf("esperava-se um ficheiro, mas veio uma pasta")
+		return nil, 0, fmt.Errorf("esperava-se um arquivo, mas veio uma pasta")
 	}
 	return &tarFileReader{rc: rc, tr: tr}, hdr.Size, nil
 }

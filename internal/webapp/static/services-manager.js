@@ -27,6 +27,15 @@
     return (row.active || "").toLowerCase() === "failed";
   }
 
+  function bootState(row) {
+    return (row.enabled || row.loadState || "").toLowerCase();
+  }
+
+  function bootFixed(row) {
+    const b = bootState(row);
+    return b === "static" || b === "masked";
+  }
+
   function stateBadge(row) {
     const a = (row.active || "—").toLowerCase();
     let cls = "svc-badge";
@@ -37,12 +46,21 @@
     return `<span class="${cls}">${escapeHtml(row.active || "—")}${escapeHtml(sub)}</span>`;
   }
 
+  const bootLabels = {
+    enabled: "habilitado",
+    disabled: "desabilitado",
+    static: "fixo (sempre)",
+    masked: "mascarado",
+    indirect: "indireto",
+  };
+
   function bootBadge(row) {
     const e = (row.enabled || row.loadState || "—").toLowerCase();
     let cls = "svc-badge svc-badge--boot";
     if (e === "enabled") cls += " svc-badge--ok";
     else if (e === "masked" || e === "disabled") cls += " svc-badge--warn";
-    return `<span class="${cls}">${escapeHtml(row.enabled || row.loadState || "—")}</span>`;
+    const label = bootLabels[e] || row.enabled || row.loadState || "—";
+    return `<span class="${cls}">${escapeHtml(label)}</span>`;
   }
 
   function filteredRows() {
@@ -94,20 +112,28 @@
         const run = isRunning(r);
         const unit = r.unit || "";
         const short = unit.replace(/\.service$/, "");
+        const boot = bootState(r);
+        const bootLocked = bootFixed(r);
+        const bootOn = boot === "enabled";
+        const bootOff = boot === "disabled";
         const actions = canCtrl
-          ? `<button type="button" class="btn btn-ghost btn-sm svc-act" data-act="start" data-unit="${escapeHtml(unit)}" ${run ? "disabled" : ""}>Iniciar</button>
-             <button type="button" class="btn btn-ghost btn-sm svc-act" data-act="stop" data-unit="${escapeHtml(unit)}" ${!run ? "disabled" : ""}>Parar</button>
-             <button type="button" class="btn btn-ghost btn-sm svc-act" data-act="restart" data-unit="${escapeHtml(unit)}">Reiniciar</button>
-             <button type="button" class="btn btn-ghost btn-sm svc-act" data-act="enable" data-unit="${escapeHtml(unit)}">Activar</button>
-             <button type="button" class="btn btn-ghost btn-sm svc-act" data-act="disable" data-unit="${escapeHtml(unit)}">Desactivar</button>`
+          ? `<span class="svc-actions-group svc-actions-now" title="Estado agora (systemctl start/stop/restart)">
+              <button type="button" class="btn btn-ghost btn-sm svc-act" data-act="start" data-unit="${escapeHtml(unit)}" ${run ? "disabled" : ""} title="Iniciar agora">Iniciar</button>
+              <button type="button" class="btn btn-ghost btn-sm svc-act" data-act="stop" data-unit="${escapeHtml(unit)}" ${!run ? "disabled" : ""} title="Parar agora">Parar</button>
+              <button type="button" class="btn btn-ghost btn-sm svc-act" data-act="restart" data-unit="${escapeHtml(unit)}" title="Reiniciar agora">Reiniciar</button>
+            </span>
+            <span class="svc-actions-group svc-actions-boot" title="Início automático ao ligar o servidor (systemctl enable/disable)">
+              <button type="button" class="btn btn-ghost btn-sm svc-act svc-act-boot" data-act="enable" data-unit="${escapeHtml(unit)}" ${bootLocked || bootOn ? "disabled" : ""} title="Iniciar automaticamente quando o servidor ligar">Habilitar no boot</button>
+              <button type="button" class="btn btn-ghost btn-sm svc-act svc-act-boot" data-act="disable" data-unit="${escapeHtml(unit)}" ${bootLocked || bootOff ? "disabled" : ""} title="Não iniciar automaticamente ao ligar o servidor">Desabilitar no boot</button>
+            </span>`
           : `<span class="muted">Sem permissão</span>`;
         return `<div class="svc-row" role="listitem" data-unit="${escapeHtml(unit)}">
           <span class="svc-col-name" title="${escapeHtml(unit)}"><strong>${escapeHtml(short)}</strong><span class="svc-unit-suffix muted">.service</span></span>
           <span class="svc-col-state">${stateBadge(r)}</span>
-          <span class="svc-col-boot">${bootBadge(r)}</span>
+          <span class="svc-col-boot" title="Início automático configurado">${bootBadge(r)}</span>
           <span class="svc-col-desc" title="${escapeHtml(r.description || "")}">${escapeHtml(r.description || "—")}</span>
           <span class="svc-col-actions">
-            <button type="button" class="btn btn-ghost btn-sm svc-logs" data-unit="${escapeHtml(unit)}">Logs</button>
+            <button type="button" class="btn btn-ghost btn-sm svc-logs" data-unit="${escapeHtml(unit)}" title="Ver logs recentes">Logs</button>
             ${actions}
           </span>
         </div>`;
@@ -122,13 +148,13 @@
     if (!status) return;
     if (sudo?.enabled && sudo.user) {
       status.textContent = `Sudo: ${sudo.user}`;
-      status.title = `Sudo activo (${sudo.user})`;
+      status.title = `Sudo ativo (${sudo.user})`;
       status.classList.add("is-on");
       onBtn?.setAttribute("disabled", "disabled");
       offBtn?.classList.remove("hidden");
     } else {
-      status.textContent = "Sudo inactivo";
-      status.title = "Activar sudo para controlar serviços";
+      status.textContent = "Sudo inativo";
+      status.title = "Ativar sudo para controlar serviços";
       status.classList.remove("is-on");
       onBtn?.removeAttribute("disabled");
       offBtn?.classList.add("hidden");
@@ -156,7 +182,7 @@
       const at = $("#svc-updated-at");
       if (at) {
         const t = data.updatedAt ? new Date(data.updatedAt) : new Date();
-        at.textContent = t.toLocaleTimeString("pt-PT");
+        at.textContent = t.toLocaleTimeString("pt-BR");
       }
     } catch (e) {
       state.rows = [];
@@ -169,14 +195,14 @@
 
   async function serviceAction(unit, action) {
     const labels = {
-      start: "iniciar",
-      stop: "parar",
-      restart: "reiniciar",
-      enable: "activar no arranque",
-      disable: "desactivar no arranque",
+      start: "iniciar agora",
+      stop: "parar agora",
+      restart: "reiniciar agora",
+      enable: "habilitar o início automático no boot de",
+      disable: "desabilitar o início automático no boot de",
     };
     const label = labels[action] || action;
-    const ok = await CWConfirm(`Confirma ${label} o serviço ${unit}?`, {
+    const ok = await CWConfirm(`Confirma ${label} ${unit}?`, {
       ok: action === "stop" || action === "disable" ? "Confirmar" : "Sim",
       danger: action === "stop" || action === "disable",
     });
@@ -243,10 +269,10 @@
       else $("#sudo-dialog")?.showModal();
     });
     $("#svc-sudo-off")?.addEventListener("click", async () => {
-      if (!(await CWConfirm("Desactivar sessão sudo?"))) return;
+      if (!(await CWConfirm("Desativar sessão sudo?"))) return;
       try {
         await api("/api/ssh/sudo", { method: "POST", body: JSON.stringify({ action: "disable" }) });
-        CWUI.toast("Sudo desactivado", "success");
+        CWUI.toast("Sudo desativado", "success");
         await fetchSudoStatus();
       } catch (e) {
         CWUI.toast(e.message || "Falha", "error");
@@ -268,6 +294,7 @@
     $("#svc-logs-refresh")?.addEventListener("click", () => {
       if (state.logsUnit) void openLogs(state.logsUnit);
     });
+    $("#svc-logs-close")?.addEventListener("click", () => $("#svc-logs-dialog")?.close());
     document.addEventListener("cw-sudo-changed", () => void fetchSudoStatus());
   }
 

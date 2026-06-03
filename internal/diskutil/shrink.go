@@ -7,7 +7,7 @@ import "strings"
 func ShrinkLVScript(lv string, gib float64, fs string) string {
 	fs = strings.ToLower(strings.TrimSpace(fs))
 	q := shellQuote(lv)
-	g := formatGiB(gib)
+	g := FormatLVMSizeG(UserGBToLVMG(gib))
 	switch fs {
 	case "ext4", "ext3", "ext2":
 		return "set -e; LV=" + q + "; " +
@@ -22,6 +22,6 @@ func ShrinkLVScript(lv string, gib float64, fs string) string {
 			"btrfs filesystem resize -\"${GIB}\"G \"$M\"; " +
 			"lvreduce -L -\"${GIB}\"G -f \"$LV\""
 	default:
-		return "echo 'Redução automática não suportada para este sistema de ficheiros (use ext2/3/4 ou btrfs; xfs não pode ser reduzido).' >&2; exit 1"
+		return "echo 'Redução automática não suportada para este sistema de arquivos (use ext2/3/4 ou btrfs; xfs não pode ser reduzido).' >&2; exit 1"
 	}
 }

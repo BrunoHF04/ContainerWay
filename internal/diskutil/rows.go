@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"containerway/internal/transfer"
 )
 
 type lsblkNode struct {
@@ -370,7 +369,7 @@ func BuildRows(lsblkJSON, dfBlock, dfDevMapBlock string, sortMode SortMode, filt
 func formatUsageLine(r Row) string {
 	if !r.HasDF || r.TotalDF == 0 {
 		if r.BlockBytes > 0 {
-			s := transfer.FormatBytes(int64(r.BlockBytes))
+			s := FormatBytesDecimal(int64(r.BlockBytes))
 			fs := strings.ToLower(strings.TrimSpace(r.Fstype))
 			if strings.Contains(fs, "lvm") || strings.Contains(fs, "lvm2") {
 				return s + " — PV LVM (ver LV)"
@@ -379,9 +378,9 @@ func formatUsageLine(r Row) string {
 		}
 		return "—"
 	}
-	u := transfer.FormatBytes(int64(r.UsedBytes))
-	t := transfer.FormatBytes(int64(r.TotalDF))
-	b := transfer.FormatBytes(int64(r.BlockBytes))
+	u := FormatBytesDecimal(int64(r.UsedBytes))
+	t := FormatBytesDecimal(int64(r.TotalDF))
+	b := FormatBytesDecimal(int64(r.BlockBytes))
 	return fmt.Sprintf("%s / %s · bloco %s", u, t, b)
 }
 

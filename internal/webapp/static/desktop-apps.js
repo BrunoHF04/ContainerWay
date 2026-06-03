@@ -80,7 +80,7 @@
 
   async function desktopToggleSudo() {
     if (!state.ssh.connected) {
-      CWUI.toast("Ligue-se ao SSH primeiro.", "error");
+      CWUI.toast("Conecte-se ao SSH primeiro.", "error");
       return;
     }
     if (!canUseAction("sudo.use")) {
@@ -407,7 +407,7 @@
 
       async function load(path) {
         if (!state.ssh.connected) {
-          listEl.innerHTML = `<p class="muted linux-app-empty">Ligue-se ao SSH.</p>`;
+          listEl.innerHTML = `<p class="muted linux-app-empty">Conecte-se ao SSH.</p>`;
           return;
         }
         if (st.target === "container" && !st.containerId) {
@@ -1935,7 +1935,7 @@
           hint.classList.remove("hidden");
           saveBtn.hidden = true;
           hint.textContent =
-            "Ficheiro binário ou não suportado aqui. Active Root na janela Arquivos ou use o gerenciador técnico.";
+            "Arquivo binário ou não suportado aqui. Ative Root na janela Arquivos ou use o gerenciador técnico.";
         }
       }
 
@@ -2035,7 +2035,7 @@
           <li><strong>Docker</strong> — arquivos, console e logs por container; clique no card para detalhes.</li>
           <li><strong>Automações</strong> — ligue o motor, edite regras de reinício e veja o histórico.</li>
           <li>Atalhos: <kbd>Alt</kbd>+<kbd>Tab</kbd> janelas, <kbd>Ctrl</kbd>+<kbd>W</kbd> fechar, <kbd>Ctrl</kbd>+<kbd>M</kbd> minimizar tudo, <kbd>Ctrl</kbd>+<kbd>K</kbd> lista de comandos (terminal), <kbd>?</kbd> esta ajuda.</li>
-          <li>Arraste a janela ao <strong>topo</strong> para maximizar; às <strong>bordas</strong> para metade do ecrã; duplo-clique na barra de título alterna maximizar.</li>
+          <li>Arraste a janela ao <strong>topo</strong> para maximizar; às <strong>bordas</strong> para metade da tela; duplo-clique na barra de título alterna maximizar.</li>
           <li>Menu <strong>CW</strong>: pesquisa, recentes e papel de fundo. Botão <strong>⌂</strong> na janela abre o módulo técnico.</li>
         </ul>
         <p class="muted">O Ubuntu Server continua sem interface gráfica instalada.</p>`;

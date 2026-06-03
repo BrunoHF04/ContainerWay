@@ -265,7 +265,7 @@
     } else {
       badge.textContent = "Offline";
       badge.className = "settings-ssh-offline";
-      detail.textContent = "Ligue-se na tela de login SSH ou use Testar conexão com um perfil guardado.";
+      detail.textContent = "Conecte-se na tela de login SSH ou use Testar conexão com um perfil salvo.";
     }
   }
 
@@ -390,7 +390,7 @@
       settingsState.connections = data.connections || [];
       box.innerHTML = "";
       if (!settingsState.connections.length) {
-        box.innerHTML = "<p class='muted'>Nenhum perfil guardado.</p>";
+        box.innerHTML = "<p class='muted'>Nenhum perfil salvo.</p>";
         return;
       }
       for (const c of settingsState.connections) {
@@ -502,7 +502,7 @@
         <dt>Produto</dt><dd>${escapeHtml(data.product || "—")}</dd>
         <dt>Versão</dt><dd>${escapeHtml(data.version || "—")}</dd>
         <dt>Sistema</dt><dd>${escapeHtml(data.goos || "")}/${escapeHtml(data.goarch || "")}</dd>
-        <dt>Utilizador</dt><dd>${escapeHtml(data.displayName || data.user || "—")}</dd>
+        <dt>Usuário</dt><dd>${escapeHtml(data.displayName || data.user || "—")}</dd>
         <dt>SSH nesta sessão</dt><dd>${data.sshConnected ? "Conectado" : "Desconectado"}</dd>
         <dt>Configuração</dt><dd><code>${escapeHtml(paths.config || "—")}</code></dd>
         <dt>Preferências</dt><dd><code>${escapeHtml(paths.preferences || "—")}</code></dd>
@@ -662,7 +662,7 @@
       CWUI.toast("Conecte-se na tela de login ou guarde um perfil em Conexões.", "warn");
       return;
     }
-    out.textContent = "A testar…";
+    out.textContent = "Testando…";
     try {
       const data = await api("/api/ssh/test", {
         method: "POST",

@@ -1170,6 +1170,6 @@ func growFSScript(lv, fs string) string {
 			"if [ -z \"$M\" ]; then echo 'Não foi possível resolver o ponto de montagem para btrfs.' >&2; exit 1; fi; " +
 			"btrfs filesystem resize max \"$M\""
 	default:
-		return "echo 'Sistema de ficheiros não suportado para crescimento automático.' >&2; exit 1"
+		return "echo 'Sistema de arquivos não suportado para crescimento automático.' >&2; exit 1"
 	}
 }

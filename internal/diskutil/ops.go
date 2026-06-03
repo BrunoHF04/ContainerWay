@@ -6,13 +6,13 @@ import "strings"
 func LvextendAbsScript(lv string, gib float64) string {
 	return "set -e; LV=" + shellQuote(lv) + "; " +
 		"command -v lvextend >/dev/null 2>&1 || { echo 'lvextend não encontrado.' >&2; exit 1; }; " +
-		"lvextend -L " + formatGiB(gib) + "G \"$LV\""
+		"lvextend -L " + FormatLVMSizeG(UserGBToLVMG(gib)) + "G \"$LV\""
 }
 
 // LvreduceAbsScript reduz LV para tamanho absoluto (GiB).
 func LvreduceAbsScript(lv string, targetGiB float64, fs string) string {
 	fs = strings.ToLower(strings.TrimSpace(fs))
-	t := formatGiB(targetGiB)
+	t := FormatLVMSizeG(UserGBToLVMG(targetGiB))
 	q := shellQuote(lv)
 	if fs == "btrfs" {
 		return "set -e; LV=" + q + "; TARGET=" + t + "; command -v lvs >/dev/null 2>&1 || exit 1; " +
@@ -50,7 +50,7 @@ func FsckCheckScript(lv, fs string) string {
 
 // SnapshotCreateScript cria snapshot LVM (-s).
 func SnapshotCreateScript(originLV, snapName string, gib float64) string {
-	g := formatGiB(gib)
+	g := FormatLVMSizeG(UserGBToLVMG(gib))
 	return "set -e; ORIGIN=" + shellQuote(originLV) + "; NAME=" + shellQuote(snapName) + "; " +
 		"command -v lvcreate >/dev/null 2>&1 || { echo 'lvcreate não encontrado.' >&2; exit 1; }; " +
 		"lvcreate -s -n \"$NAME\" -L " + g + "G \"$ORIGIN\""
@@ -68,7 +68,7 @@ func LVCreateScript(vg, lvName string, gib float64, fs string, mkfs bool) string
 	fs = strings.ToLower(strings.TrimSpace(fs))
 	script := "set -e; VG=" + shellQuote(vg) + "; LV=" + shellQuote(lvName) + "; " +
 		"command -v lvcreate >/dev/null 2>&1 || { echo 'lvcreate não encontrado.' >&2; exit 1; }; " +
-		"lvcreate -L " + formatGiB(gib) + "G -n \"$LV\" \"$VG\"; " +
+		"lvcreate -L " + FormatLVMSizeG(UserGBToLVMG(gib)) + "G -n \"$LV\" \"$VG\"; " +
 		"DEV=\"/dev/$VG/$LV\"; " +
 		"if [ ! -e \"$DEV\" ]; then DEV=\"/dev/mapper/${VG}-$(echo \"$LV\" | tr '-' '--')\"; fi; " +
 		"echo \"LV criado: $DEV\""
@@ -92,7 +92,7 @@ func LVCreateScript(vg, lvName string, gib float64, fs string, mkfs bool) string
 func ResizeFSScriptOnly(lv, fs string, gib float64, grow bool) string {
 	fs = strings.ToLower(strings.TrimSpace(fs))
 	q := shellQuote(lv)
-	g := formatGiB(gib)
+	g := FormatLVMSizeG(UserGBToLVMG(gib))
 	if grow {
 		switch fs {
 		case "ext4", "ext3", "ext2":

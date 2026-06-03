@@ -149,7 +149,7 @@
     if (!el) return;
     if (!state.ssh?.connected) {
       el.textContent = "—";
-      el.title = "Sem ligação SSH";
+      el.title = "Sem conexão SSH";
       return;
     }
     const parts = [];
@@ -311,7 +311,7 @@
     if (state.screen !== "desktop") return;
     setSSHOverlay(!!ev.detail?.connected);
     if (!ev.detail?.connected) {
-      pushNotif("Ligação SSH terminada — reconecte para continuar.", "error");
+      pushNotif("Conexão SSH encerrada — reconecte para continuar.", "error");
     } else {
       pollPanelStats();
     }

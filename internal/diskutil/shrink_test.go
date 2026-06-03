@@ -10,7 +10,8 @@ func TestShrinkLVScript_ext4(t *testing.T) {
 	if s == "" {
 		t.Fatal("empty script")
 	}
-	for _, want := range []string{"lvreduce", "--resizefs", "-L -2G", "/dev/mapper/vg-lv"} {
+	lvm := FormatLVMSizeG(UserGBToLVMG(2))
+	for _, want := range []string{"lvreduce", "--resizefs", "-L -" + lvm + "G", "/dev/mapper/vg-lv"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("missing %q in %s", want, s)
 		}

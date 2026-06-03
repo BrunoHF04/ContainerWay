@@ -22,7 +22,7 @@ func UpdateProfile(username, displayName, currentPassword, newPassword string) e
 		}
 	}
 	if idx < 0 {
-		return errors.New("utilizador não encontrado")
+		return errors.New("usuário não encontrado")
 	}
 	if dn := strings.TrimSpace(displayName); dn != "" {
 		users[idx].DisplayName = dn

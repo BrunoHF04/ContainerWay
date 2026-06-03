@@ -107,7 +107,7 @@
             <div id="login-connect-panel" class="login-panel hidden" hidden>
               <div class="page-card-head login-connect-head">
                 <h2>Conexão SSH/SFTP</h2>
-                <p class="muted">Ligue-se ao servidor para aceder aos módulos.</p>
+                <p class="muted">Conecte-se ao servidor para acessar os módulos.</p>
               </div>
               <form id="ssh-form" class="form-stack ssh-form">
                 <label class="field">Perfil<select id="ssh-profile"><option value="">— novo / manual —</option></select></label>
@@ -191,7 +191,7 @@
           </header>
 
           <div class="linux-ssh-banner" id="linux-ssh-banner" hidden role="alert">
-            Ligação SSH interrompida — volte ao hub principal para voltar a ligar.
+            Conexão SSH interrompida — volte ao hub principal para reconectar.
           </div>
 
           <main class="linux-workspace">
@@ -338,7 +338,7 @@
             </label>
             <button type="button" class="btn btn-ghost btn-sm" id="btn-compact-explorer" title="Modo compacto">Compacto</button>
             <button type="button" class="btn btn-ghost btn-sm" id="btn-cancel-xfer" title="Cancelar fila pendente">Cancelar fila</button>
-            <button type="button" class="btn btn-ghost btn-sm btn-sudo" id="btn-sudo" title="Activar sudo/root no host SFTP">Sudo</button>
+            <button type="button" class="btn btn-ghost btn-sm btn-sudo" id="btn-sudo" title="Ativar sudo/root no host SFTP">Sudo</button>
             <button type="button" class="btn btn-ghost btn-sm btn-icon" id="btn-toggle-preview" title="Mostrar ou ocultar pré-visualização" aria-pressed="false">◧</button>
             <button type="button" class="btn btn-ghost btn-sm btn-icon" id="btn-refresh-panels" title="Atualizar painéis">↻</button>
             <span id="transfer-status" class="transfer-status-pill muted hidden" title="Fila de transferências"></span>
@@ -417,7 +417,7 @@
             <div id="remote-bc" class="bc-bar"></div>
             <div id="remote-panel-alert" class="panel-alert hidden" role="alert">
               <span id="remote-panel-alert-text"></span>
-              <button type="button" class="btn btn-primary btn-sm" id="remote-panel-alert-sudo">Activar sudo</button>
+              <button type="button" class="btn btn-primary btn-sm" id="remote-panel-alert-sudo">Ativar sudo</button>
             </div>
             <div class="panel-search">
               <input type="search" id="remote-filter" class="panel-filter" placeholder="Filtrar arquivos…" />
@@ -720,12 +720,12 @@
               <label class="field disks-field-mode">
                 <span data-i18n="disks.sizeMode">Modo de tamanho</span>
                 <select id="disks-size-mode" class="disks-control">
-                  <option value="delta" data-i18n="disks.sizeMode.delta">+/- GiB (relativo)</option>
-                  <option value="absolute" data-i18n="disks.sizeMode.absolute">Tamanho final (GiB)</option>
+                  <option value="delta" selected data-i18n="disks.sizeMode.delta">Reduzir/ampliar em GB (relativo)</option>
+                  <option value="absolute" data-i18n="disks.sizeMode.absolute">Tamanho final total (GB)</option>
                 </select>
               </label>
               <label class="field disks-field-gib">
-                <span id="disks-gib-label" data-i18n="disks.addGib">GiB</span>
+                <span id="disks-gib-label" data-i18n="disks.addGib">GB</span>
                 <input type="text" class="disks-control" id="disks-add-gib" placeholder="5" inputmode="decimal" autocomplete="off" />
               </label>
               <label class="field disks-field-fs">
@@ -739,6 +739,7 @@
                 </select>
               </label>
             </div>
+            <p id="disks-size-mode-hint" class="disks-size-hint muted" role="status" aria-live="polite"></p>
             <p class="disks-add-hint muted" data-i18n="disks.addHint">Ampliar: espaço livre no VG. Reduzir: faça backup; xfs não suporta redução automática.</p>
             <div class="disks-expand-actions">
               <button type="button" class="btn btn-primary btn-sm" id="disks-extend-lv" data-i18n="disks.extend">Ampliar LV (LVM)</button>
@@ -770,8 +771,8 @@
                 <button type="button" class="btn btn-ghost btn-sm" id="disks-fstrim" data-i18n="disks.op.fstrim">fstrim (SSD)</button>
                 <button type="button" class="btn btn-ghost btn-sm" id="disks-lv-rename" data-i18n="disks.op.rename">Renomear LV</button>
                 <button type="button" class="btn btn-ghost btn-sm" id="disks-lv-create" data-i18n="disks.op.createLv">Criar LV no VG</button>
-                <button type="button" class="btn btn-ghost btn-sm" id="disks-vg-activate" data-i18n="disks.op.vgAy">Activar VG</button>
-                <button type="button" class="btn btn-ghost btn-sm" id="disks-vg-deactivate" data-i18n="disks.op.vgAn">Desactivar VG</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="disks-vg-activate" data-i18n="disks.op.vgAy">Ativar VG</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="disks-vg-deactivate" data-i18n="disks.op.vgAn">Desativar VG</button>
               </div>
             </div>
           </div>
@@ -852,59 +853,64 @@
       <div id="view-services" class="subview services-module">
         <div class="subview-body">
         <header class="svc-top-bar glass-card">
-          <div class="svc-top-primary">
-            <h2 class="svc-screen-title">Serviços do sistema</h2>
-            <p class="svc-meta muted">systemd no host SSH · iniciar, parar, reiniciar e arranque automático</p>
+          <div class="svc-top-compact">
+            <div class="svc-top-primary">
+              <h2 class="svc-screen-title">Serviços do sistema</h2>
+              <span id="svc-sudo-status" class="svc-sudo-chip muted" title=""></span>
+            </div>
+            <div class="svc-top-actions">
+              <button type="button" class="btn btn-primary btn-sm" id="svc-refresh">Atualizar</button>
+              <label class="checkbox-row svc-auto-check">
+                <input type="checkbox" id="svc-auto-refresh" />
+                <span>Auto 30 s</span>
+              </label>
+              <button type="button" class="btn btn-primary btn-sm" id="svc-sudo-on">Ativar sudo</button>
+              <button type="button" class="btn btn-ghost btn-sm hidden" id="svc-sudo-off">Desativar sudo</button>
+              <span id="svc-updated-at" class="svc-updated muted">—</span>
+            </div>
           </div>
-          <div class="svc-top-actions">
-            <span id="svc-sudo-status" class="svc-sudo-chip muted" title=""></span>
-            <button type="button" class="btn btn-primary btn-sm" id="svc-refresh">Atualizar</button>
-            <label class="checkbox-row svc-auto-check">
-              <input type="checkbox" id="svc-auto-refresh" />
-              <span>Auto 30 s</span>
-            </label>
-            <button type="button" class="btn btn-primary btn-sm" id="svc-sudo-on">Ativar sudo</button>
-            <button type="button" class="btn btn-ghost btn-sm hidden" id="svc-sudo-off">Desativar sudo</button>
-            <span id="svc-updated-at" class="svc-updated muted">—</span>
-          </div>
+          <p class="svc-meta svc-meta-inline muted">systemd no host SSH · agora (iniciar/parar) e início automático ao ligar o servidor</p>
         </header>
         <div class="svc-toolbar glass-card">
-          <input type="search" id="svc-filter" class="svc-filter" placeholder="Filtrar por nome ou descrição…" aria-label="Filtrar serviços" />
-          <select id="svc-state-filter" class="svc-control" aria-label="Estado">
-            <option value="all">Todos os estados</option>
-            <option value="active">Em execução</option>
-            <option value="inactive">Parados</option>
-            <option value="failed">Com falha</option>
-          </select>
-          <select id="svc-sort" class="svc-control" aria-label="Ordenar">
-            <option value="name">Nome (A–Z)</option>
-            <option value="state">Estado</option>
-          </select>
-          <span id="svc-summary" class="svc-summary muted" aria-live="polite">—</span>
+          <div class="svc-toolbar-row" role="toolbar" aria-label="Filtrar serviços">
+            <input type="search" id="svc-filter" class="svc-control svc-filter" placeholder="Filtrar por nome ou descrição…" aria-label="Filtrar serviços" />
+            <select id="svc-state-filter" class="svc-control svc-control--state" aria-label="Estado">
+              <option value="all">Todos os estados</option>
+              <option value="active">Em execução</option>
+              <option value="inactive">Parados</option>
+              <option value="failed">Com falha</option>
+            </select>
+            <select id="svc-sort" class="svc-control svc-control--sort" aria-label="Ordenar">
+              <option value="name">Nome (A–Z)</option>
+              <option value="state">Estado</option>
+            </select>
+            <span id="svc-summary" class="svc-summary muted" aria-live="polite">—</span>
+          </div>
         </div>
-        <div class="svc-table-header" aria-hidden="true">
-          <span class="svc-col-name">Serviço</span>
-          <span class="svc-col-state">Estado</span>
-          <span class="svc-col-boot">Arranque</span>
-          <span class="svc-col-desc">Descrição</span>
-          <span class="svc-col-actions">Ações</span>
+        <div class="svc-table-wrap">
+          <div class="svc-table-header" aria-hidden="true">
+            <span class="svc-col-name">Serviço</span>
+            <span class="svc-col-state">Estado</span>
+            <span class="svc-col-boot">Início automático</span>
+            <span class="svc-col-desc">Descrição</span>
+            <span class="svc-col-actions">Ações</span>
+          </div>
+          <div id="svc-list" class="svc-list" role="list"></div>
         </div>
-        <div id="svc-list" class="svc-list" role="list"></div>
         </div>
       </div>
 
-      <dialog id="svc-logs-dialog" class="glass-dialog svc-logs-dialog">
-        <form method="dialog">
-          <header class="dialog-head">
+      <dialog id="svc-logs-dialog" class="modal-dialog svc-logs-dialog">
+        <div class="modal-form svc-logs-form">
+          <div class="svc-logs-head">
             <h3 id="svc-logs-title">Logs do serviço</h3>
-            <button type="submit" class="btn btn-ghost btn-sm" value="cancel" aria-label="Fechar">×</button>
-          </header>
-          <pre id="svc-logs-body" class="svc-logs-body"></pre>
-          <div class="btn-row end">
-            <button type="button" class="btn btn-ghost" id="svc-logs-refresh">Atualizar</button>
-            <button type="submit" class="btn btn-primary" value="cancel">Fechar</button>
+            <div class="btn-row svc-logs-actions">
+              <button type="button" class="btn btn-ghost btn-sm" id="svc-logs-refresh">Atualizar</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="svc-logs-close">Fechar</button>
+            </div>
           </div>
-        </form>
+          <pre id="svc-logs-body" class="svc-logs-body code-block" aria-live="polite"></pre>
+        </div>
       </dialog>
 
       <div id="view-terminal" class="subview">
@@ -1644,7 +1650,7 @@
       <p id="sudo-error" class="sudo-error hidden" role="alert"></p>
       <div class="btn-row end">
         <button type="button" class="btn btn-ghost" id="sudo-cancel" data-action="sudo-cancel">Cancelar</button>
-        <button type="button" class="btn btn-primary" id="sudo-submit">Activar sudo</button>
+        <button type="button" class="btn btn-primary" id="sudo-submit">Ativar sudo</button>
       </div>
     </form>
   </dialog>

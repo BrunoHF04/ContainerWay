@@ -167,10 +167,7 @@ func parseFloatField(s string) float64 {
 }
 
 func formatGiBHuman(g float64) string {
-	if g <= 0 {
-		return "—"
-	}
-	return formatGiB(g) + " GiB"
+	return FormatUserGB(LVMGToUserGB(g))
 }
 
 func lvNameFromPath(path, vg string) string {

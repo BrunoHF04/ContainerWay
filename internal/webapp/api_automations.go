@@ -12,7 +12,7 @@ import (
 	"containerway/internal/configdir"
 )
 
-var errDockerUnavailable = errors.New("Docker/Podman indisponível nesta ligação")
+var errDockerUnavailable = errors.New("Docker/Podman indisponível nesta conexão")
 
 // handleAutomationsRules GET lista regras; PUT grava conjunto completo.
 func (s *Server) handleAutomationsRules(w http.ResponseWriter, r *http.Request) {

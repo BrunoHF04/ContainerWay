@@ -617,7 +617,7 @@
   window.openFileEditor = async function openFileEditor(side, entry) {
     if (!entry || entry.isDir || entry.name === "..") return;
     if (side === "remote" && !state.ssh.connected) {
-      CWUI.toast("Ligue-se ao SSH primeiro.", "error");
+      CWUI.toast("Conecte-se ao SSH primeiro.", "error");
       return;
     }
     if (side === "remote" && state.remoteTarget === "container" && !state.remoteContainerId) {
@@ -822,7 +822,7 @@
       return;
     }
     if (!state.ssh.connected) {
-      showSudoError("Ligue-se ao servidor SSH antes de activar o sudo.");
+      showSudoError("Conecte-se ao servidor SSH antes de ativar o sudo.");
       return;
     }
     const btn = $("#sudo-submit");
@@ -842,12 +842,12 @@
       document.dispatchEvent(new CustomEvent("cw-sudo-changed"));
       if (state.screen === "explorer") await loadRemote(state.remotePath || "/");
     } catch (e) {
-      const msg = e.message || "Falha ao activar sudo";
+      const msg = e.message || "Falha ao ativar sudo";
       if (state.user) showSudoError(msg);
     } finally {
       if (btn) {
         btn.disabled = false;
-        btn.textContent = "Activar sudo";
+        btn.textContent = "Ativar sudo";
       }
     }
   }

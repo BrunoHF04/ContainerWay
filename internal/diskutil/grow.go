@@ -1,7 +1,6 @@
 package diskutil
 
 import (
-	"strconv"
 	"strings"
 )
 
@@ -23,7 +22,7 @@ func GrowFSScript(lv, fs string) string {
 			"if [ -z \"$M\" ]; then echo 'Não foi possível resolver o ponto de montagem para btrfs.' >&2; exit 1; fi; " +
 			"btrfs filesystem resize max \"$M\""
 	default:
-		return "echo 'Sistema de ficheiros não suportado para crescimento automático.' >&2; exit 1"
+		return "echo 'Sistema de arquivos não suportado para crescimento automático.' >&2; exit 1"
 	}
 }
 
@@ -35,9 +34,5 @@ func shellQuote(s string) string {
 func LvextendScript(lv string, gib float64) string {
 	return "set -e; LV=" + shellQuote(lv) + "; " +
 		"command -v lvextend >/dev/null 2>&1 || { echo 'lvextend não encontrado.' >&2; exit 1; }; " +
-		"lvextend -L +" + formatGiB(gib) + "G \"$LV\""
-}
-
-func formatGiB(g float64) string {
-	return strconv.FormatFloat(g, 'f', -1, 64)
+		"lvextend -L +" + FormatLVMSizeG(UserGBToLVMG(gib)) + "G \"$LV\""
 }

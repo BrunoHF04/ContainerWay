@@ -30,7 +30,7 @@ func writeDockerErr(w http.ResponseWriter, err error) {
 
 func dockerClientFromBundle(b *sshBundle, w http.ResponseWriter) bool {
 	if b.Sess.Docker == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "Docker/Podman indisponível nesta ligação"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "Docker/Podman indisponível nesta conexão"})
 		return false
 	}
 	return true

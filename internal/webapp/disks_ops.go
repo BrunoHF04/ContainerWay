@@ -143,7 +143,7 @@ func (s *Server) handleDisksSnapshotCreate(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if req.GiB <= 0 {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "indique tamanho positivo em GiB"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "indique tamanho positivo em GB"})
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Minute)
@@ -220,7 +220,7 @@ func (s *Server) handleDisksLVCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.GiB <= 0 {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "indique tamanho positivo em GiB"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "indique tamanho positivo em GB"})
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
@@ -257,12 +257,12 @@ func (s *Server) handleDisksResizeFS(w http.ResponseWriter, r *http.Request) {
 	}
 	lv := strings.TrimSpace(req.LV)
 	if lv == "" || req.GiB <= 0 {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "indique LV e GiB positivo"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "indique LV e GB positivo"})
 		return
 	}
 	fs := disksNormFS(req.FS)
 	if !req.Grow && fs == "xfs" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "XFS não suporta encolher o sistema de ficheiros"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "XFS não suporta reduzir o sistema de arquivos"})
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 6*time.Minute)

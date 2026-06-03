@@ -147,7 +147,7 @@ const MODULES = [
   { id: "explorer", icon: "📁", accent: "cyan", title: "Gerenciador de arquivos", desc: "Painel duplo local/remoto, enviar e receber arquivos.", kw: "arquivos sftp transferência" },
   { id: "docker", icon: "🐳", accent: "indigo", title: "Contêineres Docker", desc: "Lista, métricas, logs, consola e ciclo de vida.", kw: "docker container" },
   { id: "disks", icon: "💾", accent: "emerald", title: "Discos e armazenamento", desc: "lsblk, uso de pastas, LVM e ampliação.", kw: "disco lsblk armazenamento lvm ncdu treesize" },
-  { id: "services", icon: "⚡", accent: "teal", title: "Serviços", desc: "systemd: estado, iniciar, parar, reiniciar e arranque automático.", kw: "serviço systemd systemctl nginx apache" },
+  { id: "services", icon: "⚡", accent: "teal", title: "Serviços", desc: "systemd: estado agora, iniciar/parar e início automático ao ligar o servidor.", kw: "serviço systemd systemctl nginx apache boot enable" },
   { id: "terminal", icon: "⌨️", accent: "amber", title: "Terminal SSH", desc: "Consola remota interativa.", kw: "terminal ssh shell" },
   { id: "automations", icon: "⚙️", accent: "violet", title: "Central de automações", desc: "Regras e histórico por host.", kw: "automação regras" },
   { id: "settings", icon: "🔧", accent: "rose", title: "Configurações", desc: "Conta, interface, SSH, módulos e administração.", kw: "configurações admin", adminOnly: true },
@@ -610,7 +610,7 @@ $("#btn-ssh-test")?.addEventListener("click", async () => {
     out.classList.remove("hidden");
     out.textContent = window.CWI18n?.t?.("ssh.testing") || "A testar SSH…";
   }
-  CWUI.showSplash("A testar ligação…");
+  CWUI.showSplash("Testando conexão…");
   try {
     const data = await api("/api/ssh/test", {
       method: "POST",
@@ -640,7 +640,7 @@ $("#btn-ssh-test")?.addEventListener("click", async () => {
 
 $("#ssh-form").addEventListener("submit", async (ev) => {
   ev.preventDefault();
-  CWUI.showSplash("A estabelecer ligação SSH…");
+  CWUI.showSplash("Estabelecendo conexão SSH…");
   try {
     const profileName = $("#ssh-profile").value || $("#ssh-name").value.trim();
     await api("/api/ssh/connect", {
@@ -654,7 +654,7 @@ $("#ssh-form").addEventListener("submit", async (ev) => {
     });
     if (profileName) CWWebPrefs?.set?.("lastSSHProfile", profileName);
     await refreshSSH();
-    CWUI.toast("Ligação SSH estabelecida", "success");
+    CWUI.toast("Conexão SSH estabelecida", "success");
   } catch (e) {
     CWUI.toast("Falha SSH: " + e.message, "error");
   } finally {
