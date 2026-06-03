@@ -20,6 +20,8 @@
     terminalFontSize: 14,
     terminalFavorites: "",
     transferKeepHistory: true,
+    desktopWallpaper: "ubuntu",
+    terminalCmdSections: "",
   };
 
   function key(k) {

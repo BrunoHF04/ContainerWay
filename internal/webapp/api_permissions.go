@@ -39,6 +39,10 @@ func permissionForRequest(method, path string) string {
 			return accessauth.ActionDisksView
 		}
 		return accessauth.ActionDisksManage
+	case path == "/api/desktop/network/apply",
+		path == "/api/desktop/network/iface",
+		path == "/api/desktop/service/control":
+		return accessauth.ActionSudoUse
 	case strings.HasPrefix(path, "/api/docker/"):
 		return dockerPermission(method, path)
 	case strings.HasPrefix(path, "/api/transfer/"):

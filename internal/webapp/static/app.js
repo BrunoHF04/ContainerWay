@@ -144,13 +144,13 @@ function bindThemeButtons() {
 bindThemeButtons();
 
 const MODULES = [
-  { id: "desktop", icon: "🖥️", accent: "sky", title: "Ambiente Linux", desc: "Interface gráfica simplificada — ícones e menus para iniciantes.", kw: "linux desktop ubuntu gui gráfico leigo iniciante ambiente" },
   { id: "explorer", icon: "📁", accent: "cyan", title: "Gerenciador de arquivos", desc: "Painel duplo local/remoto, enviar e receber arquivos.", kw: "arquivos sftp transferência" },
   { id: "docker", icon: "🐳", accent: "indigo", title: "Contêineres Docker", desc: "Lista, métricas, logs, consola e ciclo de vida.", kw: "docker container" },
   { id: "disks", icon: "💾", accent: "emerald", title: "Discos e armazenamento", desc: "lsblk, uso de pastas, LVM e ampliação.", kw: "disco lsblk armazenamento lvm ncdu treesize" },
   { id: "terminal", icon: "⌨️", accent: "amber", title: "Terminal SSH", desc: "Consola remota interativa.", kw: "terminal ssh shell" },
   { id: "automations", icon: "⚙️", accent: "violet", title: "Central de automações", desc: "Regras e histórico por host.", kw: "automação regras" },
   { id: "settings", icon: "🔧", accent: "rose", title: "Configurações", desc: "Conta, interface, SSH, módulos e administração.", kw: "configurações admin", adminOnly: true },
+  { id: "desktop", icon: "🖥️", accent: "sky", title: "Ambiente Linux", desc: "Desktop com janelas: arquivos, sistema (rede/disco), Docker e terminal.", kw: "linux desktop ubuntu gui gráfico leigo iniciante ambiente janelas rede armazenamento" },
 ];
 
 function closeAllAppDialogs() {
@@ -180,14 +180,16 @@ function handleSessionExpired(message) {
 }
 
 async function api(path, options = {}) {
+  const { noAuthRedirect, ...fetchOpts } = options;
   const res = await fetch(path, {
     credentials: "same-origin",
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    ...options,
+    headers: { "Content-Type": "application/json", ...(fetchOpts.headers || {}) },
+    ...fetchOpts,
   });
   const data = await res.json().catch(() => ({}));
   if (
     res.status === 401 &&
+    !noAuthRedirect &&
     !String(path).includes("/api/auth/login") &&
     !String(path).includes("/api/auth/me")
   ) {
@@ -309,7 +311,8 @@ function showScreen(name) {
     stopAutoPoll();
   }
   if (name === "terminal") openTerminal();
-  if (name === "desktop") window.CWDesktop?.onEnter?.();
+  else if (prevScreen === "terminal") closeTerminal();
+  if (name === "desktop" && prevScreen !== "desktop") window.CWDesktop?.onEnter?.();
   if (prevScreen === "desktop" && name !== "desktop") window.CWDesktop?.onLeave?.();
   if (name === "settings") window.CWSettings?.loadSettings?.();
   if (name === "explorer") {
@@ -484,6 +487,12 @@ async function refreshSSH() {
     if (typeof refreshSudoUI === "function") refreshSudoUI();
     CWUI.hostAccent("");
     $("#ssh-latency")?.classList.add("hidden");
+  }
+  if (wasConnected !== state.ssh.connected) {
+    document.dispatchEvent(
+      new CustomEvent("cw-ssh-changed", { detail: { connected: state.ssh.connected } })
+    );
+    window.CWDesktop?.onSSHChanged?.(state.ssh.connected);
   }
   if (st.connected) {
     setAppTopbar(true);
@@ -868,7 +877,14 @@ function sendTerminalResize(ws) {
   ws.send(JSON.stringify({ op: "resize", cols: state.term.cols, rows: state.term.rows }));
 }
 
+function setTerminalEndedBanner(show) {
+  const banner = document.getElementById("terminal-ended-banner");
+  if (!banner) return;
+  banner.classList.toggle("hidden", !show);
+}
+
 function closeTerminal() {
+  setTerminalEndedBanner(false);
   if (state.termSocket) {
     state.termSocket.close();
     state.termSocket = null;
@@ -919,6 +935,7 @@ function fitTerminal() {
 
 function openTerminal() {
   if (!state.ssh.connected) return;
+  setTerminalEndedBanner(false);
   const box = $("#terminal");
   const fontSize = Number(window.CWWebPrefs?.get?.("terminalFontSize")) || 14;
   if (!state.term) {
@@ -956,10 +973,14 @@ function openTerminal() {
     }
     state.term.write(ev.data);
   };
-  ws.onclose = () => state.term.writeln("\r\n\x1b[33mSessão terminada.\x1b[0m\r\n");
+  ws.onclose = () => {
+    state.term.writeln("\r\n\x1b[33mSessão terminada.\x1b[0m\r\n");
+    setTerminalEndedBanner(true);
+  };
   state.term.onData((data) => { if (ws.readyState === WebSocket.OPEN) ws.send(data); });
 }
 $("#terminal-reconnect").addEventListener("click", openTerminal);
+$("#terminal-ended-reconnect")?.addEventListener("click", openTerminal);
 
 // Automations
 function startAutoPoll() {

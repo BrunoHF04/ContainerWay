@@ -15,6 +15,26 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'"
 }
 
+// runSudoScript executa um script shell no host remoto com sudo (sessão ativa).
+func (b *sshBundle) runSudoScript(ctx context.Context, script string) (stdout, stderr string, err error) {
+	if b == nil {
+		return "", "", fmt.Errorf("sessão SSH indisponível")
+	}
+	b.sudoMu.Lock()
+	sudoOn := b.sudoEnabled
+	user := b.sudoUser
+	pass := b.sudoPass
+	b.sudoMu.Unlock()
+	if !sudoOn || strings.TrimSpace(user) == "" || strings.TrimSpace(pass) == "" {
+		return "", "", fmt.Errorf("ative o sudo para esta operação")
+	}
+	if err := b.ensureSudoSession(ctx); err != nil {
+		return "", "", err
+	}
+	cmd := fmt.Sprintf("sudo -S -p '' -u %s sh -lc %s", shellQuote(user), shellQuote(script))
+	return b.runSSHCommand(ctx, cmd, pass)
+}
+
 func (b *sshBundle) runSSHCommand(ctx context.Context, cmd, input string) (stdout, stderr string, err error) {
 	if b == nil || b.Sess == nil || b.Sess.SSH == nil {
 		return "", "", fmt.Errorf("sessão SSH indisponível")

@@ -46,7 +46,7 @@
       return;
     }
     try {
-      const st = await api("/api/ssh/sudo");
+      const st = await api("/api/ssh/sudo", { noAuthRedirect: true });
       state.sudo = { enabled: !!st.enabled, user: st.user || "" };
     } catch {
       state.sudo = { enabled: false, user: "" };
@@ -832,10 +832,9 @@
       state.sudo = { enabled: true, user: res.user || user };
       updateSudoButton();
       $("#sudo-dialog")?.close();
-      if (state.screen !== "explorer") showScreen("explorer");
       CWUI.toast(`Sudo ativo (${state.sudo.user})`, "success");
       document.dispatchEvent(new CustomEvent("cw-sudo-changed"));
-      await loadRemote(state.remotePath || "/");
+      if (state.screen === "explorer") await loadRemote(state.remotePath || "/");
     } catch (e) {
       const msg = e.message || "Falha ao activar sudo";
       if (state.user) showSudoError(msg);

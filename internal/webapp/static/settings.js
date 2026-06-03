@@ -586,7 +586,6 @@
     if (home && home !== "hub" && typeof canScreen === "function" && canScreen(home)) {
       showScreen(home);
       if (home === "docker") loadDocker();
-      if (home === "desktop") window.CWDesktop?.onEnter?.();
       return;
     }
     showScreen("hub");

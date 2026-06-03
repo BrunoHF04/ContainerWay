@@ -206,17 +206,30 @@
     desktop: {
       title: "Ambiente Linux (simplificado)",
       html: `
-        <p class="muted">Simula uma interface gráfica no browser — o Ubuntu Server <strong>continua sem GUI</strong>; só a experiência no ContainerWay muda.</p>
-        <h4>Como usar</h4>
+        <p class="muted">Desktop funcional no browser — janelas com apps reais (ficheiros, terminal, Docker, etc.). O Ubuntu Server <strong>continua sem GUI</strong> instalada.</p>
+        <h4>Aplicações em janelas</h4>
         <ul>
-          <li>Ícones no ambiente ou menu <strong>CW</strong> (canto superior esquerdo) abrem ficheiros, Docker, discos, terminal e automações.</li>
-          <li><strong>Sobre o servidor</strong> — memória, disco e tempo ligado (dados via SSH).</li>
-          <li><strong>Menu técnico</strong> — volta ao hub com todos os módulos avançados.</li>
+          <li><strong>Arquivos</strong> — navegar, criar pasta, excluir, baixar para o PC, abrir editor.</li>
+          <li><strong>Terminal</strong> — consola SSH com lista de comandos, htop, ncdu e reconexão.</li>
+          <li><strong>Sistema</strong> — hostname, DNS, interfaces, ampliação LVM e serviços (sudo). <strong>Discos no hub</strong> para análise completa de pastas.</li>
+          <li><strong>Docker / Automações</strong> — contêineres e regras.</li>
+          <li>Ícones à esquerda e menu <strong>CW</strong> — pesquisa, recentes e papel de fundo.</li>
+          <li>Barra inferior — janelas abertas; vazia mostra «Nenhuma janela aberta».</li>
+          <li>Botão <strong>⌂</strong> na janela — abre o módulo técnico equivalente no hub.</li>
+        </ul>
+        <h4>Janelas e snap</h4>
+        <ul>
+          <li>Arrastar à <strong>topo</strong> maximiza; às <strong>bordas</strong> metade do ecrã (pré-visualização ao arrastar).</li>
+          <li><kbd>Duplo clique</kbd> na barra de título maximiza ou restaura.</li>
         </ul>
         <h4>Atalhos</h4>
         <ul class="shortcut-list">
-          <li><kbd>Esc</kbd> Fechar menu ou janela</li>
+          <li><kbd>Alt</kbd>+<kbd>Tab</kbd> Trocar janela</li>
+          <li><kbd>Ctrl</kbd>+<kbd>W</kbd> Fechar janela focada</li>
+          <li><kbd>Ctrl</kbd>+<kbd>M</kbd> Minimizar todas</li>
+          <li><kbd>Ctrl</kbd>+<kbd>K</kbd> Lista de comandos (terminal)</li>
           <li><kbd>?</kbd> Ajuda</li>
+          <li><kbd>Esc</kbd> Fechar menu iniciar</li>
         </ul>
       `,
     },

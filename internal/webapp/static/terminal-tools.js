@@ -111,6 +111,68 @@
   const DANGER = ["rm -rf /", "rm -rf", "chmod -r 777", "chmod 777 -r", "mkfs", "dd if=", ":(){ :|:& };:"];
 
   let favoritesMap = {};
+  let cmdApiOverride = null;
+  let statusElOverride = null;
+
+  function getTermApi() {
+    return cmdApiOverride || window.CWTerminal;
+  }
+
+  function loadSectionPrefs() {
+    try {
+      const raw = window.CWWebPrefs?.get?.("terminalCmdSections") || "{}";
+      return JSON.parse(raw) || {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveSectionPrefs(prefs) {
+    try {
+      window.CWWebPrefs?.set?.("terminalCmdSections", JSON.stringify(prefs));
+    } catch (_) { /* */ }
+  }
+
+  function sectionKey(title) {
+    return String(title).replace(/\s+/g, "_").slice(0, 48);
+  }
+
+  function createTermApi(term, ws, opts = {}) {
+    const logRef = opts.logRef || { value: "" };
+    return {
+      isConnected: () => ws?.readyState === WebSocket.OPEN,
+      sendRaw(data) {
+        if (!data || ws?.readyState !== WebSocket.OPEN) return false;
+        ws.send(data);
+        return true;
+      },
+      sendCmd(cmd, run) {
+        const c = String(cmd ?? "");
+        if (!c.trim() || ws?.readyState !== WebSocket.OPEN) return false;
+        term?.write?.(c + (run ? "\r" : ""));
+        ws.send(c + (run ? "\r" : ""));
+        term?.focus?.();
+        return true;
+      },
+      ctrlC: () => {
+        if (ws?.readyState !== WebSocket.OPEN) return false;
+        ws.send("\x03");
+        return true;
+      },
+      clear: () => {
+        term?.clear?.();
+        logRef.value = "";
+        if (ws?.readyState === WebSocket.OPEN) {
+          term?.write?.("clear\r");
+          ws.send("clear\r");
+        }
+        return true;
+      },
+      getLog: () => logRef.value || "",
+      focus: () => term?.focus?.(),
+      reconnect: opts.onReconnect,
+    };
+  }
 
   function escapeHtml(s) {
     const d = document.createElement("div");
@@ -141,7 +203,7 @@
   }
 
   function showTermStatus(msg, ms = 2200) {
-    const el = $("#terminal-status");
+    const el = statusElOverride || $("#terminal-status");
     if (!el) return;
     el.textContent = msg;
     el.classList.remove("hidden");
@@ -150,7 +212,7 @@
   }
 
   function ensureConnected() {
-    if (window.CWTerminal?.isConnected?.()) return true;
+    if (getTermApi()?.isConnected?.()) return true;
     CWUI?.toast?.(t("term.err.offline"), "error");
     return false;
   }
@@ -164,7 +226,7 @@
   async function insertCommand(cmd) {
     if (!ensureConnected()) return;
     if (!(await confirmAction(t("term.action.insert"), cmd, false))) return;
-    window.CWTerminal.sendCmd(cmd, false);
+    getTermApi().sendCmd(cmd, false);
     showTermStatus(t("term.status.inserted", { cmd }));
   }
 
@@ -173,7 +235,7 @@
     if (isDangerous(cmd)) {
       if (!(await CWConfirm(t("term.danger.body", { cmd }), { title: t("term.danger.title") }))) return;
     } else if (!(await confirmAction(t("term.action.run"), cmd, true))) return;
-    window.CWTerminal.sendCmd(cmd, true);
+    getTermApi().sendCmd(cmd, true);
     showTermStatus(t("term.status.ran", { cmd }));
   }
 
@@ -286,10 +348,19 @@
         <code class="terminal-cmd-code">${escapeHtml(item.cmd)}</code>
       </div>
       <div class="terminal-cmd-row-actions">
+        <button type="button" class="btn btn-ghost" data-act="copy" title="Copiar">⎘</button>
         <button type="button" class="btn btn-ghost" data-act="insert">${escapeHtml(t("term.cmd.insert"))}</button>
         <button type="button" class="btn btn-primary" data-act="run">${escapeHtml(t("term.cmd.run"))}</button>
         <button type="button" class="btn btn-ghost term-fav-btn${fav ? " is-fav" : ""}" data-act="fav" title="Favorito">${fav ? "★" : "☆"}</button>
       </div>`;
+    row.querySelector('[data-act="copy"]').addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(item.cmd);
+        showTermStatus(t("term.status.copied") || "Copiado");
+      } catch {
+        CWUI?.toast?.(t("term.err.copyFail"), "error");
+      }
+    });
     row.querySelector('[data-act="insert"]').addEventListener("click", () => insertCommand(item.cmd));
     row.querySelector('[data-act="run"]').addEventListener("click", () => runCommand(item.cmd));
     row.querySelector('[data-act="fav"]').addEventListener("click", (e) => {
@@ -304,6 +375,28 @@
       rebuildCmdResults();
     });
     return row;
+  }
+
+  function buildCmdSection(title, items, expand) {
+    const det = document.createElement("details");
+    det.className = "terminal-cmd-section";
+    const key = sectionKey(title);
+    const prefs = loadSectionPrefs();
+    if (expand) det.open = true;
+    else if (prefs[key]) det.open = true;
+    det.addEventListener("toggle", () => {
+      const p = loadSectionPrefs();
+      p[key] = det.open;
+      saveSectionPrefs(p);
+    });
+    const sum = document.createElement("summary");
+    sum.className = "terminal-cmd-section-summary";
+    sum.textContent = `${title} (${items.length})`;
+    const body = document.createElement("div");
+    body.className = "terminal-cmd-section-body";
+    items.forEach((item) => body.appendChild(buildCommandRow(item)));
+    det.append(sum, body);
+    return det;
   }
 
   function rebuildCmdResults() {
@@ -327,6 +420,7 @@
       return true;
     };
 
+    const autoOpen = !!filter;
     const frag = document.createDocumentFragment();
 
     for (const section of COMMAND_SECTIONS) {
@@ -340,23 +434,12 @@
         }
       });
       if (!onlyQuick) {
-        const h = document.createElement("h4");
-        h.className = "terminal-cmd-section-title";
-        h.textContent = section.title;
-        frag.appendChild(h);
-        sectionItems.forEach((item) => frag.appendChild(buildCommandRow(item)));
+        frag.appendChild(buildCmdSection(section.title, sectionItems, autoOpen));
       }
     }
 
     if (quickItems.length > 0) {
-      const quickBlock = document.createElement("div");
-      quickBlock.className = "terminal-cmd-quick-block";
-      const qh = document.createElement("h4");
-      qh.className = "terminal-cmd-section-title";
-      qh.textContent = t("term.cmd.mostUsed");
-      quickBlock.appendChild(qh);
-      quickItems.forEach((item) => quickBlock.appendChild(buildCommandRow(item)));
-      host.appendChild(quickBlock);
+      host.appendChild(buildCmdSection(t("term.cmd.mostUsed"), quickItems, autoOpen));
     }
     host.appendChild(frag);
 
@@ -371,6 +454,7 @@
   function closeCmdPanel() {
     const ov = $("#terminal-cmd-overlay");
     if (!ov) return;
+    cmdApiOverride = null;
     if (window.CWMotion?.closeOverlay) {
       window.CWMotion.closeOverlay(ov);
       return;
@@ -379,11 +463,71 @@
     ov.setAttribute("aria-hidden", "true");
   }
 
-  function openCmdDialog() {
-    if (!document.querySelector("#view-terminal.subview.active")) {
+  function mountToolbar(container, api, opts = {}) {
+    if (!container || !api) return;
+    cmdApiOverride = api;
+    statusElOverride = opts.statusEl || null;
+    const toolbar = document.createElement("div");
+    toolbar.className = "terminal-toolbar glass-bar-inline linux-term-toolbar";
+    toolbar.innerHTML = `
+      <button type="button" class="btn btn-ghost btn-sm" data-term-act="htop">${escapeHtml(t("term.btn.htop"))}</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-term-act="ncdu">${escapeHtml(t("term.btn.ncdu"))}</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-term-act="cmdlist">${escapeHtml(t("term.btn.cmdlist"))}</button>
+      <span class="terminal-toolbar-spacer"></span>
+      <button type="button" class="btn btn-ghost btn-sm" data-term-act="ctrlc" title="Ctrl+C">Ctrl+C</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-term-act="copy">${escapeHtml(t("term.btn.copy"))}</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-term-act="clear">${escapeHtml(t("term.btn.clear"))}</button>`;
+    container.prepend(toolbar);
+    const bind = (sel, fn) => toolbar.querySelector(sel)?.addEventListener("click", fn);
+    bind('[data-term-act="htop"]', async () => {
+      if (!ensureConnected()) return;
+      if (await confirmAction(t("term.btn.htop"), CMD_HTOP, true)) {
+        api.sendCmd(CMD_HTOP, true);
+        showTermStatus(t("term.status.htop"));
+      }
+    });
+    bind('[data-term-act="ncdu"]', async () => {
+      if (!ensureConnected()) return;
+      if (await confirmAction(t("term.btn.ncdu"), CMD_NCDU, true)) {
+        api.sendCmd(CMD_NCDU, true);
+        showTermStatus(t("term.status.ncdu"));
+      }
+    });
+    bind('[data-term-act="cmdlist"]', () => openCmdDialog(api));
+    bind('[data-term-act="ctrlc"]', () => {
+      if (!ensureConnected()) return;
+      api.ctrlC();
+      showTermStatus(t("term.status.ctrlc"));
+    });
+    bind('[data-term-act="copy"]', async () => {
+      const log = api.getLog();
+      if (!log.trim()) {
+        CWUI?.toast?.(t("term.err.noCopy"), "warning");
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(log);
+        CWUI?.toast?.(t("term.status.copied"), "success");
+      } catch {
+        CWUI?.toast?.(t("term.err.copyFail"), "error");
+      }
+    });
+    bind('[data-term-act="clear"]', () => {
+      if (!ensureConnected()) return;
+      api.clear();
+      showTermStatus(t("term.status.cleared"));
+    });
+    return toolbar;
+  }
+
+  function openCmdDialog(api) {
+    const pageActive = document.querySelector("#view-terminal.subview.active");
+    const desktopActive = document.getElementById("app")?.classList.contains("app-desktop-mode");
+    if (!pageActive && !desktopActive && !api) {
       CWUI?.toast?.(t("term.err.offline"), "warning");
       return;
     }
+    if (api) cmdApiOverride = api;
     loadFavoritesMap();
     rebuildCmdResults();
     buildComposeActions();
@@ -413,7 +557,7 @@
         showTermStatus(t("term.status.ncdu"));
       }
     });
-    $("#term-btn-cmdlist")?.addEventListener("click", openCmdDialog);
+    $("#term-btn-cmdlist")?.addEventListener("click", () => openCmdDialog());
     $("#term-btn-ctrlc")?.addEventListener("click", () => {
       if (!ensureConnected()) return;
       window.CWTerminal.ctrlC();
@@ -440,6 +584,20 @@
     $("#terminal-cmd-close")?.addEventListener("click", closeCmdPanel);
     $("#terminal-cmd-backdrop")?.addEventListener("click", closeCmdPanel);
     document.addEventListener("keydown", (e) => {
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.key.toLowerCase() === "k") {
+        const ov = $("#terminal-cmd-overlay");
+        if (ov && !ov.classList.contains("hidden")) {
+          e.preventDefault();
+          $("#term-cmd-search")?.focus();
+          return;
+        }
+        if (document.querySelector("#view-terminal.subview.active") || document.getElementById("app")?.classList.contains("app-desktop-mode")) {
+          e.preventDefault();
+          openCmdDialog(cmdApiOverride);
+        }
+        return;
+      }
       if (e.key !== "Escape") return;
       const ov = $("#terminal-cmd-overlay");
       if (ov && !ov.classList.contains("hidden")) closeCmdPanel();
@@ -456,7 +614,7 @@
     document.addEventListener("cw-lang-change", () => window.CWI18n?.applyLabels?.());
   }
 
-  window.CWTerminalTools = { closeCmdPanel, openCmdDialog };
+  window.CWTerminalTools = { closeCmdPanel, openCmdDialog, mountToolbar, createTermApi };
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();

@@ -168,38 +168,113 @@
         <div class="linux-desktop" id="linux-desktop">
           <header class="linux-panel" role="banner">
             <div class="linux-panel-start">
-              <button type="button" class="linux-panel-btn" id="linux-btn-menu" title="Menu iniciar" aria-label="Menu iniciar" aria-expanded="false" aria-controls="linux-start-menu">
+              <button type="button" class="linux-panel-btn linux-panel-btn-menu" id="linux-btn-menu" title="Menu iniciar" aria-label="Menu iniciar" aria-expanded="false" aria-controls="linux-start-menu" aria-haspopup="menu">
                 <span class="linux-panel-logo" aria-hidden="true">CW</span>
               </button>
               <span class="linux-panel-title" id="linux-panel-host">Servidor</span>
             </div>
             <div class="linux-panel-center">
-              <span class="linux-panel-pill" id="linux-panel-ssh">SSH</span>
+              <span class="linux-panel-pill" id="linux-panel-ssh" title="Estado SSH">SSH</span>
+              <span class="linux-panel-stats muted" id="linux-panel-stats" title="Resumo do host">—</span>
             </div>
             <div class="linux-panel-end">
-              <button type="button" class="linux-panel-link" id="linux-btn-hub" title="Menu técnico (hub)">Menu técnico</button>
+              <div class="linux-notify-wrap">
+                <button type="button" class="linux-panel-notify-btn" id="linux-btn-notify" title="Notificações" aria-label="Notificações" aria-expanded="false" aria-haspopup="true">🔔<span class="linux-notify-badge" id="linux-notify-badge" hidden>0</span></button>
+                <div class="linux-notify-pop glass-card" id="linux-notify-pop" hidden role="region" aria-label="Notificações">
+                  <p class="linux-notify-pop-title">Notificações</p>
+                  <div id="linux-notify-list" class="linux-notify-list"></div>
+                </div>
+              </div>
               <time class="linux-panel-clock" id="linux-panel-clock" datetime=""></time>
             </div>
           </header>
 
+          <div class="linux-ssh-banner" id="linux-ssh-banner" hidden role="alert">
+            Ligação SSH interrompida — volte ao hub principal para voltar a ligar.
+          </div>
+
           <main class="linux-workspace">
             <div class="linux-icons" id="linux-icons" role="list" aria-label="Atalhos do ambiente"></div>
-            <div class="linux-window-layer" id="linux-window-layer" hidden></div>
+            <div class="linux-workspace-empty" id="linux-workspace-empty" aria-hidden="false">
+              <p class="linux-workspace-empty-title">Ambiente Linux</p>
+              <p class="muted">Clique num ícone à esquerda ou no menu <strong>CW</strong> para abrir aplicações em janelas.</p>
+              <button type="button" class="btn btn-ghost btn-sm" id="linux-workspace-tour">Primeiros passos</button>
+            </div>
+            <div class="linux-windows" id="linux-windows" aria-live="polite"></div>
+            <div class="linux-snap-preview" id="linux-snap-preview" hidden aria-hidden="true"></div>
           </main>
 
-          <nav class="linux-dock" id="linux-dock" aria-label="Barra de aplicativos"></nav>
+          <div class="linux-alt-tab" id="linux-alt-tab" hidden aria-hidden="true"></div>
 
-          <div class="linux-start-menu" id="linux-start-menu" role="dialog" aria-label="Menu iniciar" hidden>
+          <div class="linux-taskbar" id="linux-taskbar" aria-label="Janelas abertas">
+            <span class="linux-taskbar-empty muted" id="linux-taskbar-empty">Nenhuma janela aberta</span>
+          </div>
+
+          <div class="linux-start-backdrop" id="linux-start-backdrop" hidden aria-hidden="true"></div>
+          <div class="linux-start-menu" id="linux-start-menu" role="menu" aria-label="Menu iniciar" hidden>
             <div class="linux-start-menu-inner glass-card">
               <p class="linux-start-greeting">Bem-vindo ao ambiente simplificado</p>
-              <p class="muted linux-start-hint">Estes atalhos abrem as ferramentas do ContainerWay no servidor remoto. Não instala interface gráfica no Ubuntu — é uma simulação no browser.</p>
-              <div class="linux-start-grid" id="linux-start-grid"></div>
+              <p class="muted linux-start-hint">Aplicações abrem em <strong>janelas</strong> neste ambiente. Não instala interface gráfica no servidor.</p>
+              <label class="linux-start-search-field">
+                <span class="sr-only">Pesquisar aplicações</span>
+                <input type="search" id="linux-start-search" class="panel-filter" placeholder="Pesquisar aplicações…" autocomplete="off" />
+              </label>
+              <div class="linux-start-recent" id="linux-start-recent" hidden>
+                <p class="linux-start-recent-label muted">Recentes</p>
+                <div class="linux-start-recent-row" id="linux-start-recent-row"></div>
+              </div>
+              <div class="linux-start-wallpaper">
+                <span class="muted linux-start-wallpaper-label">Papel de fundo</span>
+                <div class="linux-wallpaper-picks" id="linux-wallpaper-picks" role="group" aria-label="Papel de fundo">
+                  <button type="button" class="linux-wallpaper-btn is-active" data-wall="ubuntu" title="Ubuntu">Ubuntu</button>
+                  <button type="button" class="linux-wallpaper-btn" data-wall="ocean" title="Oceano">Oceano</button>
+                  <button type="button" class="linux-wallpaper-btn" data-wall="slate" title="Ardósia">Ardósia</button>
+                </div>
+              </div>
+              <div class="linux-start-scroll">
+                <div class="linux-start-grid" id="linux-start-grid"></div>
+              </div>
               <div class="linux-start-footer">
                 <button type="button" class="btn btn-ghost btn-sm" id="linux-start-close">Fechar menu</button>
                 <button type="button" class="btn btn-ghost btn-sm" id="linux-start-hub">Abrir menu técnico</button>
               </div>
             </div>
           </div>
+
+          <dialog id="linux-tour-dialog" class="modal-dialog linux-tour-dialog">
+            <div class="linux-tour-inner glass-card">
+              <h3>Bem-vindo ao Ambiente Linux</h3>
+              <ol class="linux-tour-steps">
+                <li><strong>Menu CW</strong> — todas as aplicações em janelas.</li>
+                <li><strong>Arquivos</strong> — servidor ou pastas dentro de containers Docker.</li>
+                <li><strong>Sistema</strong> — rede, armazenamento, CPU/RAM e serviços.</li>
+                <li>Atalhos: <kbd>Alt</kbd>+<kbd>Tab</kbd> trocar janela, <kbd>Ctrl</kbd>+<kbd>W</kbd> fechar, <kbd>?</kbd> ajuda.</li>
+              </ol>
+              <div class="btn-row">
+                <button type="button" class="btn btn-ghost btn-sm" id="linux-tour-skip">Fechar</button>
+                <button type="button" class="btn btn-primary btn-sm" id="linux-tour-start">Abrir Arquivos</button>
+              </div>
+            </div>
+          </dialog>
+
+          <dialog id="linux-restore-dialog" class="modal-dialog">
+            <div class="modal-form">
+              <h3>Restaurar sessão?</h3>
+              <p class="muted" id="linux-restore-body">Existem janelas guardadas da última visita.</p>
+              <div class="btn-row end">
+                <button type="button" class="btn btn-ghost" id="linux-restore-skip">Não restaurar</button>
+                <button type="button" class="btn btn-primary" id="linux-restore-ok">Restaurar</button>
+              </div>
+            </div>
+          </dialog>
+
+          <dialog id="linux-docker-logs-dialog" class="modal-dialog linux-docker-logs-dialog">
+            <header class="linux-docker-logs-head">
+              <h3 id="linux-docker-logs-title">Logs</h3>
+              <button type="button" class="btn btn-ghost btn-sm" id="linux-docker-logs-close">Fechar</button>
+            </header>
+            <pre id="linux-docker-logs-body" class="code-block linux-docker-logs-body"></pre>
+          </dialog>
         </div>
       </div>
 
@@ -713,6 +788,10 @@
         <div class="subview-body">
         <div class="page-head glass-bar-inline"><h2>Terminal SSH</h2>
           <button type="button" class="btn btn-ghost" id="terminal-reconnect">Reconectar</button></div>
+        <div id="terminal-ended-banner" class="terminal-ended-banner hidden" role="alert">
+          <span>Sessão SSH terminada.</span>
+          <button type="button" class="btn btn-primary btn-sm" id="terminal-ended-reconnect">Reconectar</button>
+        </div>
         <div class="terminal-toolbar glass-bar-inline" id="terminal-toolbar">
           <button type="button" class="btn btn-ghost btn-sm" id="term-btn-htop" data-i18n="term.btn.htop">Ger. de Tarefas</button>
           <button type="button" class="btn btn-ghost btn-sm" id="term-btn-ncdu" data-i18n="term.btn.ncdu">Ver. Armazenamento</button>
@@ -724,42 +803,6 @@
         </div>
         <p id="terminal-status" class="terminal-status hidden" role="status"></p>
         <div id="terminal" class="terminal-box"></div>
-        </div>
-        <div id="terminal-cmd-overlay" class="terminal-cmd-overlay hidden" aria-hidden="true">
-          <button type="button" class="terminal-cmd-backdrop" id="terminal-cmd-backdrop" aria-label="Fechar"></button>
-          <div class="terminal-cmd-panel" role="dialog" aria-modal="true" aria-labelledby="terminal-cmd-title">
-            <div class="terminal-cmd-shell">
-              <header class="terminal-cmd-header modal-head">
-                <h3 id="terminal-cmd-title" data-i18n="term.cmd.title">Lista de comandos Linux</h3>
-                <button type="button" class="btn btn-ghost" id="terminal-cmd-close" data-i18n="disks.close">Fechar</button>
-              </header>
-              <details class="terminal-cmd-compose-acc">
-                <summary data-i18n="term.cmd.compose">Docker Compose rápido</summary>
-                <div class="terminal-compose-fields">
-                  <label class="field"><span>Compose file</span><input type="text" id="term-compose-file" placeholder="/caminho/docker-compose.yml" /></label>
-                  <label class="field"><span>Projeto (-p)</span><input type="text" id="term-compose-project" placeholder="nome_projeto" /></label>
-                  <label class="field"><span>Serviço</span><input type="text" id="term-compose-service" placeholder="nome_servico" /></label>
-                </div>
-                <div class="terminal-compose-actions btn-row wrap" id="term-compose-actions"></div>
-              </details>
-              <div class="terminal-cmd-toolbar">
-                <label class="field terminal-cmd-search-field">
-                  <input type="search" id="term-cmd-search" class="panel-filter" data-i18n-placeholder="term.cmd.searchPh" placeholder="Pesquisar comando…" />
-                </label>
-                <div class="terminal-cmd-filters">
-                  <label class="field field--inline"><span data-i18n="term.cmd.profile">Perfil</span>
-                    <select id="term-cmd-profile"><option value="Todos">Todos</option><option>Dev</option><option>Infra</option><option>Docker</option></select>
-                  </label>
-                  <label class="checkbox-row"><input type="checkbox" id="term-cmd-quick-only" /><span data-i18n="term.cmd.quickOnly">Só mais usados</span></label>
-                  <label class="checkbox-row"><input type="checkbox" id="term-cmd-fav-only" /><span data-i18n="term.cmd.favOnly">Só favoritos</span></label>
-                </div>
-                <p class="muted terminal-cmd-hint" data-i18n="term.cmd.hint">Use Inserir ou Inserir e executar em cada comando.</p>
-              </div>
-              <div class="terminal-cmd-results-scroll">
-                <div id="term-cmd-results" class="terminal-cmd-results"></div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -1088,6 +1131,44 @@
   </div>
 
   <div id="toast-stack" class="toast-stack" aria-live="polite"></div>
+
+  <div id="terminal-cmd-overlay" class="terminal-cmd-overlay hidden" aria-hidden="true">
+    <button type="button" class="terminal-cmd-backdrop" id="terminal-cmd-backdrop" aria-label="Fechar"></button>
+    <div class="terminal-cmd-panel" role="dialog" aria-modal="true" aria-labelledby="terminal-cmd-title">
+      <div class="terminal-cmd-shell">
+        <header class="terminal-cmd-header modal-head">
+          <h3 id="terminal-cmd-title" data-i18n="term.cmd.title">Lista de comandos Linux</h3>
+          <button type="button" class="btn btn-ghost" id="terminal-cmd-close" data-i18n="disks.close">Fechar</button>
+        </header>
+        <details class="terminal-cmd-compose-acc">
+          <summary data-i18n="term.cmd.compose">Docker Compose rápido</summary>
+          <div class="terminal-compose-fields">
+            <label class="field"><span>Compose file</span><input type="text" id="term-compose-file" placeholder="/caminho/docker-compose.yml" /></label>
+            <label class="field"><span>Projeto (-p)</span><input type="text" id="term-compose-project" placeholder="nome_projeto" /></label>
+            <label class="field"><span>Serviço</span><input type="text" id="term-compose-service" placeholder="nome_servico" /></label>
+          </div>
+          <div class="terminal-compose-actions btn-row wrap" id="term-compose-actions"></div>
+        </details>
+        <div class="terminal-cmd-toolbar">
+          <label class="field terminal-cmd-search-field">
+            <input type="search" id="term-cmd-search" class="panel-filter" data-i18n-placeholder="term.cmd.searchPh" placeholder="Pesquisar comando…" />
+          </label>
+          <div class="terminal-cmd-filters terminal-cmd-filters-compact">
+            <label class="terminal-cmd-filter-profile">
+              <span data-i18n="term.cmd.profile">Perfil</span>
+              <select id="term-cmd-profile" class="terminal-cmd-profile-select"><option value="Todos">Todos</option><option>Dev</option><option>Infra</option><option>Docker</option></select>
+            </label>
+            <label class="checkbox-row terminal-cmd-filter-check"><input type="checkbox" id="term-cmd-quick-only" /><span data-i18n="term.cmd.quickOnly">Só mais usados</span></label>
+            <label class="checkbox-row terminal-cmd-filter-check"><input type="checkbox" id="term-cmd-fav-only" /><span data-i18n="term.cmd.favOnly">Só favoritos</span></label>
+          </div>
+          <p class="muted terminal-cmd-hint" data-i18n="term.cmd.hint">Use Inserir ou Inserir e executar em cada comando.</p>
+        </div>
+        <div class="terminal-cmd-results-scroll">
+          <div id="term-cmd-results" class="terminal-cmd-results"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div id="splash-overlay" class="splash hidden" aria-busy="false">
     <div class="splash-card glass-card">
@@ -1458,6 +1539,8 @@
   <script src="/i18n.js"></script>
   <script src="/explorer-complete.js"></script>
   <script src="/screen-help.js"></script>
+  <script src="/desktop-apps.js"></script>
+  <script src="/desktop-core.js"></script>
   <script src="/desktop.js"></script>
   <script src="/app-ui.js"></script>
   <script src="/motion.js"></script>

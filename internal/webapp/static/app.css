@@ -2501,11 +2501,33 @@ select.cw-select-native {
   margin-bottom: 1rem;
 }
 
-/* Lista de comandos — overlay só dentro do módulo Terminal (não usa <dialog> global) */
+/* Lista de comandos — overlay global (fora do .subview; painel centrado por flex, não translate -50%) */
+@keyframes terminal-cmd-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes terminal-cmd-sheet-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+}
+
 .terminal-cmd-overlay {
   position: fixed;
   inset: 0;
-  z-index: 85;
+  z-index: 9200;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2522,7 +2544,7 @@ select.cw-select-native {
 }
 
 .terminal-cmd-overlay.overlay-enter .terminal-cmd-panel {
-  animation: modal-sheet-in var(--motion-sheet-in) var(--motion-spring) both;
+  animation: terminal-cmd-sheet-in var(--motion-sheet-in) var(--motion-spring) both;
 }
 
 .terminal-cmd-overlay.overlay-exit .terminal-cmd-backdrop {
@@ -2530,7 +2552,7 @@ select.cw-select-native {
 }
 
 .terminal-cmd-overlay.overlay-exit .terminal-cmd-panel {
-  animation: modal-sheet-out var(--motion-sheet-out) ease both;
+  animation: terminal-cmd-sheet-out var(--motion-sheet-out) ease both;
 }
 
 .terminal-cmd-backdrop {
@@ -2569,8 +2591,8 @@ select.cw-select-native {
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  padding: 1.35rem 1.5rem 1.2rem;
-  gap: 0.85rem;
+  padding: 1.1rem 1.25rem 1rem;
+  gap: 0.65rem;
 }
 
 .terminal-cmd-header {
@@ -2628,7 +2650,7 @@ select.cw-select-native {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.4rem;
 }
 
 .terminal-cmd-search-field {
@@ -2642,20 +2664,53 @@ select.cw-select-native {
   box-sizing: border-box;
 }
 
-.terminal-cmd-filters {
+.terminal-cmd-filters-compact {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.75rem 1.25rem;
-  padding: 0.55rem 0.75rem;
+  gap: 0.4rem 0.85rem;
+  padding: 0.35rem 0.55rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--surface2);
 }
 
-.terminal-cmd-hint {
+.terminal-cmd-filter-profile {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   margin: 0;
   font-size: 0.8rem;
+}
+
+.terminal-cmd-filter-profile span {
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.terminal-cmd-profile-select {
+  font-size: 0.8rem;
+  padding: 0.22rem 0.45rem;
+  min-width: 5.5rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+  color: var(--text);
+}
+
+.terminal-cmd-filter-check {
+  margin: 0;
+  font-size: 0.78rem;
+  gap: 0.35rem;
+}
+
+.terminal-cmd-filter-check span {
+  white-space: nowrap;
+}
+
+.terminal-cmd-hint {
+  margin: 0;
+  font-size: 0.75rem;
 }
 
 .terminal-cmd-results-scroll {
@@ -2680,28 +2735,59 @@ select.cw-select-native {
 .terminal-cmd-results {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
-.terminal-cmd-section-title {
-  margin: 0.65rem 0 0.2rem;
-  font-size: 0.88rem;
+.terminal-cmd-section {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface2) 55%, transparent);
+}
+
+.terminal-cmd-section-summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.38rem 0.6rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: var(--accent);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  user-select: none;
 }
 
-.terminal-cmd-quick-block .terminal-cmd-section-title {
-  margin-top: 0;
+.terminal-cmd-section-summary::-webkit-details-marker {
+  display: none;
+}
+
+.terminal-cmd-section-summary::after {
+  content: "▸";
+  font-size: 0.65rem;
+  opacity: 0.75;
+  transition: transform 0.15s ease;
+}
+
+.terminal-cmd-section[open] > .terminal-cmd-section-summary::after {
+  transform: rotate(90deg);
+}
+
+.terminal-cmd-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.15rem 0.45rem 0.45rem;
 }
 
 .terminal-cmd-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.85rem 1.25rem;
-  padding: 0.75rem 1rem;
+  gap: 0.5rem 0.65rem;
+  padding: 0.42rem 0.55rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--surface2) 90%, var(--bg-elevated));
@@ -2719,33 +2805,42 @@ select.cw-select-native {
 
 .terminal-cmd-row-text strong {
   display: block;
-  font-size: 0.92rem;
+  font-size: 0.82rem;
   font-weight: 600;
-  margin-bottom: 0.3rem;
+  margin-bottom: 0.15rem;
+  line-height: 1.25;
 }
 
 .terminal-cmd-code {
   display: block;
   font-family: var(--mono);
-  font-size: 0.8rem;
-  line-height: 1.45;
+  font-size: 0.72rem;
+  line-height: 1.35;
   color: var(--text-secondary);
   word-break: break-word;
 }
 
 .terminal-cmd-row-actions {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.35rem;
-  min-width: 10.5rem;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  min-width: 0;
 }
 
 .terminal-cmd-row-actions .btn {
   justify-content: center;
   white-space: nowrap;
-  padding: 0.4rem 0.75rem;
-  font-size: 0.82rem;
+  padding: 0.24rem 0.45rem;
+  font-size: 0.72rem;
+  line-height: 1.2;
+}
+
+.terminal-cmd-row-actions .term-fav-btn {
+  min-width: 1.65rem;
+  padding-inline: 0.3rem;
 }
 
 .term-fav-btn.is-fav {
@@ -6646,10 +6741,30 @@ html.reduce-motion *::after {
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+  border-radius: 0;
 }
 
-#app.app-desktop-mode .ambient {
-  opacity: 0.35;
+#app.app-desktop-mode #app-topbar {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+#app.app-desktop-mode.app-authed .view.active {
+  top: 0;
+  min-height: 100vh;
+}
+
+/* .ambient é irmão de #app — não usar #app.app-desktop-mode .ambient */
+body:has(#app.app-desktop-mode) > .ambient {
+  opacity: 0;
+  visibility: hidden;
+}
+
+/* Evita artefactos do xterm/cursor em módulos inativos (ex.: Terminal por baixo do desktop) */
+.shell-body > .subview:not(.active) .xterm,
+.shell-body > .subview:not(.active) .terminal-box {
+  display: none !important;
 }
 
 .linux-desktop {
@@ -6657,7 +6772,7 @@ html.reduce-motion *::after {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  border-radius: var(--radius-lg, 12px);
+  border-radius: 0;
   overflow: hidden;
   position: relative;
   background:
@@ -6667,12 +6782,36 @@ html.reduce-motion *::after {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
 
+.linux-desktop[data-wallpaper="ocean"] {
+  background:
+    radial-gradient(ellipse 100% 80% at 60% 0%, rgba(14, 165, 233, 0.35), transparent 55%),
+    radial-gradient(ellipse 80% 70% at 10% 90%, rgba(6, 78, 120, 0.45), transparent 50%),
+    linear-gradient(155deg, #042f2e 0%, #0c4a6e 40%, #0f172a 100%);
+}
+
+.linux-desktop[data-wallpaper="slate"] {
+  background:
+    radial-gradient(ellipse 90% 70% at 50% 20%, rgba(100, 116, 139, 0.25), transparent 55%),
+    linear-gradient(160deg, #1e293b 0%, #0f172a 55%, #020617 100%);
+}
+
 [data-theme="light"] .linux-desktop {
   background:
     radial-gradient(ellipse 100% 70% at 75% 15%, rgba(233, 84, 32, 0.2), transparent 50%),
     radial-gradient(ellipse 80% 60% at 15% 85%, rgba(119, 33, 111, 0.15), transparent 45%),
     linear-gradient(160deg, #fce7f3 0%, #e0e7ff 50%, #f8fafc 100%);
   box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+}
+
+[data-theme="light"] .linux-desktop[data-wallpaper="ocean"] {
+  background:
+    radial-gradient(ellipse 90% 70% at 70% 10%, rgba(56, 189, 248, 0.25), transparent 50%),
+    linear-gradient(160deg, #e0f2fe 0%, #bae6fd 45%, #f0f9ff 100%);
+}
+
+[data-theme="light"] .linux-desktop[data-wallpaper="slate"] {
+  background:
+    linear-gradient(165deg, #f1f5f9 0%, #e2e8f0 50%, #f8fafc 100%);
 }
 
 .linux-panel {
@@ -6700,6 +6839,12 @@ html.reduce-motion *::after {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+.linux-panel-end {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 55%;
 }
 
 .linux-panel-btn {
@@ -6770,6 +6915,14 @@ html.reduce-motion *::after {
   opacity: 1;
 }
 
+.linux-panel-link-exit {
+  color: #fda4af;
+}
+
+[data-theme="light"] .linux-panel-link-exit {
+  color: #dc2626;
+}
+
 .linux-panel-clock {
   font-variant-numeric: tabular-nums;
   font-size: 0.85rem;
@@ -6781,9 +6934,68 @@ html.reduce-motion *::after {
   flex: 1;
   min-height: 0;
   position: relative;
-  padding: 1.25rem 1rem 0.5rem;
+  padding: 1.25rem 1rem 1rem;
   display: flex;
   flex-direction: column;
+}
+
+.linux-workspace-empty {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  max-width: 22rem;
+  padding: 1.25rem 1.5rem;
+  text-align: center;
+  border-radius: calc(var(--radius) + 2px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: color-mix(in srgb, var(--surface-solid) 72%, transparent);
+  backdrop-filter: blur(12px);
+  pointer-events: auto;
+}
+
+.linux-workspace-empty[hidden] {
+  display: none !important;
+}
+
+.linux-workspace-empty-title {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.linux-snap-preview {
+  position: absolute;
+  z-index: 4;
+  pointer-events: none;
+  border: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-radius: 6px;
+  transition: all 0.12s ease;
+}
+
+.linux-snap-preview[hidden] {
+  display: none !important;
+}
+
+.linux-snap-preview.is-max {
+  inset: 0.5rem;
+}
+
+.linux-snap-preview.is-left {
+  left: 0.5rem;
+  top: 0.5rem;
+  bottom: 0.5rem;
+  width: calc(50% - 0.75rem);
+}
+
+.linux-snap-preview.is-right {
+  right: 0.5rem;
+  top: 0.5rem;
+  bottom: 0.5rem;
+  left: auto;
+  width: calc(50% - 0.75rem);
 }
 
 .linux-icons {
@@ -6838,45 +7050,60 @@ html.reduce-motion *::after {
   text-shadow: none;
 }
 
-.linux-dock {
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 0.35rem;
-  padding: 0.5rem 0.75rem 0.65rem;
-  flex-shrink: 0;
-  background: rgba(15, 23, 42, 0.45);
-  backdrop-filter: blur(14px);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+.linux-panel-btn-menu.is-active,
+.linux-panel-btn-menu[aria-expanded="true"] {
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
-[data-theme="light"] .linux-dock {
-  background: rgba(255, 255, 255, 0.65);
-  border-top-color: rgba(15, 23, 42, 0.06);
+[data-theme="light"] .linux-panel-btn-menu.is-active,
+[data-theme="light"] .linux-panel-btn-menu[aria-expanded="true"] {
+  background: rgba(15, 23, 42, 0.08);
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.1);
 }
 
-.linux-dock-btn {
-  width: 3.25rem;
-  padding: 0.4rem 0.25rem;
+.linux-start-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.28s var(--ease-smooth);
 }
 
-.linux-dock-btn .linux-icon-glyph {
-  font-size: 1.5rem;
+.linux-start-backdrop.is-open {
+  opacity: 1;
+  pointer-events: auto;
 }
 
-.linux-dock-btn .linux-icon-label {
-  display: none;
+.linux-start-backdrop[hidden] {
+  display: none !important;
 }
 
 .linux-start-menu {
-  position: absolute;
-  inset: 0;
-  z-index: 20;
-  display: flex;
-  align-items: flex-end;
-  justify-content: flex-start;
-  padding: 0 0 3.5rem 0.75rem;
-  background: rgba(0, 0, 0, 0.35);
+  position: fixed;
+  z-index: 210;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  opacity: 0;
+  transform: scale(0.88) translateY(-10px);
+  transform-origin: var(--start-origin-x, 1.25rem) 0;
+  pointer-events: none;
+  transition:
+    opacity 0.26s var(--motion-spring-soft),
+    transform 0.32s var(--motion-spring);
+  filter: drop-shadow(0 20px 50px rgba(0, 0, 0, 0.45));
+}
+
+.linux-start-menu.is-open {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  pointer-events: auto;
 }
 
 .linux-start-menu[hidden] {
@@ -6884,57 +7111,250 @@ html.reduce-motion *::after {
 }
 
 .linux-start-menu-inner {
-  width: min(22rem, calc(100vw - 2rem));
-  max-height: min(28rem, 70vh);
-  overflow: auto;
-  padding: 1rem;
+  width: min(28rem, calc(100vw - 1.5rem));
+  max-height: min(36rem, calc(100vh - 4rem));
+  min-height: 22rem;
+  display: flex;
+  flex-direction: column;
+  padding: 1.1rem 1.15rem 0.95rem;
   margin: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--surface-solid) 92%, transparent);
+  backdrop-filter: blur(32px) saturate(1.4);
+  -webkit-backdrop-filter: blur(32px) saturate(1.4);
+  border: 1px solid var(--border-strong);
+}
+
+.linux-start-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  margin: 0 -0.15rem;
+  padding: 0 0.15rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+.linux-start-scroll::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+}
+
+.linux-start-scroll::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 4px 0;
+}
+
+.linux-start-scroll::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.linux-start-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  background-clip: padding-box;
+}
+
+.linux-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+.linux-scroll::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+
+.linux-scroll::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 4px 0;
+}
+
+.linux-scroll::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.linux-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  background-clip: padding-box;
+}
+
+.linux-scroll::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+@keyframes linux-start-tile-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.linux-start-menu.is-open .linux-start-tile {
+  animation: linux-start-tile-in 0.34s var(--motion-spring-soft) both;
+}
+
+.linux-start-menu.is-open .linux-start-tile:nth-child(1) { animation-delay: 0.04s; }
+.linux-start-menu.is-open .linux-start-tile:nth-child(2) { animation-delay: 0.07s; }
+.linux-start-menu.is-open .linux-start-tile:nth-child(3) { animation-delay: 0.1s; }
+.linux-start-menu.is-open .linux-start-tile:nth-child(4) { animation-delay: 0.13s; }
+.linux-start-menu.is-open .linux-start-tile:nth-child(5) { animation-delay: 0.16s; }
+.linux-start-menu.is-open .linux-start-tile:nth-child(6) { animation-delay: 0.19s; }
+.linux-start-menu.is-open .linux-start-tile:nth-child(7) { animation-delay: 0.22s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .linux-start-backdrop,
+  .linux-start-menu {
+    transition: none;
+  }
+  .linux-start-menu.is-open .linux-start-tile {
+    animation: none;
+  }
+}
+
+.linux-start-search-field {
+  margin: 0 0 0.65rem;
+}
+
+.linux-start-search-field .panel-filter {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.55rem 0.65rem;
+  font-size: 0.9rem;
+}
+
+.linux-start-recent {
+  margin-bottom: 0.5rem;
+}
+
+.linux-start-recent[hidden] {
+  display: none !important;
+}
+
+.linux-start-recent-label {
+  margin: 0 0 0.25rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.linux-start-recent-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.linux-start-recent-btn {
+  padding: 0.28rem 0.55rem;
+  font-size: 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: inherit;
+  cursor: pointer;
+}
+
+.linux-start-recent-btn:hover {
+  border-color: var(--accent);
+}
+
+.linux-start-wallpaper {
+  margin-bottom: 0.5rem;
+}
+
+.linux-start-wallpaper-label {
+  display: block;
+  font-size: 0.72rem;
+  margin-bottom: 0.3rem;
+}
+
+.linux-wallpaper-picks {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.linux-wallpaper-btn {
+  padding: 0.25rem 0.55rem;
+  font-size: 0.72rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: inherit;
+  cursor: pointer;
+}
+
+.linux-wallpaper-btn.is-active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface2));
 }
 
 .linux-start-greeting {
   font-weight: 600;
-  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+  margin: 0 0 0.4rem;
 }
 
 .linux-start-hint {
-  font-size: 0.8rem;
-  margin: 0 0 0.75rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  margin: 0 0 0.85rem;
 }
 
 .linux-start-grid {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  margin-bottom: 0.75rem;
+  gap: 0.45rem;
+  margin-bottom: 0.85rem;
 }
 
 .linux-start-tile {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
+  gap: 0.75rem;
   width: 100%;
-  padding: 0.5rem 0.6rem;
+  padding: 0.65rem 0.75rem;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--surface);
   cursor: pointer;
   text-align: left;
   color: inherit;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    transform 0.2s var(--motion-spring-soft);
 }
 
 .linux-start-tile:hover {
   border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  transform: translateX(2px);
 }
 
 .linux-start-tile-icon {
-  font-size: 1.35rem;
+  font-size: 1.55rem;
 }
 
 .linux-start-tile-text {
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
-  font-size: 0.8rem;
+  gap: 0.15rem;
+  font-size: 0.88rem;
+}
+
+.linux-start-tile-text strong {
+  font-size: 0.95rem;
 }
 
 .linux-start-footer {
@@ -6942,97 +7362,815 @@ html.reduce-motion *::after {
   flex-wrap: wrap;
   gap: 0.5rem;
   justify-content: space-between;
+  flex-shrink: 0;
+  margin-top: 0.5rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--border);
 }
 
-.linux-window-layer {
+.linux-windows {
   position: absolute;
   inset: 0;
-  z-index: 15;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.linux-win {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  min-width: 280px;
+  min-height: 160px;
+  border-radius: 10px;
+  overflow: hidden;
+  isolation: isolate;
+  background: color-mix(in srgb, var(--surface-solid) 94%, transparent);
+  backdrop-filter: blur(40px) saturate(1.35);
+  -webkit-backdrop-filter: blur(40px) saturate(1.35);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+  will-change: transform, opacity, width, height;
+}
+
+.linux-win.is-snapping:not(.is-dragging) {
+  transition:
+    top 0.38s var(--motion-spring),
+    left 0.38s var(--motion-spring),
+    width 0.4s var(--motion-spring),
+    height 0.4s var(--motion-spring),
+    border-radius 0.32s var(--ease-smooth),
+    box-shadow 0.38s var(--ease-smooth);
+}
+
+.linux-win.is-minimizing,
+.linux-win.is-restoring {
+  transition: none !important;
+  pointer-events: none;
+}
+
+.linux-win.is-opening {
+  animation: linux-win-open 0.42s var(--motion-spring) both;
+}
+
+@keyframes linux-win-open {
+  from {
+    opacity: 0;
+    transform: scale(0.82) translateY(12px);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: blur(0);
+  }
+}
+
+[data-theme="light"] .linux-win {
+  background: color-mix(in srgb, var(--surface-solid) 96%, transparent);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+}
+
+.linux-win.is-minimized {
+  display: none;
+}
+
+.linux-win.is-maximized {
+  border-radius: 0;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.linux-win.is-snapping.is-maximized {
+  box-shadow: none;
+}
+
+.linux-win-head {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  background: rgba(0, 0, 0, 0.4);
+  gap: 0.4rem;
+  padding: 0.35rem 0.5rem;
+  background: color-mix(in srgb, var(--surface-solid) 90%, var(--surface2));
+  backdrop-filter: blur(28px) saturate(1.2);
+  -webkit-backdrop-filter: blur(28px) saturate(1.2);
+  border-bottom: 1px solid var(--border);
+  cursor: grab;
+  user-select: none;
+  flex-shrink: 0;
 }
 
-.linux-window-layer[hidden] {
-  display: none !important;
+.linux-win-head:active {
+  cursor: grabbing;
 }
 
-.linux-window {
-  width: min(26rem, 100%);
-  max-height: min(24rem, 85%);
+.linux-win-icon {
+  font-size: 0.95rem;
+}
+
+.linux-win-title {
+  flex: 1;
+  font-size: 0.82rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.linux-win-controls {
+  display: flex;
+  gap: 0.15rem;
+}
+
+.linux-win-btn {
+  width: 1.5rem;
+  height: 1.35rem;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.linux-win-btn:hover {
+  background: var(--surface);
+}
+
+.linux-win-btn-close:hover {
+  background: #ef4444;
+  color: #fff;
+}
+
+.linux-win-btn[data-act="min"]:active {
+  transform: scale(0.88);
+}
+
+.linux-win-btn[data-act="max"]:active {
+  transform: scale(0.88);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .linux-win.is-snapping,
+  .linux-win.is-opening {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+.linux-win-body {
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  background: color-mix(in srgb, var(--surface-solid) 97%, transparent);
 }
 
-.linux-window-head {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.65rem;
-  border-bottom: 1px solid var(--border);
+.linux-win-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  z-index: 2;
 }
 
-.linux-window-dots {
-  display: flex;
-  gap: 0.25rem;
-}
-
-.linux-window-dots i {
-  width: 0.55rem;
-  height: 0.55rem;
-  border-radius: 50%;
-  background: #94a3b8;
-}
-
-.linux-window-dots i:nth-child(1) { background: #f87171; }
-.linux-window-dots i:nth-child(2) { background: #fbbf24; }
-.linux-window-dots i:nth-child(3) { background: #34d399; }
-
-.linux-window-title {
-  flex: 1;
-  margin: 0;
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-.linux-window-close {
-  border: none;
-  background: transparent;
-  font-size: 1.25rem;
-  line-height: 1;
-  cursor: pointer;
-  color: var(--muted);
-  padding: 0 0.25rem;
-}
-
-.linux-window-body {
-  padding: 0.85rem 1rem;
-  overflow: auto;
-  font-size: 0.88rem;
-}
-
-.linux-info-grid {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.35rem 0.75rem;
-  margin: 0;
-}
-
-.linux-info-grid dt {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.8rem;
-}
-
-.linux-info-grid dd {
-  margin: 0;
+.linux-taskbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  flex-shrink: 0;
+  background: rgba(15, 23, 42, 0.5);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  min-height: 2.1rem;
+}
+
+.linux-taskbar-empty {
+  font-size: 0.78rem;
+  padding: 0.15rem 0.35rem;
+}
+
+.linux-taskbar-empty[hidden] {
+  display: none !important;
+}
+
+[data-theme="light"] .linux-taskbar {
+  background: rgba(255, 255, 255, 0.75);
+  border-top-color: rgba(15, 23, 42, 0.08);
+}
+
+.linux-task-btn {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.75rem;
+  background: var(--surface);
+  color: inherit;
+  cursor: pointer;
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.linux-task-btn.is-focused {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.linux-app {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: 0.85rem;
+}
+
+.linux-app-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.linux-files-target {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.linux-target-tabs {
+  display: inline-flex;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.linux-target-btn {
+  padding: 0.2rem 0.55rem;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.linux-target-btn:hover {
+  color: var(--text);
+  background: var(--surface);
+}
+
+.linux-target-btn.active {
+  color: var(--text);
+  background: var(--surface2);
+}
+
+.linux-container-select {
+  flex: 1;
+  min-width: 8rem;
+  max-width: 100%;
+  font-size: 0.78rem;
+  padding: 0.2rem 0.35rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.linux-app-path {
+  padding: 0.25rem 0.6rem;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.75rem;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  word-break: break-all;
+}
+
+.linux-app-list,
+.linux-disks-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.25rem;
+}
+
+.linux-docker-workspace {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.linux-docker-list {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.25rem;
+}
+
+.linux-docker-detail {
+  flex: 0 0 clamp(18rem, 52%, 26rem);
+  max-width: 56%;
+  min-width: 16rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0.55rem 0.65rem;
+  border-left: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface2) 60%, transparent);
+}
+
+.linux-docker-detail-empty {
+  margin: 0.5rem 0;
+  font-size: 0.8rem;
+}
+
+.linux-docker-detail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+
+.linux-docker-detail-head h4 {
+  margin: 0;
+  font-size: 0.9rem;
+  word-break: break-word;
+}
+
+.linux-docker-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0.5rem 0;
+}
+
+.linux-docker-detail-body {
+  font-size: 0.78rem;
+}
+
+.linux-docker-dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.2rem 0.5rem;
+}
+
+.linux-docker-dl dt {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.linux-docker-dl dd {
+  margin: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.linux-docker-detail-body,
+.linux-docker-detail-image,
+.linux-docker-detail-ports,
+.linux-docker-labels li {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.linux-docker-detail code {
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.linux-docker-labels {
+  margin: 0.5rem 0 0;
+  padding-left: 1rem;
+  font-size: 0.72rem;
+}
+
+.linux-docker-card.is-selected {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.linux-docker-card-image,
+.linux-docker-detail-image {
+  font-size: 0.72rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.linux-file-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.linux-file-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.linux-file-row:hover,
+.linux-file-row.is-selected {
+  background: var(--surface2);
+}
+
+.linux-file-row.is-dir .linux-file-name {
+  font-weight: 500;
+}
+
+.linux-file-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.linux-file-meta {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.linux-app-empty {
+  padding: 1rem;
+  text-align: center;
+}
+
+.linux-app-terminal {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.linux-term-toolbar {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0.35rem 0.5rem;
+}
+
+.linux-term-status {
+  margin: 0 0.35rem 0.5rem;
+  flex-shrink: 0;
+}
+
+.linux-term-ended {
+  margin: 0 0.5rem;
+  flex-shrink: 0;
+}
+
+.linux-app-terminal.is-session-ended .linux-term-host {
+  opacity: 0.85;
+}
+
+.linux-term-host {
+  flex: 1;
+  min-height: 0;
+  padding: 0.25rem;
+}
+
+.linux-term-host .xterm {
+  height: 100%;
+}
+
+.terminal-ended-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 0 1rem 0.5rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--border));
+  background: color-mix(in srgb, var(--warn) 14%, var(--surface2));
+  font-size: 0.88rem;
+}
+
+.terminal-ended-banner.hidden {
+  display: none !important;
+}
+
+.linux-notify-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.35rem;
+}
+
+.linux-notify-group-title {
+  margin: 0.35rem 0 0.15rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+
+.linux-notify-item-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
+}
+
+.linux-win-btn-hub {
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
+.terminal-cmd-row:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  outline: none;
+}
+
+.terminal-cmd-section-summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.linux-monitor-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+  padding: 0.65rem;
+  overflow: auto;
+}
+
+.linux-monitor-card {
+  padding: 0.5rem;
+  border-radius: 8px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+}
+
+.linux-monitor-card h4 {
+  margin: 0 0 0.35rem;
+  font-size: 0.8rem;
+}
+
+.linux-monitor-card--wide {
+  grid-column: 1 / -1;
+}
+
+.linux-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.linux-table th,
+.linux-table td {
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.linux-docker-card {
+  padding: 0.5rem 0.6rem;
+  margin-bottom: 0.35rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+}
+
+.linux-docker-card.is-running {
+  border-color: rgba(52, 211, 153, 0.35);
+}
+
+.linux-docker-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.linux-docker-actions {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.linux-docker-all {
+  margin-left: auto;
+  font-size: 0.75rem;
+}
+
+.linux-auto-toolbar {
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.linux-auto-hint {
+  margin: 0;
+  padding: 0 0.5rem 0.35rem;
+  font-size: 0.72rem;
+}
+
+.linux-auto-split {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+.linux-auto-panel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+}
+
+.linux-auto-panel + .linux-auto-panel {
+  border-left: 1px solid var(--border);
+}
+
+.linux-auto-panel-title {
+  margin: 0;
+  padding: 0.4rem 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.linux-auto-rules {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.35rem;
+}
+
+.linux-auto-rule {
+  display: flex;
+  gap: 0.4rem;
+  align-items: flex-start;
+  padding: 0.45rem 0.5rem;
+  margin-bottom: 0.3rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+}
+
+.linux-auto-rule-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.78rem;
+}
+
+.linux-auto-rule-main strong {
+  font-size: 0.82rem;
+}
+
+.linux-auto-rule-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  flex-shrink: 0;
+}
+
+.linux-auto-log {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0.45rem 0.55rem;
+  overflow: auto;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  background: var(--bg);
+  border: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.linux-auto-dialog {
+  max-width: 22rem;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface-solid);
+}
+
+.linux-auto-form {
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.linux-auto-form h3 {
+  margin: 0 0 0.25rem;
+  font-size: 0.95rem;
+}
+
+.linux-auto-form .field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.78rem;
+}
+
+.linux-auto-form .field input {
+  padding: 0.3rem 0.45rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: inherit;
+}
+
+.linux-editor-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin: 0 0.5rem 0.5rem;
+}
+
+.linux-editor-image-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: 0.5rem;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.linux-editor-image-wrap.hidden {
+  display: none !important;
+}
+
+.linux-editor-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.linux-editor-ta {
+  flex: 1;
+  min-height: 120px;
+  padding: 0.5rem;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  resize: none;
+  background: var(--bg);
+  color: inherit;
+}
+
+.linux-editor-ta.hidden,
+.linux-editor-hint.hidden {
+  display: none !important;
+}
+
+.linux-editor-hint {
+  padding: 0.75rem;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.linux-app-files .btn-sudo.is-active {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.linux-editor-path {
+  padding: 0 0.6rem;
+  font-size: 0.72rem;
+  word-break: break-all;
 }
 
 .linux-meter {
@@ -7055,11 +8193,6 @@ html.reduce-motion *::after {
   font-variant-numeric: tabular-nums;
 }
 
-.linux-window-foot {
-  margin: 0.75rem 0 0;
-  font-size: 0.75rem;
-}
-
 .linux-help-list {
   margin: 0;
   padding-left: 1.1rem;
@@ -7069,9 +8202,385 @@ html.reduce-motion *::after {
   margin-bottom: 0.45rem;
 }
 
+.linux-panel-stats {
+  font-size: 0.72rem;
+  margin-left: 0.5rem;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.linux-notify-wrap {
+  position: relative;
+}
+
+.linux-panel-notify-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.linux-panel-notify-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+[data-theme="light"] .linux-panel-notify-btn:hover {
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.linux-notify-badge {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  min-width: 1rem;
+  height: 1rem;
+  padding: 0 0.2rem;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1rem;
+  text-align: center;
+}
+
+.linux-notify-pop {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.35rem;
+  width: min(20rem, 90vw);
+  max-height: 16rem;
+  overflow: auto;
+  z-index: 200;
+  padding: 0.5rem;
+}
+
+.linux-notify-pop-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.linux-notify-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.linux-notify-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  padding: 0.3rem 0.35rem;
+  border-radius: 6px;
+  background: var(--surface2);
+}
+
+.linux-notify-item--error {
+  border-left: 3px solid #ef4444;
+}
+
+.linux-ssh-banner {
+  padding: 0.4rem 0.75rem;
+  background: rgba(239, 68, 68, 0.15);
+  border-bottom: 1px solid rgba(239, 68, 68, 0.35);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.linux-desktop.is-ssh-down .linux-windows {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.linux-win.is-ssh-blocked {
+  filter: grayscale(0.4);
+}
+
+.linux-win.is-closing {
+  pointer-events: none;
+}
+
+.linux-alt-tab {
+  position: fixed;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  z-index: 120;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  max-width: 90vw;
+  padding: 0.65rem;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-solid) 92%, transparent);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+}
+
+.linux-alt-tab[hidden],
+.linux-alt-tab:empty {
+  display: none !important;
+}
+
+.linux-alt-item {
+  padding: 0.4rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.linux-alt-item.is-current {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface2));
+}
+
+.linux-breadcrumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.linux-bc-sep {
+  color: var(--muted);
+  margin: 0 0.1rem;
+}
+
+.linux-bc-btn {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-size: inherit;
+  font-family: var(--font-mono, monospace);
+  cursor: pointer;
+  padding: 0.1rem 0.2rem;
+  border-radius: 4px;
+}
+
+.linux-bc-btn:disabled {
+  color: var(--text);
+  cursor: default;
+  font-weight: 600;
+}
+
+.linux-drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 2px dashed var(--accent);
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.linux-app-files {
+  position: relative;
+}
+
+.linux-fav-select,
+.linux-docker-filter {
+  max-width: 9rem;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.35rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: inherit;
+}
+
+.linux-docker-filter {
+  flex: 1;
+  min-width: 6rem;
+  max-width: 12rem;
+}
+
+.linux-sys-tabs {
+  display: flex;
+  gap: 0.2rem;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.linux-sys-tab {
+  padding: 0.25rem 0.55rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.linux-sys-tab.active {
+  background: var(--surface2);
+  color: var(--text);
+}
+
+.linux-sys-panels {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.linux-sys-panel {
+  padding: 0.5rem;
+}
+
+.linux-sys-panel.hidden {
+  display: none !important;
+}
+
+.linux-sys-card {
+  padding: 0.5rem;
+  margin-bottom: 0.5rem;
+  border-radius: 8px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+}
+
+.linux-sys-scroll {
+  max-height: 100%;
+  overflow: auto;
+}
+
+.linux-sys-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.linux-sys-sudo-chip {
+  font-size: 0.72rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+}
+
+.linux-sys-sudo-chip.is-on {
+  border-color: color-mix(in srgb, var(--success) 45%, var(--border));
+  color: var(--success);
+}
+
+.linux-sys-form {
+  margin-bottom: 0.65rem;
+}
+
+.linux-sys-label {
+  display: block;
+  font-size: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.linux-sys-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.linux-sys-form-row .panel-filter {
+  flex: 1;
+  min-width: 8rem;
+}
+
+.linux-sys-form-row--wrap .linux-sys-gib {
+  width: 4.5rem;
+  flex: 0 0 auto;
+}
+
+.linux-sys-form-row--wrap .linux-sys-fs {
+  width: 5rem;
+  flex: 0 0 auto;
+}
+
+.linux-sys-extend {
+  padding: 0.5rem 0.55rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface2) 80%, transparent);
+}
+
+.linux-sys-actions {
+  white-space: nowrap;
+}
+
+.linux-sys-actions .btn {
+  margin: 0 0.1rem;
+}
+
+.linux-sys-hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+}
+
+.linux-tour-dialog {
+  max-width: 26rem;
+}
+
+.linux-tour-inner {
+  padding: 1rem;
+}
+
+.linux-tour-steps {
+  margin: 0.5rem 0 1rem;
+  padding-left: 1.2rem;
+  font-size: 0.85rem;
+}
+
+.linux-docker-logs-dialog {
+  width: min(42rem, 92vw);
+  max-height: 80vh;
+}
+
+.linux-docker-logs-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.linux-docker-logs-body {
+  max-height: 60vh;
+  margin: 0;
+  overflow: auto;
+  font-size: 0.72rem;
+}
+
 @media (max-width: 640px) {
   .linux-panel-title,
-  .linux-panel-link {
+  .linux-panel-stats,
+  .linux-panel-link:not(.linux-panel-notify-btn) {
     display: none;
   }
   .linux-icons {
