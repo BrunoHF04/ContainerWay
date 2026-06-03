@@ -282,7 +282,11 @@
 
   function onDesktopEnter() {
     hookToasts();
-    applyDesktopWallpaper();
+    window.CWDesktopEnhancements?.applyWallpaperPerHost?.() || applyDesktopWallpaper();
+    window.CWDesktopEnhancements?.applyCompactMode?.();
+    window.CWDesktopEnhancements?.startTransferPoll?.();
+    const soundBtn = document.getElementById("linux-sound-toggle");
+    if (soundBtn) soundBtn.setAttribute("aria-pressed", window.CWWebPrefs?.get?.("desktopSounds") ? "true" : "false");
     setSSHOverlay(!!state.ssh?.connected);
     pollPanelStats();
     if (!window.__cwDesktopStatsTimer) {
@@ -292,6 +296,7 @@
   }
 
   function onDesktopLeave() {
+    window.CWDesktopEnhancements?.stopTransferPoll?.();
     if (window.__cwDesktopStatsTimer) {
       clearInterval(window.__cwDesktopStatsTimer);
       window.__cwDesktopStatsTimer = null;
@@ -322,13 +327,7 @@
   }
 
   function bindWallpaperPicks() {
-    document.getElementById("linux-wallpaper-picks")?.addEventListener("click", (ev) => {
-      const btn = ev.target.closest(".linux-wallpaper-btn");
-      if (!btn) return;
-      const wall = btn.dataset.wall || "ubuntu";
-      window.CWWebPrefs?.set?.("desktopWallpaper", wall);
-      applyDesktopWallpaper();
-    });
+    /* Papel de fundo por host: desktop-enhancements.js */
   }
 
   function bindRestoreDialog() {

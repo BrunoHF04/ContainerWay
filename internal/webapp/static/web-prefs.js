@@ -21,6 +21,8 @@
     terminalFavorites: "",
     transferKeepHistory: true,
     desktopWallpaper: "ubuntu",
+    desktopSounds: false,
+    desktopCompact: false,
     terminalCmdSections: "",
   };
 

@@ -74,7 +74,7 @@
     btn.classList.toggle("is-active", on);
     btn.title = on
       ? `Root/sudo ativo (${user}) — clique para desativar`
-      : "Activar root/sudo para aceder a ficheiros protegidos";
+      : "Ativar root/sudo para acessar arquivos protegidos";
     btn.hidden = !canUseAction("sudo.use");
   }
 
@@ -138,7 +138,7 @@
       };
       body.className = "linux-app linux-app-files";
       body.innerHTML = `
-        <div class="linux-files-target" role="toolbar" aria-label="Destino dos ficheiros">
+        <div class="linux-files-target" role="toolbar" aria-label="Destino dos arquivos">
           <div class="linux-target-tabs" role="group" aria-label="Servidor ou Docker">
             <button type="button" class="linux-target-btn" data-target="host">Servidor</button>
             <button type="button" class="linux-target-btn" data-target="container">Docker</button>
@@ -148,18 +148,20 @@
         <div class="linux-app-toolbar">
           <button type="button" class="btn btn-ghost btn-sm" data-act="up" title="Subir">↑</button>
           <button type="button" class="btn btn-ghost btn-sm" data-act="refresh" title="Atualizar">↻</button>
-          <button type="button" class="btn btn-ghost btn-sm" data-act="open" title="Abrir pasta ou ficheiro">Abrir</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-act="open" title="Abrir pasta ou arquivo">Abrir</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-act="preview" title="Pré-visualizar (Espaço)">👁</button>
           <button type="button" class="btn btn-ghost btn-sm" data-act="mkdir" title="Nova pasta">+ Pasta</button>
-          <button type="button" class="btn btn-ghost btn-sm" data-act="push" title="Enviar ficheiros do PC">↑ PC</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-act="rename" title="Renomear">Renomear</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-act="push" title="Enviar arquivos do PC">↑ PC</button>
           <button type="button" class="btn btn-ghost btn-sm" data-act="pull" title="Baixar para o PC">↓ PC</button>
           <select class="linux-fav-select btn-sm" data-fav title="Favoritos e recentes" aria-label="Atalhos"><option value="">Atalhos…</option></select>
-          <button type="button" class="btn btn-ghost btn-sm btn-sudo" data-act="sudo" title="Activar root/sudo">Root</button>
+          <button type="button" class="btn btn-ghost btn-sm btn-sudo" data-act="sudo" title="Ativar root/sudo">Root</button>
           <button type="button" class="btn btn-ghost btn-sm" data-act="delete" title="Excluir">🗑</button>
           <input type="file" class="linux-upload-input" data-upload multiple hidden />
         </div>
         <div class="linux-app-path" data-path-wrap></div>
         <div class="linux-app-list linux-scroll" data-list tabindex="0" role="listbox" aria-label="Arquivos"></div>
-        <div class="linux-drop-overlay hidden" data-dropzone> Largue ficheiros para enviar </div>`;
+        <div class="linux-drop-overlay hidden" data-dropzone> Solte arquivos para enviar </div>`;
 
       const listEl = body.querySelector("[data-list]");
       const pathWrap = body.querySelector("[data-path-wrap]");
@@ -388,7 +390,7 @@
         }
         if (e.name === "..") return;
         if (!canUseAction("files.read")) {
-          CWUI.toast("Sem permissão para abrir ficheiros.", "error");
+          CWUI.toast("Sem permissão para abrir arquivos.", "error");
           return;
         }
         window.CWDesktop?.openEditor?.(e.path, e.name, ctx.winId, {
@@ -415,7 +417,7 @@
         }
         const target = normPath(path || "/");
         const gen = ++st.loadGen;
-        listEl.innerHTML = `<p class="muted linux-app-empty">A carregar…</p>`;
+        listEl.innerHTML = `<p class="muted linux-app-empty">Carregando…</p>`;
         try {
           const data = await api(`/api/remote/list?path=${encodeURIComponent(target)}${containerQs()}`);
           if (gen !== st.loadGen) return;
@@ -463,10 +465,26 @@
         }
       }
 
+      function previewSelection() {
+        if (!st.sel || st.sel.isDir || st.sel.name === "..") {
+          CWUI.toast("Selecione um arquivo.", "error");
+          return;
+        }
+        window.CWDesktopEnhancements?.openFilePreview?.(
+          st.sel.path,
+          st.target === "container" ? st.containerId : "",
+          st.sel.name
+        );
+      }
+
       listEl.addEventListener("keydown", (ev) => {
         if (ev.key === "Enter" && st.sel) {
           ev.preventDefault();
           openEntry(st.sel);
+        }
+        if (ev.key === " " && st.sel && !st.sel.isDir && st.sel.name !== "..") {
+          ev.preventDefault();
+          previewSelection();
         }
       });
 
@@ -485,16 +503,49 @@
           if (parent) return load(parent.path);
           return;
         }
+        if (act === "preview") return previewSelection();
         if (act === "mkdir") {
-          const name = prompt("Nome da nova pasta:");
-          if (!name?.trim()) return;
-          const newPath = normPath(st.path) + "/" + name.trim();
+          const name = await (window.CWDesktopEnhancements?.linuxPrompt?.({
+            title: "Nova pasta",
+            label: "Nome da pasta",
+          }) ?? Promise.resolve(prompt("Nome da nova pasta:")));
+          if (!name) return;
+          const newPath = normPath(st.path) + "/" + name;
           try {
             await api("/api/remote/mkdir", {
               method: "POST",
               body: JSON.stringify(containerBody({ path: newPath })),
             });
             CWUI.toast("Pasta criada", "success");
+            load(st.path);
+          } catch (e) {
+            CWUI.toast(e.message, "error");
+          }
+          return;
+        }
+        if (act === "rename") {
+          if (!st.sel || st.sel.name === "..") {
+            CWUI.toast("Selecione um item.", "error");
+            return;
+          }
+          if (!canUseAction("files.write")) {
+            CWUI.toast("Sem permissão para renomear.", "error");
+            return;
+          }
+          const name = await (window.CWDesktopEnhancements?.linuxPrompt?.({
+            title: "Renomear",
+            label: "Novo nome",
+            defaultValue: st.sel.name,
+          }) ?? Promise.resolve(prompt("Novo nome:", st.sel.name)));
+          if (!name || name === st.sel.name) return;
+          const dir = st.sel.path.replace(/[/\\][^/\\]+$/, "");
+          const newPath = dir + "/" + name;
+          try {
+            await api("/api/remote/rename", {
+              method: "POST",
+              body: JSON.stringify(containerBody({ oldPath: st.sel.path, newPath })),
+            });
+            CWUI.toast("Renomeado", "success");
             load(st.path);
           } catch (e) {
             CWUI.toast(e.message, "error");
@@ -531,7 +582,7 @@
         }
         if (act === "pull") {
           if (!st.sel || st.sel.name === "..") {
-            CWUI.toast("Selecione um ficheiro ou pasta.", "error");
+            CWUI.toast("Selecione um arquivo ou pasta.", "error");
             return;
           }
           if (!canUseAction("files.transfer")) {
@@ -586,88 +637,180 @@
     singleton: false,
     mount(body, ctx) {
       body.className = "linux-app linux-app-terminal";
-      const statusEl = document.createElement("p");
-      statusEl.className = "terminal-status linux-term-status hidden";
-      statusEl.setAttribute("role", "status");
-      const endedBanner = document.createElement("div");
-      endedBanner.className = "terminal-ended-banner linux-term-ended hidden";
-      endedBanner.setAttribute("role", "alert");
-      endedBanner.innerHTML =
-        '<span>Sessão SSH terminada.</span><button type="button" class="btn btn-primary btn-sm" data-term-reconnect>Reconectar</button>';
-      const host = document.createElement("div");
-      host.className = "linux-term-host";
-      body.append(statusEl, endedBanner, host);
+      body.innerHTML = `
+        <div class="linux-term-chrome">
+          <div class="linux-term-tabs" data-tabs role="tablist"></div>
+          <button type="button" class="btn btn-ghost btn-sm linux-term-add" data-add-tab title="Nova aba">+</button>
+        </div>
+        <div class="linux-term-stack" data-stack></div>`;
+      const tabsEl = body.querySelector("[data-tabs]");
+      const stack = body.querySelector("[data-stack]");
       const fontSize = Number(window.CWWebPrefs?.get?.("terminalFontSize")) || 14;
-      const term = new Terminal({
-        theme: { background: "#1a1a2e", foreground: "#e8eef7", cursor: "#38bdf8" },
-        fontSize,
-      });
-      const fit = new (window.FitAddon?.FitAddon || FitAddon.FitAddon)();
-      term.loadAddon(fit);
-      term.open(host);
-      const logRef = { value: "" };
-      let ws = null;
-      const fitTerm = () => {
+      let tabSeq = 0;
+      const tabs = [];
+      let activeId = null;
+
+      function fitActive() {
+        const t = tabs.find((x) => x.id === activeId);
+        if (!t) return;
         try {
-          fit.fit();
-          if (ws?.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ op: "resize", cols: term.cols, rows: term.rows }));
+          t.fit.fit();
+          if (t.ws?.readyState === WebSocket.OPEN) {
+            t.ws.send(JSON.stringify({ op: "resize", cols: t.term.cols, rows: t.term.rows }));
           }
         } catch (_) { /* */ }
-      };
-      let termApi = null;
-      const connect = () => {
-        endedBanner.classList.add("hidden");
-        body.classList.remove("is-session-ended");
-        if (ws) {
-          ws.close();
-          ws = null;
+      }
+
+      function activateTab(id) {
+        activeId = id;
+        for (const t of tabs) {
+          t.panel.classList.toggle("hidden", t.id !== id);
+          t.tabBtn.classList.toggle("is-active", t.id === id);
         }
-        const containerId = ctx.opts?.containerId || "";
-        ws = new WebSocket(
-          containerId
-            ? dockerExecWSUrl(containerId)
-            : terminalWSUrl(term.cols, term.rows, state.remotePath)
+        const cur = tabs.find((x) => x.id === id);
+        if (cur?.termApi) window.CWTerminalTools?.mountToolbar?.(body, cur.termApi, { statusEl: cur.statusEl });
+        requestAnimationFrame(fitActive);
+      }
+
+      function closeTab(id) {
+        const idx = tabs.findIndex((t) => t.id === id);
+        if (idx < 0) return;
+        const t = tabs[idx];
+        t.ro?.disconnect();
+        t.ws?.close();
+        t.term?.dispose();
+        t.tabBtn.remove();
+        t.panel.remove();
+        tabs.splice(idx, 1);
+        if (activeId === id) {
+          const next = tabs[Math.max(0, idx - 1)];
+          if (next) activateTab(next.id);
+          else activeId = null;
+        }
+      }
+
+      function connectTab(t) {
+        t.endedBanner.classList.add("hidden");
+        t.panel.classList.remove("is-session-ended");
+        if (t.ws) {
+          t.ws.close();
+          t.ws = null;
+        }
+        t.ws = new WebSocket(
+          t.containerId ? dockerExecWSUrl(t.containerId) : terminalWSUrl(t.term.cols, t.term.rows, state.remotePath)
         );
-        ws.onopen = fitTerm;
-        ws.onmessage = (ev) => {
+        t.ws.onopen = () => {
+          try {
+            t.fit.fit();
+            if (t.ws?.readyState === WebSocket.OPEN) {
+              t.ws.send(JSON.stringify({ op: "resize", cols: t.term.cols, rows: t.term.rows }));
+            }
+          } catch (_) { /* */ }
+        };
+        t.ws.onmessage = (ev) => {
           const chunk = typeof ev.data === "string" ? ev.data : "";
           if (chunk) {
             const max = 2 * 1024 * 1024;
-            logRef.value += chunk;
-            if (logRef.value.length > max) logRef.value = logRef.value.slice(-max);
+            t.logRef.value += chunk;
+            if (t.logRef.value.length > max) t.logRef.value = t.logRef.value.slice(-max);
           }
-          term.write(ev.data);
+          t.term.write(ev.data);
         };
-        ws.onclose = () => {
-          term.writeln("\r\n\x1b[33mSessão terminada.\x1b[0m\r\n");
-          endedBanner.classList.remove("hidden");
-          body.classList.add("is-session-ended");
+        t.ws.onclose = () => {
+          t.term.writeln("\r\n\x1b[33mSessão terminada.\x1b[0m\r\n");
+          t.endedBanner.classList.remove("hidden");
+          t.panel.classList.add("is-session-ended");
         };
-        termApi = window.CWTerminalTools?.createTermApi?.(term, ws, { logRef, onReconnect: connect });
-        if (ctx.state) {
-          ctx.state.ws = ws;
-          ctx.state.termApi = termApi;
-        }
-      };
-      term.onData((d) => {
-        if (ws?.readyState === WebSocket.OPEN) ws.send(d);
+        t.termApi = window.CWTerminalTools?.createTermApi?.(t.term, t.ws, { logRef: t.logRef, onReconnect: () => connectTab(t) });
+      }
+
+      function addTab(opts = {}) {
+        const id = ++tabSeq;
+        const panel = document.createElement("div");
+        panel.className = "linux-term-panel";
+        panel.dataset.tabId = String(id);
+        const statusEl = document.createElement("p");
+        statusEl.className = "terminal-status linux-term-status hidden";
+        statusEl.setAttribute("role", "status");
+        const endedBanner = document.createElement("div");
+        endedBanner.className = "terminal-ended-banner linux-term-ended hidden";
+        endedBanner.setAttribute("role", "alert");
+        endedBanner.innerHTML =
+          '<span>Sessão terminada.</span><button type="button" class="btn btn-primary btn-sm" data-term-reconnect>Reconectar</button>';
+        const host = document.createElement("div");
+        host.className = "linux-term-host";
+        panel.append(statusEl, endedBanner, host);
+        stack.appendChild(panel);
+        const term = new Terminal({
+          theme: { background: "#1a1a2e", foreground: "#e8eef7", cursor: "#38bdf8" },
+          fontSize,
+        });
+        const fit = new (window.FitAddon?.FitAddon || FitAddon.FitAddon)();
+        term.loadAddon(fit);
+        term.open(host);
+        const logRef = { value: "" };
+        const containerId = opts.containerId || "";
+        const label = opts.label || (containerId ? `🐳 ${(opts.containerName || "Docker").slice(0, 14)}` : `SSH ${tabs.length + 1}`);
+        const tabBtn = document.createElement("button");
+        tabBtn.type = "button";
+        tabBtn.className = "linux-term-tab";
+        tabBtn.setAttribute("role", "tab");
+        tabBtn.title = label;
+        const labelSpan = document.createElement("span");
+        labelSpan.className = "linux-term-tab-label";
+        labelSpan.textContent = label;
+        const closeBtn = document.createElement("button");
+        closeBtn.type = "button";
+        closeBtn.className = "linux-term-tab-close";
+        closeBtn.textContent = "×";
+        closeBtn.title = "Fechar aba";
+        closeBtn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          if (tabs.length < 2) {
+            CWUI.toast("Mantenha pelo menos uma aba.", "info");
+            return;
+          }
+          closeTab(id);
+        });
+        tabBtn.append(labelSpan, closeBtn);
+        tabsEl.appendChild(tabBtn);
+        const t = { id, panel, tabBtn, host, term, fit, ws: null, logRef, termApi: null, statusEl, endedBanner, containerId };
+        tabBtn.addEventListener("click", () => activateTab(id));
+        endedBanner.querySelector("[data-term-reconnect]")?.addEventListener("click", () => connectTab(t));
+        term.onData((d) => {
+          if (t.ws?.readyState === WebSocket.OPEN) t.ws.send(d);
+        });
+        const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => {
+          if (activeId === id) fitActive();
+        }) : null;
+        ro?.observe(host);
+        t.ro = ro;
+        tabs.push(t);
+        connectTab(t);
+        activateTab(id);
+        return t;
+      }
+
+      body.querySelector("[data-add-tab]")?.addEventListener("click", () => addTab());
+      addTab({
+        containerId: ctx.opts?.containerId || "",
+        containerName: ctx.opts?.containerName || "",
+        label: ctx.opts?.containerId
+          ? `🐳 ${(ctx.opts.containerName || "Docker").replace(/^\//, "").slice(0, 18)}`
+          : "SSH",
       });
-      const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(fitTerm) : null;
-      ro?.observe(host);
-      connect();
-      requestAnimationFrame(fitTerm);
-      window.CWTerminalTools?.mountToolbar?.(body, termApi, { statusEl });
-      endedBanner.querySelector("[data-term-reconnect]")?.addEventListener("click", connect);
-      ctx.state = { term, fit, ws, ro, host, fitTerm, logRef, termApi, statusEl, connect };
-      ctx.onFocus = fitTerm;
+      ctx.state = { tabs, fitActive, addTab, closeTab };
+      ctx.onFocus = fitActive;
     },
     unmount(ctx) {
       const s = ctx.state;
-      if (!s) return;
-      s.ro?.disconnect();
-      s.ws?.close();
-      s.term?.dispose();
+      if (!s?.tabs) return;
+      for (const t of [...s.tabs]) {
+        t.ro?.disconnect();
+        t.ws?.close();
+        t.term?.dispose();
+      }
+      s.tabs.length = 0;
     },
   });
 
@@ -684,7 +827,7 @@
     singleton: true,
     mount(body, ctx) {
       body.className = "linux-app linux-app-monitor";
-      body.innerHTML = `<div class="linux-monitor-grid" data-body><p class="muted">A carregar…</p></div>`;
+      body.innerHTML = `<div class="linux-monitor-grid" data-body><p class="muted">Carregando…</p></div>`;
       const grid = body.querySelector("[data-body]");
       const render = (ov) => {
         if (!ov) {
@@ -742,7 +885,7 @@
     singleton: true,
     mount(body, ctx) {
       body.className = "linux-app linux-app-disks";
-      body.innerHTML = `<div class="linux-disks-list" data-list><p class="muted">A carregar…</p></div>`;
+      body.innerHTML = `<div class="linux-disks-list" data-list><p class="muted">Carregando…</p></div>`;
       const list = body.querySelector("[data-list]");
       const load = async () => {
         try {
@@ -817,12 +960,12 @@
         el.classList.toggle("is-on", on);
         el.title = on
           ? "Sudo ativo — pode alterar rede, serviços e volumes"
-          : "Active o sudo (botão Root no hub ou painel) para alterações no host";
+          : "Ative o sudo (botão Root no hub ou painel) para alterações no host";
       }
 
       async function loadOverview() {
         const p = panels.overview;
-        p.innerHTML = `<p class="muted">A carregar…</p>`;
+        p.innerHTML = `<p class="muted">Carregando…</p>`;
         try {
           const ov = await api("/api/desktop/overview", { noAuthRedirect: true });
           window.CWDesktop?.setOverviewCache?.(ov);
@@ -846,7 +989,7 @@
       async function loadNetwork() {
         const p = panels.network;
         const manage = canManageHost();
-        p.innerHTML = `<p class="muted">A carregar…</p>`;
+        p.innerHTML = `<p class="muted">Carregando…</p>`;
         try {
           await syncDesktopSudo();
           const net = await api("/api/desktop/network", { noAuthRedirect: true });
@@ -976,7 +1119,7 @@
         const p = panels.storage;
         const manageDisks = canManageDisks();
         const manageHost = canManageHost();
-        p.innerHTML = `<p class="muted">A carregar…</p>`;
+        p.innerHTML = `<p class="muted">Carregando…</p>`;
         try {
           await syncDesktopSudo();
           const data = await api("/api/disks/probe?sort=lsblk");
@@ -1001,6 +1144,14 @@
               ${manageHost ? '<button type="button" class="btn btn-ghost btn-sm" data-sys-sudo-btn>Root / sudo</button>' : ""}
               ${canUseScreen("disks") ? '<button type="button" class="btn btn-ghost btn-sm" data-stor-hub>Discos no hub</button>' : ""}
             </div>
+            <form class="linux-sys-form linux-sys-usage" data-usage-form>
+              <label class="linux-sys-label">Uso por pasta no servidor</label>
+              <div class="linux-sys-form-row linux-sys-form-row--wrap">
+                <input type="text" class="panel-filter" name="usagePath" placeholder="/var/log" value="/var/log" autocomplete="off" />
+                <button type="submit" class="btn btn-ghost btn-sm">Analisar</button>
+              </div>
+            </form>
+            <div class="linux-sys-usage-result" data-usage-result hidden></div>
             ${
               manageDisks
                 ? `<form class="linux-sys-form linux-sys-extend" data-stor-extend>
@@ -1022,11 +1173,37 @@
           p.querySelector("[data-stor-refresh]")?.addEventListener("click", () => loadStorage());
           p.querySelector("[data-sys-sudo-btn]")?.addEventListener("click", () => void desktopToggleSudo());
           p.querySelector("[data-stor-hub]")?.addEventListener("click", () => window.CWDesktop?.openAppInHub?.("disks"));
+          p.querySelector("[data-usage-form]")?.addEventListener("submit", async (ev) => {
+            ev.preventDefault();
+            const dir = ev.target.usagePath?.value?.trim() || "/";
+            const box = p.querySelector("[data-usage-result]");
+            if (!box) return;
+            box.hidden = false;
+            box.innerHTML = `<p class="muted">Analisando ${escapeHtml(dir)}…</p>`;
+            try {
+              const data = await api(`/api/disks/usage?path=${encodeURIComponent(dir)}`);
+              const entries = (data.entries || []).slice(0, 12);
+              if (!entries.length) {
+                box.innerHTML = `<p class="muted">Nenhum item em ${escapeHtml(dir)}.</p>`;
+                return;
+              }
+              const max = entries[0]?.sizeBytes || 1;
+              const rows = entries
+                .map((e) => {
+                  const pct = Math.round(((e.sizeBytes || 0) / max) * 100);
+                  return `<tr><td>${escapeHtml(e.name)}</td><td><div class="linux-meter"><div class="linux-meter-fill" style="width:${pct}%"></div></div></td><td class="muted">${escapeHtml(formatSize(e.sizeBytes))}</td></tr>`;
+                })
+                .join("");
+              box.innerHTML = `<table class="linux-table linux-table--compact"><thead><tr><th>Pasta/arquivo</th><th></th><th>Tamanho</th></tr></thead><tbody>${rows}</tbody></table>`;
+            } catch (e) {
+              box.innerHTML = `<p class="error">${escapeHtml(e.message)}</p>`;
+            }
+          });
           p.querySelector("[data-stor-extend]")?.addEventListener("submit", async (ev) => {
             ev.preventDefault();
             await syncDesktopSudo();
             if (!state.sudo?.enabled) {
-              CWUI.toast("Active o sudo para ampliar volumes.", "warning");
+              CWUI.toast("Ative o sudo para ampliar volumes.", "warning");
               return;
             }
             const lv = ev.target.lv?.value?.trim() || ev.target.lvPath?.value?.trim();
@@ -1061,7 +1238,7 @@
       async function loadServices() {
         const p = panels.services;
         const manage = canManageHost();
-        p.innerHTML = `<p class="muted">A carregar…</p>`;
+        p.innerHTML = `<p class="muted">Carregando…</p>`;
         try {
           await syncDesktopSudo();
           const data = await api("/api/desktop/services", { noAuthRedirect: true });
@@ -1171,6 +1348,32 @@
       let allItems = [];
       let selectedId = null;
       let detailLoadedFor = null;
+      let statsPollTimer = null;
+      const statsSamples = new Map();
+      ctx.state = { statsSamples };
+
+      function stopStatsPoll() {
+        if (statsPollTimer) {
+          clearInterval(statsPollTimer);
+          statsPollTimer = null;
+        }
+      }
+
+      async function pollDetailStats(id) {
+        const spark = detail.querySelector("[data-docker-spark]");
+        if (!spark || selectedId !== id) return;
+        try {
+          const data = await api(`/api/docker/stats?id=${encodeURIComponent(id)}`);
+          const m = data.metrics || {};
+          const cpu = m.cpuPercent ?? 0;
+          const mem = m.memPercent ?? 0;
+          let arr = (statsSamples.get(id) || []).slice();
+          arr.push({ cpu, mem });
+          if (arr.length > 28) arr = arr.slice(-28);
+          statsSamples.set(id, arr);
+          window.CWDesktopEnhancements?.renderDockerStats?.(spark, arr);
+        } catch (_) { /* */ }
+      }
 
       function shortText(s, max = 56) {
         const t = String(s || "");
@@ -1279,6 +1482,7 @@
         const name = containerName(c);
         const running = !!(c.running || c.state === "running");
         selectedId = id;
+        stopStatsPoll();
         list.querySelectorAll(".linux-docker-card").forEach((el) => el.classList.remove("is-selected"));
         card?.classList.add("is-selected");
         if (!force && detailLoadedFor === id && detail.querySelector(".linux-docker-detail-head")) {
@@ -1320,6 +1524,7 @@
             <span class="linux-docker-state">${escapeHtml(c.state || "—")}</span>
           </header>
           <p class="muted">${escapeHtml(metrics)}</p>
+          <div class="linux-docker-spark" data-docker-spark aria-label="Histórico CPU/RAM"></div>
           <p class="muted linux-docker-detail-image" title="${escapeHtml(c.image || "")}">${escapeHtml(shortText(c.image || "", 80))}</p>
           ${c.ports ? `<p class="muted linux-docker-detail-ports"><strong>Portas:</strong> ${escapeHtml(c.ports)}</p>` : ""}
           <div class="linux-docker-detail-actions" data-detail-actions></div>
@@ -1332,7 +1537,19 @@
             addActionBtn(actions, "Logs", "btn btn-ghost btn-sm", () => openLogs(id, name));
           }
         }
+        if (canUseAction("automations.manage")) {
+          addActionBtn(actions, "Regra auto", "btn btn-ghost btn-sm", () =>
+            window.CWDesktopEnhancements?.createDockerAutoRule?.(name)
+          );
+        }
         appendLifecycleActions(actions, c, id, running);
+        if (running) {
+          void pollDetailStats(id);
+          statsPollTimer = setInterval(() => pollDetailStats(id), 3000);
+        } else {
+          const spark = detail.querySelector("[data-docker-spark]");
+          window.CWDesktopEnhancements?.renderDockerStats?.(spark, statsSamples.get(id) || []);
+        }
       }
 
       const load = async () => {
@@ -1567,6 +1784,12 @@
           }
           setDirty(false);
           renderRules();
+          window.CWDesktopEnhancements?.applyDockerAutomationPrefill?.(
+            rules,
+            setDirty,
+            renderRules,
+            openRuleDialog
+          );
           log.textContent = (hist.lines || []).join("\n") || "(histórico vazio)";
         } catch (e) {
           rulesBox.innerHTML = `<p class="error">${escapeHtml(e.message)}</p>`;
@@ -1664,7 +1887,7 @@
     id: "editor",
     label: "Editor",
     icon: "📝",
-    desc: "Editar ficheiro",
+    desc: "Editar arquivo",
     hidden: true,
     screen: "desktop",
     w: 620,
@@ -1717,7 +1940,7 @@
       }
 
       async function loadFile() {
-        ta.value = "A carregar…";
+        ta.value = "Carregando…";
         ta.disabled = true;
         ta.classList.remove("hidden");
         imgWrap.classList.add("hidden");
@@ -1744,9 +1967,9 @@
         } catch (e) {
           setEditorMode("binary");
           hint.classList.remove("hidden");
-          hint.textContent = e.message || "Erro ao abrir ficheiro.";
+          hint.textContent = e.message || "Erro ao abrir arquivo.";
           if (/permissão negada|sudo/i.test(hint.textContent)) {
-            hint.textContent += " Active o botão Root na janela Arquivos e abra de novo.";
+            hint.textContent += " Ative o botão Root na janela Arquivos e abra de novo.";
           }
         }
       }
@@ -1807,7 +2030,7 @@
       body.className = "linux-app linux-app-help";
       body.innerHTML = `
         <ul class="linux-help-list">
-          <li><strong>Arquivos</strong> — servidor ou Docker; ↑ PC / largar ficheiros para enviar; atalhos de pastas.</li>
+          <li><strong>Arquivos</strong> — servidor ou Docker; ↑ PC / soltar arquivos para enviar; renomear e pré-visualizar.</li>
           <li><strong>Sistema</strong> — rede (hostname, DNS, interfaces), LVM e serviços (com sudo).</li>
           <li><strong>Docker</strong> — arquivos, console e logs por container; clique no card para detalhes.</li>
           <li><strong>Automações</strong> — ligue o motor, edite regras de reinício e veja o histórico.</li>

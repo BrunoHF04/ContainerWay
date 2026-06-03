@@ -107,7 +107,9 @@
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "linux-task-btn" + (w.minimized ? "" : " is-active") + (w.focused && !w.minimized ? " is-focused" : "");
-      btn.textContent = w.title;
+      const app = CWDesktopApps.get(w.appId);
+      const glyph = app?.icon || "▣";
+      btn.innerHTML = `<span class="linux-task-icon" aria-hidden="true">${glyph}</span><span class="linux-task-label">${escapeHtml(w.title)}</span>`;
       btn.title = taskHintFor(w);
       btn.dataset.winId = w.id;
       btn.addEventListener("click", () => {
@@ -230,7 +232,7 @@
     }
     if (!wasFocused) win.ctx.onFocus?.();
     if (win.appId === "terminal") {
-      requestAnimationFrame(() => win.ctx.state?.fitTerm?.());
+      requestAnimationFrame(() => win.ctx.state?.fitActive?.());
     }
     renderTaskbar();
     scheduleSaveSession();
@@ -288,7 +290,7 @@
     applyGeometry(win);
     focusWindow(id);
     if (win.appId === "terminal") {
-      requestAnimationFrame(() => win.ctx.state?.fitTerm?.());
+      requestAnimationFrame(() => win.ctx.state?.fitActive?.());
     }
     setTimeout(() => {
       win.el.classList.remove("is-snapping");
@@ -464,7 +466,7 @@
         win.w = Math.max(280, Math.min(area.w - win.x, drag.w + (ev.clientX - drag.startX)));
         win.h = Math.max(160, Math.min(area.h - win.y, drag.h + (ev.clientY - drag.startY)));
         applyGeometry(win);
-        if (win.appId === "terminal") win.ctx.state?.fitTerm?.();
+        if (win.appId === "terminal") win.ctx.state?.fitActive?.();
       } else {
         win.x = Math.max(0, Math.min(area.w - 120, ev.clientX - area.left - drag.dx));
         win.y = Math.max(0, Math.min(area.h - 40, ev.clientY - area.top - drag.dy));
@@ -890,7 +892,7 @@
     renderLaunchers();
     updatePanelChrome();
     startPoll();
-    window.CWDesktopCore?.applyDesktopWallpaper?.();
+    window.CWDesktopEnhancements?.applyWallpaperPerHost?.() || window.CWDesktopCore?.applyDesktopWallpaper?.();
     window.CWDesktopCore?.onDesktopEnter?.();
     updateWorkspaceEmpty();
     if (state.ssh.connected) maybeRestoreSession();
@@ -940,7 +942,8 @@
   document.addEventListener("cw-desktop-onboarded", updateWorkspaceEmpty);
 
   document.addEventListener("cw-pref-change", (ev) => {
-    if (ev.detail?.name === "desktopWallpaper") window.CWDesktopCore?.applyDesktopWallpaper?.();
+    if (ev.detail?.name === "desktopWallpaper")
+      window.CWDesktopEnhancements?.applyWallpaperPerHost?.() || window.CWDesktopCore?.applyDesktopWallpaper?.();
   });
 
   document.addEventListener("click", (ev) => {
@@ -976,6 +979,8 @@
     openContainerFiles,
     openContainerTerminal,
     closeFocusedWindow,
+    closeAllWindows,
+    closeStartMenu,
     minimizeAll,
     cycleWindows,
     restoreSessionNow,

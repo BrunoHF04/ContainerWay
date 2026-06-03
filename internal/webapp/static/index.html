@@ -175,6 +175,7 @@
             </div>
             <div class="linux-panel-center">
               <span class="linux-panel-pill" id="linux-panel-ssh" title="Estado SSH">SSH</span>
+              <span class="linux-panel-pill linux-panel-xfer" id="linux-panel-transfer" hidden title="Transferências">⇅</span>
               <span class="linux-panel-stats muted" id="linux-panel-stats" title="Resumo do host">—</span>
             </div>
             <div class="linux-panel-end">
@@ -234,6 +235,11 @@
               <div class="linux-start-scroll">
                 <div class="linux-start-grid" id="linux-start-grid"></div>
               </div>
+              <div class="linux-start-tools">
+                <button type="button" class="btn btn-ghost btn-sm" id="linux-compact-toggle" aria-pressed="false" title="Ícones compactos na barra de tarefas">Compacto</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="linux-sound-toggle" aria-pressed="false" title="Sons nas notificações">Som</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="linux-start-close-all" title="Fechar todas as janelas">Fechar todas</button>
+              </div>
               <div class="linux-start-footer">
                 <button type="button" class="btn btn-ghost btn-sm" id="linux-start-close">Fechar menu</button>
                 <button type="button" class="btn btn-ghost btn-sm" id="linux-start-hub">Abrir menu técnico</button>
@@ -266,6 +272,25 @@
                 <button type="button" class="btn btn-primary" id="linux-restore-ok">Restaurar</button>
               </div>
             </div>
+          </dialog>
+
+          <dialog id="linux-input-dialog" class="modal-dialog linux-input-dialog">
+            <form method="dialog" class="modal-form" id="linux-input-form">
+              <h3 id="linux-input-title">Informe</h3>
+              <label class="field"><span data-input-label>Nome</span><input name="value" type="text" required autocomplete="off" /></label>
+              <div class="btn-row end">
+                <button type="button" class="btn btn-ghost" id="linux-input-cancel">Cancelar</button>
+                <button type="submit" class="btn btn-primary">OK</button>
+              </div>
+            </form>
+          </dialog>
+
+          <dialog id="linux-preview-dialog" class="modal-dialog linux-preview-dialog">
+            <header class="linux-preview-head">
+              <h3 id="linux-preview-title">Pré-visualização</h3>
+              <button type="button" class="btn btn-ghost btn-sm" id="linux-preview-close">Fechar</button>
+            </header>
+            <div id="linux-preview-body" class="linux-preview-body"></div>
           </dialog>
 
           <dialog id="linux-docker-logs-dialog" class="modal-dialog linux-docker-logs-dialog">
@@ -1541,6 +1566,7 @@
   <script src="/screen-help.js"></script>
   <script src="/desktop-apps.js"></script>
   <script src="/desktop-core.js"></script>
+  <script src="/desktop-enhancements.js"></script>
   <script src="/desktop.js"></script>
   <script src="/app-ui.js"></script>
   <script src="/motion.js"></script>

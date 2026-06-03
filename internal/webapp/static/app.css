@@ -8588,3 +8588,197 @@ body:has(#app.app-desktop-mode) > .ambient {
     flex-wrap: wrap;
   }
 }
+
+/* Ambiente Linux — melhorias (transfer, taskbar, terminal tabs, spark, preview) */
+.linux-panel-xfer {
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+}
+
+.linux-start-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0 0.75rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.linux-task-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 11rem;
+}
+
+.linux-task-icon {
+  flex-shrink: 0;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.linux-task-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.linux-desktop.is-compact .linux-task-btn {
+  max-width: 2.4rem;
+  padding-inline: 0.35rem;
+}
+
+.linux-desktop.is-compact .linux-task-label {
+  display: none;
+}
+
+.linux-term-chrome {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.35rem 0;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.linux-term-tabs {
+  display: flex;
+  flex: 1;
+  gap: 0.2rem;
+  overflow-x: auto;
+  min-width: 0;
+}
+
+.linux-term-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 6px 6px 0 0;
+  background: var(--surface-2);
+  font-size: 0.72rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.linux-term-tab.is-active {
+  background: var(--surface);
+  border-bottom-color: transparent;
+}
+
+.linux-term-tab-label {
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.linux-term-tab-close {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0 0.15rem;
+  line-height: 1;
+  font-size: 0.85rem;
+}
+
+.linux-term-tab-close:hover {
+  color: var(--text);
+}
+
+.linux-term-stack {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.linux-term-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.linux-term-panel.hidden {
+  display: none;
+}
+
+.linux-app-terminal .linux-term-host {
+  flex: 1;
+  min-height: 120px;
+}
+
+.linux-spark-wrap {
+  margin: 0.5rem 0;
+  font-size: 0.68rem;
+}
+
+.linux-spark-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 40px;
+  margin: 0.15rem 0 0.35rem;
+}
+
+.linux-spark {
+  display: inline-block;
+  width: 5px;
+  min-height: 4px;
+  border-radius: 2px 2px 0 0;
+  background: var(--accent);
+  opacity: 0.75;
+}
+
+.linux-spark.is-mem {
+  background: #38bdf8;
+}
+
+.linux-preview-dialog {
+  width: min(92vw, 720px);
+  max-height: 85vh;
+}
+
+.linux-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.linux-preview-body {
+  max-height: 70vh;
+  overflow: auto;
+  padding: 0.75rem;
+}
+
+.linux-preview-img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+.linux-preview-text {
+  margin: 0;
+  font-size: 0.72rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.linux-sys-usage {
+  margin-bottom: 0.75rem;
+}
+
+.linux-sys-usage-result {
+  margin-bottom: 0.75rem;
+}
+
+.linux-table--compact td,
+.linux-table--compact th {
+  padding: 0.25rem 0.4rem;
+  font-size: 0.72rem;
+}
