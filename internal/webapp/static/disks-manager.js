@@ -507,13 +507,13 @@
     if (!detail) return;
 
     const sel = $("#disks-lv-select");
-    let dev = pathInput?.value?.trim() || "";
+    let dev = canonicalLvPath(pathInput?.value?.trim() || "");
     if (sel?.value) {
-      dev = sel.value;
+      dev = canonicalLvPath(sel.value);
       if (pathInput) pathInput.value = dev;
     }
 
-    const row = state.rows.find((r) => r.devPath === dev);
+    const row = findRowForLv(dev);
     if (!dev) {
       detail.innerHTML = detailGrid([
         [t("disks.detail.mount"), "—"],
@@ -525,11 +525,14 @@
       return;
     }
     if (!row) {
+      const rec = resolveLvRecord(dev);
+      const rootRow = state.rows.find((r) => String(r.mount || "").trim() === "/");
+      const show = rootRow && lvPathsEquivalent(rootRow.devPath, dev) ? rootRow : null;
       detail.innerHTML = detailGrid([
-        [t("disks.detail.mount"), "—"],
-        [t("disks.detail.type"), "—"],
-        [t("disks.detail.fs"), "—"],
-        [t("disks.detail.usage"), "—"],
+        [t("disks.detail.mount"), show ? emptyDash(show.mount) : "—"],
+        [t("disks.detail.type"), show ? emptyDash(show.typeLabel) : rec ? "LVM" : "—"],
+        [t("disks.detail.fs"), show ? emptyDash(show.fstype) : "—"],
+        [t("disks.detail.usage"), show?.usageLine || "—"],
       ]);
     } else {
       const bar =
@@ -555,6 +558,7 @@
     refreshVgSummary(dev);
     renderSnapList(dev);
     updateSizeModeHint();
+    updateShrinkControls(row, dev);
     const analyzeBtn = $("#disks-analyze-mount");
     if (analyzeBtn) {
       const row = findRowForLv(dev);
@@ -562,22 +566,84 @@
     }
   }
 
-  function findVgForDev(dev) {
+  function lvRecordMatchesPath(rec, dev) {
+    if (!rec || !dev) return false;
+    const d = String(dev).trim();
+    if (rec.path === d) return true;
+    if (!rec.vg || !rec.lvName) return false;
+    const direct = `/dev/${rec.vg}/${rec.lvName}`;
+    if (d === direct) return true;
+    const enc = (s) => String(s).replace(/-/g, "--");
+    const mapper = `/dev/mapper/${enc(rec.vg)}-${enc(rec.lvName)}`;
+    if (d === mapper || d === `/dev/${mapper.slice("/dev/mapper/".length)}`) return true;
+    return false;
+  }
+
+  function resolveLvRecord(dev) {
+    const d = String(dev ?? "").trim();
+    if (!d) return null;
     for (const r of state.lvRecords || []) {
-      if (r.path === dev && r.vg) return r.vg;
+      if (lvRecordMatchesPath(r, d)) return r;
     }
+    return null;
+  }
+
+  function lvPathsEquivalent(a, b) {
+    if (!a || !b) return false;
+    if (a === b) return true;
+    const ra = resolveLvRecord(a);
+    const rb = resolveLvRecord(b);
+    if (ra && rb && ra.path && ra.path === rb.path) return true;
+    if (ra && lvRecordMatchesPath(ra, b)) return true;
+    if (rb && lvRecordMatchesPath(rb, a)) return true;
+    return canonicalLvPath(a) === canonicalLvPath(b);
+  }
+
+  function findVgForDev(dev) {
+    const rec = resolveLvRecord(dev);
+    if (rec?.vg) return rec.vg;
     const lines = (state.lvs || "").split("\n");
     for (const line of lines) {
-      const t = line.trim();
-      if (!t || t.startsWith("LV Path") || t.startsWith("Path")) continue;
-      const fields = t.split(/\s+/);
-      if (fields[0] === dev && fields[1]) return fields[1];
+      const parts = line.trim().split(/\s+/);
+      if (parts[0] && lvPathsEquivalent(parts[0], dev) && parts[1]) return parts[1];
     }
     return "";
   }
 
   function findRowForLv(dev) {
-    return state.rows.find((r) => r.devPath === dev);
+    if (!dev) return undefined;
+    let row = state.rows.find((r) => lvPathsEquivalent(r.devPath, dev));
+    if (!row) {
+      const root = state.rows.find((r) => String(r.mount || "").trim() === "/");
+      if (root && lvPathsEquivalent(root.devPath, dev)) row = root;
+    }
+    return row;
+  }
+
+  /** Caminho aceite por lvreduce/lvextend (corrige /dev/ubuntu--vg-… → /dev/mapper/…). */
+  function canonicalLvPath(dev) {
+    const d = String(dev ?? "").trim();
+    if (!d) return "";
+    const rec = resolveLvRecord(d);
+    if (rec?.path) return rec.path;
+    if (d.startsWith("/dev/") && !d.startsWith("/dev/mapper/") && d.includes("--")) {
+      return `/dev/mapper/${d.slice(5)}`;
+    }
+    return d;
+  }
+
+  /** GiB (LVM) → GB decimal para exibição. */
+  function lvmGiBToDisplayGB(g) {
+    const n = Number(g) || 0;
+    return n > 0 ? (n * 1024 ** 3) / 1e9 : 0;
+  }
+
+  function formatVgStat(st, field) {
+    const human = st[field === "size" ? "sizeHuman" : "freeHuman"];
+    if (human && String(human).trim() && human !== "—") return human;
+    const gib = st[field === "size" ? "sizeGiB" : "freeGiB"];
+    const gb = lvmGiBToDisplayGB(gib);
+    return gb > 0 ? `${formatGb(gb)} GB` : "—";
   }
 
   function refreshVgSummary(dev) {
@@ -595,8 +661,8 @@
     }
     box.textContent = t("disks.vg.summary", {
       vg,
-      size: st.sizeHuman || st.sizeGiB,
-      free: st.freeHuman || st.freeGiB,
+      size: formatVgStat(st, "size"),
+      free: formatVgStat(st, "free"),
     });
   }
 
@@ -673,9 +739,6 @@
         ? "disks.confirm.extendDeltaDetail"
         : "disks.confirm.shrinkDeltaDetail";
     let body = t(detailKey, vars);
-    if (action === "shrink" && row?.mount === "/") {
-      body += "\n\n" + t("disks.shrink.rootWarn");
-    }
     return {
       title: t(action === "extend" ? "disks.confirm.extendTitle" : "disks.confirm.shrinkTitle"),
       body,
@@ -687,10 +750,13 @@
   function updateSizeModeHint() {
     const el = $("#disks-size-mode-hint");
     if (!el) return;
-    const { gib, sizeMode, row } = assistantContext();
-    const lv = $("#disks-lv-path")?.value?.trim() || selectedLvPath();
+    const { gib, sizeMode, row, lv } = assistantContext();
     if (!lv) {
       el.textContent = "";
+      return;
+    }
+    if (isRootLv(lv, row)) {
+      el.textContent = t("disks.shrink.rootBlocked");
       return;
     }
     if (!gib || gib <= 0) {
@@ -731,7 +797,17 @@
     return data;
   }
 
-  function validateShrinkLV({ gib, sizeMode, row }) {
+  function isRootLv(lv, row) {
+    if (row && String(row.mount || "").trim() === "/") return true;
+    const rootRow = state.rows.find((r) => String(r.mount || "").trim() === "/");
+    if (rootRow && lv && lvPathsEquivalent(rootRow.devPath, lv)) return true;
+    return false;
+  }
+
+  function validateShrinkLV({ gib, sizeMode, row, lv }) {
+    if (isRootLv(lv, row)) {
+      return { ok: false, key: "disks.shrink.rootBlocked" };
+    }
     const marginGB = 0.5;
     let targetGB;
     if (sizeMode === "absolute") {
@@ -764,13 +840,24 @@
       };
     }
     const warns = [];
-    if (row?.mount === "/") warns.push("root");
     if (!row?.hasDf) warns.push("nodf");
     return { ok: true, warns };
   }
 
+  function updateShrinkControls(row, lv) {
+    const blocked = isRootLv(lv || row?.devPath, row);
+    const title = blocked ? t("disks.shrink.rootBlocked") : "";
+    for (const id of ["disks-shrink-lv", "disks-resize-fs-shrink"]) {
+      const btn = $(`#${id}`);
+      if (!btn) continue;
+      btn.disabled = blocked;
+      if (blocked) btn.title = title;
+      else btn.removeAttribute("title");
+    }
+  }
+
   function assistantContext() {
-    const lv = $("#disks-lv-path")?.value?.trim() || selectedLvPath();
+    const lv = canonicalLvPath($("#disks-lv-path")?.value?.trim() || selectedLvPath());
     const fs = ($("#disks-fs-select")?.value || "ext4").toLowerCase();
     const gib = parseGBInput();
     const sizeMode = $("#disks-size-mode")?.value === "absolute" ? "absolute" : "delta";
@@ -892,7 +979,7 @@
   }
 
   async function extendLV() {
-    const lv = $("#disks-lv-path")?.value?.trim() || selectedLvPath();
+    const lv = canonicalLvPath($("#disks-lv-path")?.value?.trim() || selectedLvPath());
     if (!lv) {
       CWUI.toast("Indique o caminho do volume lógico.", "warn");
       return;
@@ -935,7 +1022,7 @@
   }
 
   async function shrinkLV() {
-    const lv = $("#disks-lv-path")?.value?.trim() || selectedLvPath();
+    const lv = canonicalLvPath($("#disks-lv-path")?.value?.trim() || selectedLvPath());
     if (!lv) {
       CWUI.toast("Indique o caminho do volume lógico.", "warn");
       return;
@@ -957,9 +1044,9 @@
     }
     const sizeMode = $("#disks-size-mode")?.value === "absolute" ? "absolute" : "delta";
     const row = findRowForLv(lv);
-    const check = validateShrinkLV({ gib, sizeMode, row });
+    const check = validateShrinkLV({ gib, sizeMode, row, lv });
     if (!check.ok) {
-      CWUI.toast(t(check.key, check.vars), "error", 10000);
+      CWUI.toast(t(check.key, check.vars), "error", 12000);
       return;
     }
     const confirm = buildResizeConfirm("shrink");
@@ -978,10 +1065,12 @@
       showLvResultDialog("disks.shrink.title", res.output, "disks.shrink.ok");
       await runProbe();
     } catch (e) {
-      CWUI.toast(e.message || "Falha ao reduzir LV", "error", 12000);
-      if (e.output) showLvResultDialog("disks.shrink.failTitle", e.output, "disks.shrink.failTitle");
+      const msg = e.message || "Falha ao reduzir LV";
+      CWUI.toast(msg, "error", 12000);
+      const rootErr = /raiz|root|montado em \//i.test(msg);
+      if (e.output && !rootErr) showLvResultDialog("disks.shrink.failTitle", e.output, "disks.shrink.failTitle");
     } finally {
-      if (btn) btn.disabled = false;
+      updateShrinkControls(findRowForLv(lv), lv);
     }
   }
 
@@ -1048,9 +1137,13 @@
   }
 
   async function resizeFsOnly(grow) {
-    const { lv, fs, gib } = assistantContext();
+    const { lv, fs, gib, row } = assistantContext();
     if (!lv || !gib || gib <= 0) {
       CWUI.toast(t("disks.toast.needGib"), "warn");
+      return;
+    }
+    if (!grow && isRootLv(lv, row)) {
+      CWUI.toast(t("disks.shrink.rootBlocked"), "error", 12000);
       return;
     }
     if (!grow && fs === "xfs") {
@@ -1207,7 +1300,7 @@
     $("#disks-lv-select")?.addEventListener("change", () => {
       const p = $("#disks-lv-select")?.value;
       const pathInput = $("#disks-lv-path");
-      if (p && pathInput) pathInput.value = p;
+      if (p && pathInput) pathInput.value = canonicalLvPath(p);
       refreshAssistantDetail();
     });
     $("#disks-lv-path")?.addEventListener("input", refreshAssistantDetail);

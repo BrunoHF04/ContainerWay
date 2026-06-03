@@ -4,45 +4,48 @@ import "strings"
 
 // LvextendAbsScript define tamanho absoluto do LV (GiB).
 func LvextendAbsScript(lv string, gib float64) string {
-	return "set -e; LV=" + shellQuote(lv) + "; " +
-		"command -v lvextend >/dev/null 2>&1 || { echo 'lvextend não encontrado.' >&2; exit 1; }; " +
-		"lvextend -L " + FormatLVMSizeG(UserGBToLVMG(gib)) + "G \"$LV\""
+	return wrapLVScript(lv,
+		"command -v lvextend >/dev/null 2>&1 || { echo 'lvextend não encontrado.' >&2; exit 1; }; "+
+			"lvextend -L "+FormatLVMSizeG(UserGBToLVMG(gib))+"G \"$LV\"")
 }
 
 // LvreduceAbsScript reduz LV para tamanho absoluto (GiB).
 func LvreduceAbsScript(lv string, targetGiB float64, fs string) string {
 	fs = strings.ToLower(strings.TrimSpace(fs))
 	t := FormatLVMSizeG(UserGBToLVMG(targetGiB))
-	q := shellQuote(lv)
 	if fs == "btrfs" {
-		return "set -e; LV=" + q + "; TARGET=" + t + "; command -v lvs >/dev/null 2>&1 || exit 1; " +
-			"command -v btrfs >/dev/null 2>&1 || exit 1; command -v lvreduce >/dev/null 2>&1 || exit 1; " +
-			"CUR=$(lvs --noheadings -o lv_size --units g --nosuffix \"$LV\" 2>/dev/null | tr -d ' '); " +
-			"DELTA=$(awk -v c=\"$CUR\" -v t=\"$TARGET\" 'BEGIN{printf \"%.4g\", c-t}'); " +
-			"M=$(findmnt -sn -o TARGET --source \"$LV\" 2>/dev/null); " +
-			"if [ -z \"$M\" ]; then exit 1; fi; " +
-			"btrfs filesystem resize -\"${DELTA}\"G \"$M\"; lvreduce -L \"${TARGET}\"G -f \"$LV\""
+		return wrapLVScript(lv,
+			"TARGET="+t+"; command -v lvs >/dev/null 2>&1 || exit 1; "+
+				"command -v btrfs >/dev/null 2>&1 || exit 1; command -v lvreduce >/dev/null 2>&1 || exit 1; "+
+				"CUR=$(lvs --noheadings -o lv_size --units g --nosuffix \"$LV\" 2>/dev/null | tr -d ' '); "+
+				"DELTA=$(awk -v c=\"$CUR\" -v t=\"$TARGET\" 'BEGIN{printf \"%.4g\", c-t}'); "+
+				"M=$(findmnt -sn -o TARGET --source \"$LV\" 2>/dev/null); "+
+				"if [ -z \"$M\" ]; then exit 1; fi; "+
+				"btrfs filesystem resize -\"${DELTA}\"G \"$M\"; lvreduce -L \"${TARGET}\"G -f \"$LV\"")
 	}
-	return "set -e; LV=" + q + "; " +
-		"command -v lvreduce >/dev/null 2>&1 || { echo 'lvreduce não encontrado.' >&2; exit 1; }; " +
-		"lvreduce --resizefs -L " + t + "G -f \"$LV\""
+	return wrapLVScript(lv,
+		ShrinkFSMountGuard()+
+			"command -v lvreduce >/dev/null 2>&1 || { echo 'lvreduce não encontrado.' >&2; exit 1; }; "+
+			"lvreduce --resizefs -L "+t+"G -f \"$LV\"")
 }
 
 // FsckCheckScript verificação read-only do sistema de ficheiros.
 func FsckCheckScript(lv, fs string) string {
 	fs = strings.ToLower(strings.TrimSpace(fs))
-	q := shellQuote(lv)
 	switch fs {
 	case "ext4", "ext3", "ext2":
-		return "set -e; LV=" + q + "; command -v e2fsck >/dev/null 2>&1 || { echo 'e2fsck não encontrado.' >&2; exit 1; }; e2fsck -fn \"$LV\""
+		return wrapLVScript(lv,
+			"command -v e2fsck >/dev/null 2>&1 || { echo 'e2fsck não encontrado.' >&2; exit 1; }; e2fsck -fn \"$LV\"")
 	case "xfs":
-		return "set -e; LV=" + q + "; command -v xfs_info >/dev/null 2>&1 || { echo 'xfs_info não encontrado.' >&2; exit 1; }; " +
-			"M=$(findmnt -sn -o TARGET --source \"$LV\" 2>/dev/null || true); xfs_info \"$LV\"; " +
-			"echo '(XFS: redução não suportada; verificação completa xfs_repair exige manutenção offline.)'"
+		return wrapLVScript(lv,
+			"command -v xfs_info >/dev/null 2>&1 || { echo 'xfs_info não encontrado.' >&2; exit 1; }; "+
+				"M=$(findmnt -sn -o TARGET --source \"$LV\" 2>/dev/null || true); xfs_info \"$LV\"; "+
+				"echo '(XFS: redução não suportada; verificação completa xfs_repair exige manutenção offline.)'")
 	case "btrfs":
-		return "set -e; LV=" + q + "; command -v btrfs >/dev/null 2>&1 || { echo 'btrfs não encontrado.' >&2; exit 1; }; " +
-			"M=$(findmnt -sn -o TARGET --source \"$LV\" 2>/dev/null || true); " +
-			"if [ -z \"$M\" ]; then echo 'Montagem não encontrada.' >&2; exit 1; fi; btrfs check --readonly \"$M\""
+		return wrapLVScript(lv,
+			"command -v btrfs >/dev/null 2>&1 || { echo 'btrfs não encontrado.' >&2; exit 1; }; "+
+				"M=$(findmnt -sn -o TARGET --source \"$LV\" 2>/dev/null || true); "+
+				"if [ -z \"$M\" ]; then echo 'Montagem não encontrada.' >&2; exit 1; fi; btrfs check --readonly \"$M\"")
 	default:
 		return "echo 'Verificação automática não suportada para este FS.' >&2; exit 1"
 	}
@@ -51,14 +54,15 @@ func FsckCheckScript(lv, fs string) string {
 // SnapshotCreateScript cria snapshot LVM (-s).
 func SnapshotCreateScript(originLV, snapName string, gib float64) string {
 	g := FormatLVMSizeG(UserGBToLVMG(gib))
-	return "set -e; ORIGIN=" + shellQuote(originLV) + "; NAME=" + shellQuote(snapName) + "; " +
+	n := shellQuote(snapName)
+	return LVResolveShellPreamble() + "set -e; ORIGIN=$(resolve_lv_device " + shellQuote(originLV) + "); NAME=" + n + "; " +
 		"command -v lvcreate >/dev/null 2>&1 || { echo 'lvcreate não encontrado.' >&2; exit 1; }; " +
 		"lvcreate -s -n \"$NAME\" -L " + g + "G \"$ORIGIN\""
 }
 
 // SnapshotRemoveScript remove snapshot (-f).
 func SnapshotRemoveScript(snapPath string) string {
-	return "set -e; SNAP=" + shellQuote(snapPath) + "; " +
+	return LVResolveShellPreamble() + "set -e; SNAP=$(resolve_lv_device " + shellQuote(snapPath) + "); " +
 		"command -v lvremove >/dev/null 2>&1 || { echo 'lvremove não encontrado.' >&2; exit 1; }; " +
 		"lvremove -f \"$SNAP\""
 }
@@ -91,12 +95,11 @@ func LVCreateScript(vg, lvName string, gib float64, fs string, mkfs bool) string
 // ResizeFSScriptOnly redimensiona só o FS: grow=true amplia; grow=false encolhe delta GiB.
 func ResizeFSScriptOnly(lv, fs string, gib float64, grow bool) string {
 	fs = strings.ToLower(strings.TrimSpace(fs))
-	q := shellQuote(lv)
 	g := FormatLVMSizeG(UserGBToLVMG(gib))
 	if grow {
 		switch fs {
 		case "ext4", "ext3", "ext2":
-			return "set -e; LV=" + q + "; command -v resize2fs >/dev/null 2>&1 || exit 1; resize2fs \"$LV\""
+			return wrapLVScript(lv, "command -v resize2fs >/dev/null 2>&1 || exit 1; resize2fs \"$LV\"")
 		case "xfs", "btrfs":
 			return GrowFSScript(lv, fs)
 		default:
@@ -105,14 +108,17 @@ func ResizeFSScriptOnly(lv, fs string, gib float64, grow bool) string {
 	}
 	switch fs {
 	case "ext4", "ext3", "ext2":
-		return "set -e; LV=" + q + "; GIB=" + g + "; command -v resize2fs >/dev/null 2>&1 || exit 1; " +
-			"command -v lvs >/dev/null 2>&1 || exit 1; " +
-			"CUR=$(lvs --noheadings -o lv_size --units g --nosuffix \"$LV\" 2>/dev/null | tr -d ' '); " +
-			"NEW=$(awk -v c=\"$CUR\" -v d=\"$GIB\" 'BEGIN{printf \"%.4g\", c-d}'); " +
-			"resize2fs \"$LV\" \"${NEW}G\""
+		return wrapLVScript(lv,
+			ShrinkFSMountGuard()+
+				"GIB="+g+"; command -v resize2fs >/dev/null 2>&1 || exit 1; "+
+				"command -v lvs >/dev/null 2>&1 || exit 1; "+
+				"CUR=$(lvs --noheadings -o lv_size --units g --nosuffix \"$LV\" 2>/dev/null | tr -d ' '); "+
+				"NEW=$(awk -v c=\"$CUR\" -v d=\"$GIB\" 'BEGIN{printf \"%.4g\", c-d}'); "+
+				"resize2fs \"$LV\" \"${NEW}G\"")
 	case "btrfs":
-		return "set -e; LV=" + q + "; GIB=" + g + "; M=$(findmnt -sn -o TARGET --source \"$LV\" 2>/dev/null); " +
-			"if [ -z \"$M\" ]; then exit 1; fi; btrfs filesystem resize -\"${GIB}\"G \"$M\""
+		return wrapLVScript(lv,
+			"GIB="+g+"; M=$(findmnt -sn -o TARGET --source \"$LV\" 2>/dev/null); "+
+				"if [ -z \"$M\" ]; then exit 1; fi; btrfs filesystem resize -\"${GIB}\"G \"$M\"")
 	default:
 		return "echo 'Encolher FS não suportado para " + fs + ".' >&2; exit 1"
 	}
@@ -135,9 +141,10 @@ func VgchangeScript(vg string, activate bool) string {
 
 // FstrimScript executa fstrim no ponto de montagem do LV.
 func FstrimScript(lv string) string {
-	return "set -e; LV=" + shellQuote(lv) + "; command -v fstrim >/dev/null 2>&1 || exit 1; " +
-		"M=$(findmnt -sn -o TARGET --source \"$LV\" 2>/dev/null || true); " +
-		"if [ -z \"$M\" ]; then echo 'Não montado.' >&2; exit 1; fi; fstrim -av \"$M\""
+	return wrapLVScript(lv,
+		"command -v fstrim >/dev/null 2>&1 || exit 1; "+
+			"M=$(findmnt -sn -o TARGET --source \"$LV\" 2>/dev/null || true); "+
+			"if [ -z \"$M\" ]; then echo 'Não montado.' >&2; exit 1; fi; fstrim -av \"$M\"")
 }
 
 // SmartctlScript consulta SMART (tenta com e sem sudo no host).

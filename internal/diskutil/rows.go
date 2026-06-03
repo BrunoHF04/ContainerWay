@@ -329,6 +329,10 @@ func BuildRows(lsblkJSON, dfBlock, dfDevMapBlock string, sortMode SortMode, filt
 	var raw []Row
 	flattenLsblk(root.Blockdevices, "", 0, showLoop, &dfs, &raw)
 	for i := range raw {
+		lt := strings.ToLower(strings.TrimSpace(raw[i].LsblkType))
+		if lt == "lvm" || strings.Contains(raw[i].DevPath, "/mapper/") || strings.Contains(raw[i].DevPath, "--") {
+			raw[i].DevPath = NormalizeLVDevicePath(raw[i].DevPath, nil)
+		}
 		if ent, ok := lookupDF(df, raw[i].DevPath, raw[i].Mount); ok {
 			raw[i].HasDF = true
 			raw[i].UsedBytes = ent.Used
@@ -393,7 +397,7 @@ type LVOption struct {
 const manualPathOption = "Caminho manual (edite o campo abaixo)"
 
 // AssistantOptions devolve LVs detectados para o assistente.
-func AssistantOptions(rows []Row) []LVOption {
+func AssistantOptions(rows []Row, lvRecords []LVRecord) []LVOption {
 	opts := []LVOption{{Path: "", Label: manualPathOption}}
 	seen := map[string]struct{}{}
 	for _, r := range rows {
@@ -404,15 +408,16 @@ func AssistantOptions(rows []Row) []LVOption {
 		if lt != "lvm" && !strings.Contains(r.DevPath, "/mapper/") {
 			continue
 		}
-		if _, ok := seen[r.DevPath]; ok {
+		path := NormalizeLVDevicePath(r.DevPath, lvRecords)
+		if _, ok := seen[path]; ok {
 			continue
 		}
-		seen[r.DevPath] = struct{}{}
-		label := r.DevPath
+		seen[path] = struct{}{}
+		label := path
 		if r.Mount != "" {
-			label = fmt.Sprintf("%s — %s", r.DevPath, r.Mount)
+			label = fmt.Sprintf("%s — %s", path, r.Mount)
 		}
-		opts = append(opts, LVOption{Path: r.DevPath, Label: label})
+		opts = append(opts, LVOption{Path: path, Label: label})
 	}
 	return opts
 }

@@ -75,7 +75,7 @@ func (s *Server) handleDisksProbe(w http.ResponseWriter, r *http.Request) {
 		"lvs":        lvsB,
 		"lvRecords":  lvRecs,
 		"vgStats":    vgStats,
-		"lvOptions":  diskutil.AssistantOptions(rows),
+		"lvOptions":  diskutil.AssistantOptions(rows, lvRecs),
 		"usageRoots": diskutil.UsageRootsFromRows(rows),
 		"updatedAt":  time.Now().Format("15:04:05"),
 		"sudo":       b.sudoStatus(),

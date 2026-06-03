@@ -6704,7 +6704,10 @@ html.reduce-motion *::after {
   gap: 0.4rem;
 }
 .disks-form-grid-assistant {
-  grid-template-columns: minmax(10rem, 1.35fr) minmax(11rem, 1.45fr) minmax(4.5rem, 5.5rem) minmax(7rem, 9rem);
+  grid-template-columns: minmax(10rem, 1.35fr) minmax(12.5rem, 1.55fr) minmax(4.5rem, 5.5rem) minmax(7rem, 9rem);
+}
+.disks-field-mode .disks-control {
+  font-size: 0.75rem;
 }
 .disks-field-mode .disks-control,
 .disks-field-mode .cw-select {

@@ -16,12 +16,21 @@ func InterpretLVCmdError(stderr, stdout string, err error) string {
 		strings.Contains(blob, "resize2fs") && strings.Contains(blob, "minimum"),
 		strings.Contains(blob, "on-line shrinking"):
 		return "o sistema de arquivos não pode reduzir até esse tamanho (há mais dados do que o espaço alvo)"
+	case strings.Contains(blob, "fsadm") && strings.Contains(blob, "mounted"),
+		strings.Contains(blob, "cannot proceed with mounted"),
+		strings.Contains(blob, "filesystem resize failed") && strings.Contains(blob, "mounted"):
+		return "o sistema de ficheiros está montado (especialmente /) e não pode ser reduzido online — só em modo recovery com o disco desmontado"
+	case strings.Contains(blob, "montado em /") && strings.Contains(blob, "raiz"):
+		return "não é possível reduzir o volume da raiz (/) com o sistema em execução"
 	case strings.Contains(blob, "must be unmounted"),
-		strings.Contains(blob, "is mounted on"):
-		return "o volume está montado — a redução pode exigir manutenção ou um tamanho mínimo maior"
+		strings.Contains(blob, "is mounted on"),
+		strings.Contains(blob, "do you want to unmount"):
+		return "o volume está montado — a redução exige desmontar o sistema de ficheiros (manutenção/recovery)"
 	case strings.Contains(blob, "insufficient free space"),
 		strings.Contains(blob, "not enough free space"):
 		return "espaço livre insuficiente no volume group ou no sistema de arquivos"
+	case strings.Contains(blob, "invalid path for logical volume"):
+		return "caminho do volume lógico inválido — actualize a sondagem e seleccione o LV na lista"
 	case strings.Contains(blob, "invalid argument"):
 		return "tamanho inválido para redução — verifique o valor em GB"
 	}

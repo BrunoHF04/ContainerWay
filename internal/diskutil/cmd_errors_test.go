@@ -12,7 +12,7 @@ func TestInterpretLVCmdError_notReduced(t *testing.T) {
 		"",
 		errors.New("Process exited with status 3"),
 	)
-	if !strings.Contains(msg, "demasiado pequeno") {
+	if !strings.Contains(msg, "pequeno demais") {
 		t.Fatalf("got %q", msg)
 	}
 }
