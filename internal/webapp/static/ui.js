@@ -530,7 +530,7 @@ const CWUI = (() => {
     const wrap = document.createElement("div");
     wrap.className = "cw-select";
     if (select.classList.contains("panel-select")) wrap.classList.add("cw-select--compact");
-    if (select.classList.contains("explorer-lang-select")) wrap.classList.add("cw-select--compact");
+    if (select.classList.contains("app-lang-select")) wrap.classList.add("cw-select--compact");
     if (select.classList.contains("docker-poll-select")) wrap.classList.add("cw-select--poll");
     if (select.disabled) wrap.classList.add("is-disabled");
 

@@ -8,6 +8,8 @@
     return d.innerHTML;
   };
 
+  const tr = (k, v) => (window.CWI18n && window.CWI18n.t(k, v)) || k;
+
   const DOCKER_VIEW_KEY = "cw-docker-view";
   const DOCKER_SORT_KEY = "cw-docker-sort";
   const DOCKER_QUICK_KEY = "cw-docker-quick";
@@ -155,9 +157,9 @@
     if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
-      CWUI.toast(`${label || "Texto"} copiado`, "success");
+      CWUI.toast(tr("docker.toast.copied", { label: label || "Texto" }), "success");
     } catch {
-      CWUI.toast("Não foi possível copiar", "error");
+      CWUI.toast(tr("common.copyFail"), "error");
     }
   }
 
@@ -209,7 +211,7 @@
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "docker-pin-btn" + (isPinned(c) ? " docker-pin-active" : "");
-    btn.title = isPinned(c) ? "Remover dos fixados" : "Fixar no topo";
+    btn.title = isPinned(c) ? tr("docker.pin.remove") : tr("docker.pin.add");
     btn.setAttribute("aria-label", btn.title);
     btn.setAttribute("aria-pressed", isPinned(c) ? "true" : "false");
     btn.textContent = "★";
@@ -718,7 +720,7 @@
   async function withContainerAction(c, { title, confirmMsg, confirmOpts, runApi, poll }) {
     const id = containerId(c);
     if (dockerState.pendingOps.has(id)) {
-      CWUI.toast("Já há uma operação em curso neste contêiner", "warn");
+      CWUI.toast(tr("docker.toast.busy"), "warn");
       return;
     }
     if (confirmMsg && !(await CWConfirm(confirmMsg, confirmOpts || {}))) return;
@@ -731,7 +733,7 @@
       setDockerOpMessage("Comando enviado. A acompanhar o contêiner…");
       if (poll) await poll();
       else await refreshContainersLight();
-      CWUI.toast(`${title} concluído`, "success");
+      CWUI.toast(tr("docker.toast.done", { title }), "success");
     } catch (e) {
       CWUI.toast(e.message, "error");
     } finally {
@@ -804,36 +806,36 @@
       { label: "Copiar ID", fn: () => copyText(id, "ID") },
       { label: "Copiar nome", fn: () => copyText(c.displayName || c.name || id, "Nome") },
       { divider: true },
-      { label: "Ver logs", fn: () => openLogs(c) },
+      { label: tr("docker.act.logs"), fn: () => openLogs(c) },
       { label: "Estatísticas", fn: () => openStats(c) },
       { label: "Explorar arquivos", fn: () => openInExplorer(c) },
       { label: "Consola interativa", fn: () => openExec(c), hidden: !(c.running || c.restarting) },
       { divider: true },
     ];
     if (c.composeProject || c.composeService) {
-      items.push({ label: "Reiniciar projeto Compose", fn: () => restartComposeProject(c) });
+      items.push({ label: tr("docker.act.restartCompose"), fn: () => restartComposeProject(c) });
     }
-    items.push({ label: "Criar regra de reinício automático", fn: () => openAutomationRuleForContainer(c) });
+    items.push({ label: tr("docker.act.autoRule"), fn: () => openAutomationRuleForContainer(c) });
     items.push({ divider: true });
     const st = (c.state || "").toLowerCase();
     if (st === "paused") {
-      items.push({ label: "Retomar", fn: () => lifecycle(c, "unpause") });
-      items.push({ label: "Parar", fn: () => lifecycle(c, "stop") });
+      items.push({ label: tr("docker.act.unpause"), fn: () => lifecycle(c, "unpause") });
+      items.push({ label: tr("docker.act.stop"), fn: () => lifecycle(c, "stop") });
     } else if (c.running || c.restarting) {
-      items.push({ label: "Reiniciar", fn: () => restartOne(c, false) });
+      items.push({ label: tr("docker.act.restart"), fn: () => restartOne(c, false) });
       if (c.composeProject || c.composeService) {
         items.push({
           label: "Recriar via Compose",
           fn: () => restartOne(c, true),
         });
       }
-      items.push({ label: "Pausar", fn: () => lifecycle(c, "pause") });
-      items.push({ label: "Parar", fn: () => lifecycle(c, "stop") });
+      items.push({ label: tr("docker.act.pause"), fn: () => lifecycle(c, "pause") });
+      items.push({ label: tr("docker.act.stop"), fn: () => lifecycle(c, "stop") });
     } else {
-      items.push({ label: "Iniciar", fn: () => lifecycle(c, "start") });
+      items.push({ label: tr("docker.act.start"), fn: () => lifecycle(c, "start") });
     }
     items.push({ divider: true });
-    items.push({ label: "Remover contêiner", fn: () => removeOne(c), danger: true });
+    items.push({ label: tr("docker.act.removeContainer"), fn: () => removeOne(c), danger: true });
     return items.filter((it) => !it.hidden);
   }
 
@@ -931,7 +933,7 @@
     if (!bar) return;
     bar.classList.toggle("hidden", n === 0 || !!dockerState.focusId);
     const lbl = $("#docker-batch-count");
-    if (lbl) lbl.textContent = `${n} selecionado${n === 1 ? "" : "s"}`;
+    if (lbl) lbl.textContent = tr("docker.batch.count", { n });
     updateMasterCheckbox();
   }
 
@@ -1146,7 +1148,7 @@
   async function restartComposeProject(c) {
     const project = (c.composeProject || "").trim();
     const label = project || c.composeService || containerDisplayName(c);
-    if (!(await CWConfirm(`Recriar todos os serviços do projeto Compose "${label}"?\n\nRemove e recria os contêineres (compose up --force-recreate).`))) return;
+    if (!(await CWConfirm(tr("docker.confirm.restartCompose", { label })))) return;
     const inProject = project
       ? dockerState.containers.filter((x) => (x.composeProject || "").trim() === project)
       : [];
@@ -1161,11 +1163,11 @@
       "cw-docker-auto-prefill",
       JSON.stringify({
         target,
-        name: `Reinício automático: ${c.displayName || target}`,
+        name: tr("auto.rule.dockerName", { target: c.displayName || target }),
       })
     );
     if (typeof showScreen === "function") showScreen("automations");
-    else CWUI.toast("Abra a Central de automações no menu", "info");
+    else CWUI.toast(tr("docker.toast.openAutomations"), "info");
   }
 
   function syncGroupControlsVisibility() {
@@ -1222,7 +1224,7 @@
         const restartBtn = document.createElement("button");
         restartBtn.type = "button";
         restartBtn.className = "btn btn-ghost btn-sm docker-group-restart";
-        restartBtn.textContent = "Reiniciar projeto";
+        restartBtn.textContent = tr("docker.act.restartComposeBtn");
         restartBtn.addEventListener("click", (e) => {
           e.stopPropagation();
           restartComposeProject(items[0]);
@@ -1262,14 +1264,14 @@
     if (!filtered.length) {
       const hasQuick = dockerState.quickFilter !== "all";
       const hasText = !!dockerState.filter.trim();
-      let desc = 'Não há contêineres em execução. Active "Incluir parados".';
-      if (hasText || hasQuick) desc = "Ajuste os filtros rápidos ou a pesquisa.";
-      else if (dockerState.showAll) desc = "Não há contêineres neste host.";
+      let desc = tr("docker.empty.noneRunning");
+      if (hasText || hasQuick) desc = tr("docker.empty.adjustFilters");
+      else if (dockerState.showAll) desc = tr("docker.empty.noneHost");
       CWUI.emptyState(box, {
         icon: "🐳",
-        title: hasText || hasQuick ? "Nenhum resultado" : "Nenhum contêiner",
+        title: hasText || hasQuick ? tr("docker.empty.noResults") : tr("docker.empty.none"),
         desc,
-        actionLabel: "Atualizar",
+        actionLabel: tr("common.refresh"),
         onAction: () => loadDocker(),
       });
       updateBatchBar();
@@ -1321,7 +1323,7 @@
   }
 
   function renderMetricsSection(m, sparkId, opts = {}) {
-    if (!m) return '<p class="muted">Métricas indisponíveis.</p>';
+    if (!m) return `<p class="muted">${escapeHtml(tr("docker.metrics.unavailable"))}</p>`;
     const large = !!opts.large;
     const hist = opts.useStatsHistory ? dockerState.statsModalHistory : dockerState.metricsHistory;
     const sparks =
@@ -1472,7 +1474,9 @@
       const summary = computeHostSummary();
       if (dockerState.metricsReady && summary.critical > dockerState.lastCriticalCount) {
         CWUI.toast(
-          `${summary.critical - dockerState.lastCriticalCount} contêiner(es) passaram a estado crítico (≥90% RAM/CPU)`,
+          tr("docker.toast.critical", {
+            n: summary.critical - dockerState.lastCriticalCount,
+          }),
           "warn"
         );
       }
@@ -1491,8 +1495,14 @@
 
   async function lifecycle(c, action, extra = {}) {
     const id = containerId(c);
-    const labels = { stop: "Parar", start: "Iniciar", pause: "Pausar", unpause: "Retomar", remove: "Remover" };
-    const label = labels[action] || action;
+    const labelKeys = {
+      stop: "docker.act.stop",
+      start: "docker.act.start",
+      pause: "docker.act.pause",
+      unpause: "docker.act.unpause",
+      remove: "docker.act.remove",
+    };
+    const label = tr(labelKeys[action] || action);
     const danger = action === "remove";
     const poll =
       action === "stop"
@@ -1532,10 +1542,10 @@
   async function removeOne(c) {
     const id = containerId(c);
     const msg = (c.running || c.restarting)
-      ? `O contêiner está em execução. Remover à força?`
-      : `Remover permanentemente ${c.displayName || c.name || id}?`;
+      ? tr("docker.confirm.removeRunning")
+      : tr("docker.confirm.removeContainer", { name: c.displayName || c.name || id });
     await withContainerAction(c, {
-      title: "Remover",
+      title: tr("docker.confirm.removeTitle"),
       confirmMsg: msg,
       confirmOpts: { danger: true },
       runApi: () =>
@@ -1587,7 +1597,7 @@
   async function batchRecreateContainers(ids) {
     const targets = ids.map((id) => findContainer(id)).filter(Boolean);
     if (!targets.length) {
-      CWUI.toast("Nenhum contêiner válido na seleção", "warn");
+      CWUI.toast(tr("docker.toast.noSelection"), "warn");
       return;
     }
     const { ok, errors } = await runRecreateFlow(targets);
@@ -1599,12 +1609,12 @@
     const ids = [...dockerState.selected];
     if (!ids.length) return;
     const labels = {
-      restart: "Recriar",
-      stop: "Parar",
-      remove: "Remover",
-      start: "Iniciar",
-      pause: "Pausar",
-      unpause: "Retomar",
+      restart: tr("docker.batch.restart"),
+      stop: tr("docker.act.stop"),
+      remove: tr("docker.act.remove"),
+      start: tr("docker.act.start"),
+      pause: tr("docker.act.pause"),
+      unpause: tr("docker.act.unpause"),
     };
     const confirmMsg =
       action === "restart"
@@ -1648,7 +1658,7 @@
       dockerState.selected.clear();
       loadDocker();
       if (batchErrors.length) showBatchResult(action, okCount, batchErrors);
-      else CWUI.toast(`${labels[action]} em lote: ${okCount} concluído(s)`, "success");
+      else CWUI.toast(tr("docker.toast.batchOk", { action: labels[action], n: okCount }), "success");
     } catch (e) {
       CWUI.toast(e.message, "error");
     } finally {
@@ -1767,7 +1777,9 @@
     dockerState.logsCtx = fresh;
     dockerState.logsRaw = "";
     fresh._startedAt = undefined;
-    title.textContent = `Logs — ${fresh.displayName || fresh.name || fresh.id}`;
+    title.textContent = tr("docker.logs.title", {
+      name: fresh.displayName || fresh.name || fresh.id,
+    });
     body.textContent = "A carregar…";
     const search = $("#docker-logs-search");
     if (search) search.value = "";
@@ -1948,7 +1960,7 @@
       return;
     }
     showScreen("explorer");
-    CWUI.toast("Abra o explorador e selecione o contêiner no painel remoto.", "info");
+    CWUI.toast(tr("docker.toast.explorerHint"), "info");
   }
 
   function volumeRefToContainer(ref) {
@@ -2071,11 +2083,11 @@
   }
 
   async function removeDockerImage(id, label) {
-    if (!(await CWConfirm(`Remover imagem "${label || id}"?`, { danger: true }))) return;
+    if (!(await CWConfirm(tr("docker.confirm.removeImage", { label: label || id }), { danger: true }))) return;
     const img = dockerState.images.find((i) => (i.idFull || i.id) === id);
     let useForce = false;
     if (img && img.containers > 0) {
-      if (!(await CWConfirm("A imagem está em uso por contêineres. Remover à força?", { danger: true }))) return;
+      if (!(await CWConfirm(tr("docker.confirm.imageInUse"), { danger: true }))) return;
       useForce = true;
     }
     try {
@@ -2083,7 +2095,7 @@
         method: "POST",
         body: JSON.stringify({ id, force: useForce }),
       });
-      CWUI.toast("Imagem removida", "success");
+      CWUI.toast(tr("docker.toast.imageRemoved"), "success");
       loadDockerImages();
     } catch (e) {
       CWUI.toast(e.message, "error");
@@ -2163,22 +2175,22 @@
   }
 
   async function removeDockerVolume(name) {
-    if (!(await CWConfirm(`Remover volume "${name}"?`, { danger: true }))) return;
+    if (!(await CWConfirm(tr("docker.confirm.removeVolume", { name }), { danger: true }))) return;
     try {
       await dockerApi("/api/docker/volumes/remove", {
         method: "POST",
         body: JSON.stringify({ name, force: false }),
       });
-      CWUI.toast("Volume removido", "success");
+      CWUI.toast(tr("docker.toast.volumeRemoved"), "success");
       loadDockerVolumes();
     } catch (e) {
-      if (/in use|being used/i.test(e.message) && (await CWConfirm("Volume em uso. Remover à força?", { danger: true }))) {
+      if (/in use|being used/i.test(e.message) && (await CWConfirm(tr("docker.confirm.volumeInUse"), { danger: true }))) {
         try {
           await dockerApi("/api/docker/volumes/remove", {
             method: "POST",
             body: JSON.stringify({ name, force: true }),
           });
-          CWUI.toast("Volume removido", "success");
+          CWUI.toast(tr("docker.toast.volumeRemoved"), "success");
           loadDockerVolumes();
         } catch (e2) {
           CWUI.toast(e2.message, "error");
@@ -2236,13 +2248,13 @@
   }
 
   async function pruneDockerImages() {
-    if (!(await CWConfirm("Remover todas as imagens dangling (&lt;none&gt;)?", { danger: true }))) return;
+    if (!(await CWConfirm(tr("docker.confirm.pruneDangling"), { danger: true }))) return;
     try {
       const res = await dockerApi("/api/docker/images/prune", {
         method: "POST",
         body: JSON.stringify({ danglingOnly: true }),
       });
-      CWUI.toast(`Libertados ${res.spaceReclaimedHuman || "—"}`, "success");
+      CWUI.toast(tr("docker.toast.freed", { space: res.spaceReclaimedHuman || "—" }), "success");
       loadDockerSystem();
       loadDockerImages();
     } catch (e) {
@@ -2251,10 +2263,10 @@
   }
 
   async function pruneDockerVolumes() {
-    if (!(await CWConfirm("Remover volumes não usados por nenhum contêiner?", { danger: true }))) return;
+    if (!(await CWConfirm(tr("docker.confirm.pruneVolumes"), { danger: true }))) return;
     try {
       const res = await dockerApi("/api/docker/volumes/prune", { method: "POST", body: "{}" });
-      CWUI.toast(`Libertados ${res.spaceReclaimedHuman || "—"}`, "success");
+      CWUI.toast(tr("docker.toast.freed", { space: res.spaceReclaimedHuman || "—" }), "success");
       loadDockerSystem();
       loadDockerVolumes();
     } catch (e) {
@@ -2341,7 +2353,7 @@
   }
 
   async function pruneBuildCache() {
-    if (!(await CWConfirm("Remover todo o cache de build Docker?", { danger: true }))) return;
+    if (!(await CWConfirm(tr("docker.confirm.pruneBuildCache"), { danger: true }))) return;
     try {
       const res = await dockerApi("/api/docker/buildcache/prune", { method: "POST", body: "{}" });
       CWUI.toast(`Cache libertado: ${res.spaceReclaimedHuman || "—"}`, "success");
@@ -2429,7 +2441,7 @@
     if (submit) submit.disabled = true;
     try {
       await dockerApi("/api/docker/containers/create", { method: "POST", body: JSON.stringify(body) });
-      CWUI.toast("Contêiner criado e iniciado", "success");
+      CWUI.toast(tr("docker.toast.containerCreated"), "success");
       $("#docker-create-dialog")?.close();
       loadDocker();
     } catch (ex) {
@@ -2479,7 +2491,7 @@
           internal: $("#docker-network-create-internal")?.checked || false,
         }),
       });
-      CWUI.toast("Rede criada", "success");
+      CWUI.toast(tr("docker.toast.networkCreated"), "success");
       $("#docker-network-create-dialog")?.close();
       loadDockerNetworks();
       loadDockerSystem();
@@ -2526,7 +2538,7 @@
           driver: $("#docker-volume-create-driver")?.value?.trim() || "local",
         }),
       });
-      CWUI.toast("Volume criado", "success");
+      CWUI.toast(tr("docker.toast.volumeCreated"), "success");
       $("#docker-volume-create-dialog")?.close();
       loadDockerVolumes();
       loadDockerSystem();
@@ -2541,13 +2553,13 @@
   }
 
   async function removeDockerNetwork(name, label) {
-    if (!(await CWConfirm(`Remover rede "${label || name}"?`, { danger: true }))) return;
+    if (!(await CWConfirm(tr("docker.confirm.removeNetwork", { label: label || name }), { danger: true }))) return;
     try {
       await dockerApi("/api/docker/networks/remove", {
         method: "POST",
         body: JSON.stringify({ name }),
       });
-      CWUI.toast("Rede removida", "success");
+      CWUI.toast(tr("docker.toast.networkRemoved"), "success");
       loadDockerNetworks();
     } catch (e) {
       CWUI.toast(e.message, "error");
@@ -2690,7 +2702,7 @@
         await navigator.clipboard.writeText(t);
         CWUI.toast("Copiado", "success");
       } catch {
-        CWUI.toast("Não foi possível copiar", "error");
+        CWUI.toast(tr("common.copyFail"), "error");
       }
     });
     $("#docker-stats-refresh")?.addEventListener("click", loadStatsPanel);
@@ -2737,6 +2749,15 @@
     syncGroupControlsVisibility();
     startAutoPoll();
   };
+
+  document.addEventListener("cw-lang-change", () => {
+    if (!document.querySelector("#view-docker.active")) return;
+    window.CWI18n?.applyLabels?.();
+    renderContainers();
+    if (dockerState.moduleTab === "images") renderImages();
+    else if (dockerState.moduleTab === "volumes") renderVolumes();
+    else if (dockerState.moduleTab === "networks") renderNetworks();
+  });
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => window.initDockerManager?.());

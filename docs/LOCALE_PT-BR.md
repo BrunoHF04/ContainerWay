@@ -74,6 +74,10 @@ Comentários só para desenvolvedores podem ficar em inglês ou português; se f
 - [ ] Mensagens de erro JSON/API em pt-BR?
 - [ ] Documentação nova em português segue esta página?
 
+## Traduções EN / ES
+
+Toda string nova na UI web deve existir nos três idiomas — ver **[I18N_MULTILINGUE.md](I18N_MULTILINGUE.md)**.
+
 ## Referência de idioma na UI
 
 - Web: `lang="pt-BR"` em `index.html`; chave de locale `pt` em `i18n.js` = **pt-BR** (rótulo: “Português (BR)”).

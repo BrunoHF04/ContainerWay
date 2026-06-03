@@ -53,8 +53,29 @@
     return `${p}//${location.host}/api/docker/exec/ws?id=${encodeURIComponent(id)}`;
   }
 
+  /** ID de tela para permissões — alinhado a accessauth + PERM_SCREENS (docs/PERMISSOES_TELAS.md). */
+  const APP_PERM_SCREEN = {
+    files: "explorer",
+    terminal: "terminal",
+    system: "desktop",
+    monitor: "disks",
+    disks: "disks",
+    docker: "docker",
+    automations: "automations",
+    editor: "explorer",
+    help: null,
+  };
+
   function canUseScreen(id) {
     return typeof canScreen === "function" ? canScreen(id) : true;
+  }
+
+  function canUseApp(app) {
+    if (!app) return false;
+    if (app.id === "help") return true;
+    const screenId = APP_PERM_SCREEN[app.id] ?? app.screen;
+    if (!screenId) return true;
+    return canUseScreen(screenId);
   }
 
   function canUseAction(id) {
@@ -93,7 +114,7 @@
       try {
         await api("/api/ssh/sudo", { method: "POST", body: JSON.stringify({ action: "disable" }) });
         state.sudo = { enabled: false, user: "" };
-        CWUI.toast("Root/sudo desactivado", "success");
+        CWUI.toast("Root/sudo desativado", "success");
         document.dispatchEvent(new CustomEvent("cw-sudo-changed"));
       } catch (e) {
         CWUI.toast(e.message, "error");
@@ -116,13 +137,27 @@
     apps.set(def.id, def);
   }
 
+  function localizedApp(def) {
+    const t = window.CWI18n?.t?.bind(window.CWI18n);
+    if (!t) return def;
+    const labelKey = `desktop.app.${def.id}.label`;
+    const descKey = `desktop.app.${def.id}.desc`;
+    const label = t(labelKey);
+    const desc = t(descKey);
+    return {
+      ...def,
+      label: label !== labelKey ? label : def.label,
+      desc: desc !== descKey ? desc : def.desc,
+    };
+  }
+
   /* —— Gerenciador de arquivos —— */
   register({
     id: "files",
     label: "Arquivos",
     icon: "📁",
     desc: "Pastas no servidor",
-    screen: "desktop",
+    screen: "explorer",
     w: 560,
     h: 420,
     singleton: false,
@@ -134,39 +169,62 @@
         containerId: opts.containerId || "",
         containerName: opts.containerName || "",
         sel: null,
+        entries: [],
         loadGen: 0,
       };
+      const REMOTE_SHORTCUTS = [
+        { label: "Raiz (/)", path: "/" },
+        { label: "Home (/home)", path: "/home" },
+        { label: "Etc", path: "/etc" },
+        { label: "Var", path: "/var" },
+        { label: "Opt", path: "/opt" },
+        { label: "Tmp", path: "/tmp" },
+        { label: "Root", path: "/root" },
+      ];
+
       body.className = "linux-app linux-app-files";
       body.innerHTML = `
-        <div class="linux-files-target" role="toolbar" aria-label="Destino dos arquivos">
-          <div class="linux-target-tabs" role="group" aria-label="Servidor ou Docker">
-            <button type="button" class="linux-target-btn" data-target="host">Servidor</button>
-            <button type="button" class="linux-target-btn" data-target="container">Docker</button>
+        <div class="linux-files-chrome">
+          <div class="linux-files-target" role="toolbar" data-i18n-aria="linux.files.dest.aria">
+            <div class="linux-target-tabs" role="group" data-i18n-aria="linux.files.target.aria">
+              <button type="button" class="linux-target-btn" data-target="host" data-i18n="linux.files.target.host">Servidor</button>
+              <button type="button" class="linux-target-btn" data-target="container" data-i18n="linux.files.target.docker">Docker</button>
+            </div>
+            <select class="linux-container-select hidden" data-container-select aria-label="Docker"></select>
           </div>
-          <select class="linux-container-select hidden" data-container-select aria-label="Contêiner Docker"></select>
-        </div>
-        <div class="linux-app-toolbar">
-          <button type="button" class="btn btn-ghost btn-sm" data-act="up" title="Subir">↑</button>
-          <button type="button" class="btn btn-ghost btn-sm" data-act="refresh" title="Atualizar">↻</button>
-          <button type="button" class="btn btn-ghost btn-sm" data-act="open" title="Abrir pasta ou arquivo">Abrir</button>
-          <button type="button" class="btn btn-ghost btn-sm" data-act="preview" title="Pré-visualizar (Espaço)">👁</button>
-          <button type="button" class="btn btn-ghost btn-sm" data-act="mkdir" title="Nova pasta">+ Pasta</button>
-          <button type="button" class="btn btn-ghost btn-sm" data-act="rename" title="Renomear">Renomear</button>
-          <button type="button" class="btn btn-ghost btn-sm" data-act="push" title="Enviar arquivos do PC">↑ PC</button>
-          <button type="button" class="btn btn-ghost btn-sm" data-act="pull" title="Baixar para o PC">↓ PC</button>
-          <select class="linux-fav-select btn-sm" data-fav title="Favoritos e recentes" aria-label="Atalhos"><option value="">Atalhos…</option></select>
-          <button type="button" class="btn btn-ghost btn-sm btn-sudo" data-act="sudo" title="Ativar root/sudo">Root</button>
-          <button type="button" class="btn btn-ghost btn-sm" data-act="delete" title="Excluir">🗑</button>
-          <input type="file" class="linux-upload-input" data-upload multiple hidden />
+          <div class="linux-files-toolbar" role="toolbar" data-i18n-aria="linux.files.toolbar.aria">
+            <div class="linux-files-toolbar-actions">
+              <button type="button" class="btn btn-ghost btn-sm btn-icon-text" data-act="up" data-i18n-title="linux.files.up">↑</button>
+              <button type="button" class="btn btn-ghost btn-sm btn-icon-text" data-act="refresh" data-i18n-title="linux.files.refresh">↻</button>
+              <button type="button" class="btn btn-ghost btn-sm btn-icon-text" data-act="open" data-i18n-title="linux.files.open">▶</button>
+              <button type="button" class="btn btn-ghost btn-sm btn-icon-text" data-act="preview" data-i18n-title="linux.files.preview">👁</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-act="mkdir" data-i18n-title="linux.files.mkdir">+</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-act="rename" data-i18n-title="linux.files.rename">✎</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-act="push" data-i18n-title="linux.files.push">↑</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-act="pull" data-i18n-title="linux.files.pull">↓</button>
+              <button type="button" class="btn btn-ghost btn-sm btn-icon-text" data-act="fav-add" data-i18n-title="linux.files.fav">★</button>
+              <button type="button" class="btn btn-ghost btn-sm btn-sudo" data-act="sudo" data-i18n-title="linux.files.sudo">Root</button>
+              <button type="button" class="btn btn-ghost btn-sm btn-icon-text" data-act="delete" data-i18n-title="linux.files.delete">🗑</button>
+            </div>
+            <input type="search" class="linux-files-search panel-filter" data-filter data-i18n="linux.files.filter" data-i18n-mode="placeholder" placeholder="Filtrar nesta pasta…" data-i18n-aria="linux.files.filter.aria" autocomplete="off" />
+            <label class="linux-fav-wrap" data-i18n-title="linux.files.shortcuts.title">
+              <span class="sr-only" data-i18n="linux.files.shortcuts">Atalhos</span>
+              <select class="linux-fav-select panel-select" data-fav data-i18n-aria="linux.files.shortcuts"><option value="" data-i18n="linux.files.shortcuts.option">Atalhos…</option></select>
+            </label>
+            <input type="file" class="linux-upload-input" data-upload multiple hidden />
+          </div>
         </div>
         <div class="linux-app-path" data-path-wrap></div>
         <div class="linux-app-list linux-scroll" data-list tabindex="0" role="listbox" aria-label="Arquivos"></div>
-        <div class="linux-drop-overlay hidden" data-dropzone> Solte arquivos para enviar </div>`;
+        <div class="linux-drop-overlay hidden" data-dropzone data-i18n="linux.files.dropzone"> Solte arquivos para enviar </div>`;
+
+      window.CWI18n?.applyLabels?.(body);
 
       const listEl = body.querySelector("[data-list]");
       const pathWrap = body.querySelector("[data-path-wrap]");
       const sudoBtn = body.querySelector('[data-act="sudo"]');
       const favSel = body.querySelector("[data-fav]");
+      const filterInp = body.querySelector("[data-filter]");
       const uploadInput = body.querySelector("[data-upload]");
       const dropZone = body.querySelector("[data-dropzone]");
       const containerSel = body.querySelector("[data-container-select]");
@@ -198,26 +256,109 @@
         );
       }
 
+      function favLabel(path, prefix = "") {
+        const p = path || "/";
+        const short = p.length > 34 ? "…" + p.slice(-32) : p;
+        return prefix + short;
+      }
+
+      function addFavOption(value, text, disabled = false) {
+        const o = document.createElement("option");
+        o.value = value;
+        o.textContent = text;
+        if (disabled) o.disabled = true;
+        favSel.appendChild(o);
+      }
+
       async function refreshFavorites() {
         if (!favSel) return;
-        const recent = JSON.parse(sessionStorage.getItem("cw-desktop-recent-paths") || "[]");
         favSel.innerHTML = '<option value="">Atalhos…</option>';
-        for (const p of recent.slice(0, 8)) {
-          const o = document.createElement("option");
-          o.value = p;
-          o.textContent = p.length > 36 ? "…" + p.slice(-34) : p;
-          favSel.appendChild(o);
+        for (const s of REMOTE_SHORTCUTS) {
+          addFavOption(s.path, s.label);
         }
+        const recent = JSON.parse(sessionStorage.getItem("cw-desktop-recent-paths") || "[]").filter(
+          (p) => p && p !== "/" && !REMOTE_SHORTCUTS.some((s) => s.path === p)
+        );
+        if (recent.length) {
+          addFavOption("__recent", "— Recentes —", true);
+          for (const p of recent.slice(0, 8)) {
+            addFavOption(p, favLabel(p, "↩ "));
+          }
+        }
+        let favPaths = [];
         try {
           const data = await api("/api/explorer/favorites?side=right");
-          for (const p of data.paths || []) {
-            const o = document.createElement("option");
-            o.value = p;
-            o.textContent = "★ " + (p.length > 32 ? "…" + p.slice(-30) : p);
-            favSel.appendChild(o);
-          }
+          favPaths = data.paths || [];
         } catch (_) { /* */ }
+        if (favPaths.length) {
+          addFavOption("__fav", "— Favoritos —", true);
+          for (const p of favPaths) {
+            addFavOption(p, favLabel(p, "★ "));
+          }
+        }
         CWUI.refreshSelect?.(favSel);
+      }
+
+      async function addFavorite() {
+        const path = normPath(st.path || "/");
+        if (!path) return;
+        try {
+          const data = await api("/api/explorer/favorites?side=right");
+          const paths = data.paths || [];
+          if (!paths.includes(path)) paths.push(path);
+          await api("/api/explorer/favorites?side=right", {
+            method: "PUT",
+            body: JSON.stringify({ paths }),
+          });
+          await refreshFavorites();
+          CWUI.toast("Pasta salva nos favoritos", "success");
+        } catch (e) {
+          CWUI.toast(e.message || "Não foi possível salvar favorito", "error");
+        }
+      }
+
+      function filterEntries(entries, q) {
+        if (typeof window.cwPanelFilter === "function") return window.cwPanelFilter(entries, q);
+        const hay = (q || "").trim().toLowerCase();
+        if (!hay) return entries || [];
+        return (entries || []).filter((e) => e.name === ".." || e.name.toLowerCase().includes(hay));
+      }
+
+      function renderEntries(entries) {
+        const list = filterEntries(entries, filterInp?.value || "");
+        listEl.innerHTML = "";
+        if (!list.length) {
+          const q = (filterInp?.value || "").trim();
+          listEl.innerHTML = `<p class="muted linux-app-empty">${q ? "Nenhum item corresponde ao filtro." : "Pasta vazia"}</p>`;
+          return;
+        }
+        for (const e of list) {
+          const isDir = entryIsDir(e);
+          const row = document.createElement("div");
+          row.className = "linux-file-row" + (isDir ? " is-dir" : "");
+          row.setAttribute("role", "option");
+          row.tabIndex = -1;
+          const icon = window.CWUI?.fileIcon?.(e.name, isDir) || (isDir ? "📁" : "📄");
+          row.innerHTML = `<span class="linux-file-icon">${icon}</span><span class="linux-file-name">${escapeHtml(e.name)}</span><span class="linux-file-meta">${isDir && e.name !== ".." ? "" : e.name === ".." ? "" : formatSize(e.size)}</span>`;
+          row.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            if (isDir) {
+              openEntry(e);
+              return;
+            }
+            selectEntry(row, e);
+          });
+          row.addEventListener("dblclick", (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            openEntry(e);
+          });
+          listEl.appendChild(row);
+        }
+      }
+
+      function clearFileFilter() {
+        if (filterInp) filterInp.value = "";
       }
 
       function rememberPath(p) {
@@ -307,6 +448,7 @@
         st.target = mode;
         st.path = "/";
         st.sel = null;
+        clearFileFilter();
         if (mode === "container") {
           loadContainersSelect().then(() => {
             if (!st.containerId) {
@@ -333,6 +475,7 @@
         st.containerName = opt?.dataset.name || opt?.textContent || "";
         st.path = "/";
         st.sel = null;
+        clearFileFilter();
         if (!st.containerId) {
           listEl.innerHTML = `<p class="muted linux-app-empty">Selecione um contêiner Docker.</p>`;
           updatePathDisplay();
@@ -346,7 +489,15 @@
         load(st.path);
       };
       document.addEventListener("cw-sudo-changed", onSudoChanged);
-      st.cleanup = () => document.removeEventListener("cw-sudo-changed", onSudoChanged);
+      const onLang = () => {
+        window.CWI18n?.applyLabels?.(body);
+        updatePathDisplay();
+      };
+      document.addEventListener("cw-lang-change", onLang);
+      st.cleanup = () => {
+        document.removeEventListener("cw-sudo-changed", onSudoChanged);
+        document.removeEventListener("cw-lang-change", onLang);
+      };
       ctx.state = st;
       st.renderTaskbar = () => {
         const w = window.CWDesktop?.getWindow?.(ctx.winId);
@@ -356,9 +507,12 @@
       syncDesktopSudo().then(() => paintSudoButton(sudoBtn));
       refreshFavorites();
       favSel?.addEventListener("change", () => {
-        if (favSel.value) load(favSel.value);
+        const v = favSel.value;
         favSel.value = "";
+        CWUI.refreshSelect?.(favSel);
+        if (v && !v.startsWith("__")) load(v);
       });
+      filterInp?.addEventListener("input", () => renderEntries(st.entries || []));
       uploadInput?.addEventListener("change", () => {
         uploadFiles(uploadInput.files);
         uploadInput.value = "";
@@ -426,38 +580,9 @@
           rememberPath(st.path);
           st.sel = null;
           updatePathDisplay();
-          if (typeof renderTaskbar === "function") {
-            /* taskbar hint via desktop */
-          }
-          const entries = data.entries || [];
-          if (!entries.length) {
-            listEl.innerHTML = `<p class="muted linux-app-empty">Pasta vazia</p>`;
-            return;
-          }
-          listEl.innerHTML = "";
-          for (const e of entries) {
-            const isDir = entryIsDir(e);
-            const row = document.createElement("div");
-            row.className = "linux-file-row" + (isDir ? " is-dir" : "");
-            row.setAttribute("role", "option");
-            row.tabIndex = -1;
-            const icon = window.CWUI?.fileIcon?.(e.name, isDir) || (isDir ? "📁" : "📄");
-            row.innerHTML = `<span class="linux-file-icon">${icon}</span><span class="linux-file-name">${escapeHtml(e.name)}</span><span class="linux-file-meta">${isDir && e.name !== ".." ? "" : e.name === ".." ? "" : formatSize(e.size)}</span>`;
-            row.addEventListener("click", (ev) => {
-              ev.stopPropagation();
-              if (isDir) {
-                openEntry(e);
-                return;
-              }
-              selectEntry(row, e);
-            });
-            row.addEventListener("dblclick", (ev) => {
-              ev.preventDefault();
-              ev.stopPropagation();
-              openEntry(e);
-            });
-            listEl.appendChild(row);
-          }
+          refreshFavorites();
+          st.entries = data.entries || [];
+          renderEntries(st.entries);
         } catch (err) {
           if (gen !== st.loadGen) return;
           listEl.innerHTML = `<p class="linux-app-empty error">${escapeHtml(err.message)}</p>`;
@@ -495,6 +620,7 @@
         const act = btn.dataset.act;
         if (act === "open") return openEntry(st.sel);
         if (act === "sudo") return desktopToggleSudo();
+        if (act === "fav-add") return addFavorite();
         if (act === "refresh") return load(st.path);
         if (ev.target.closest(".linux-target-btn, [data-container-select]")) return;
         if (act === "up") {
@@ -631,7 +757,7 @@
     label: "Terminal",
     icon: "⌨️",
     desc: "Linha de comandos",
-    screen: "desktop",
+    screen: "terminal",
     w: 640,
     h: 400,
     singleton: false,
@@ -820,7 +946,7 @@
     label: "Monitor",
     icon: "📊",
     desc: "CPU, RAM e disco",
-    screen: "desktop",
+    screen: "disks",
     hidden: true,
     w: 400,
     h: 340,
@@ -1889,7 +2015,7 @@
     icon: "📝",
     desc: "Editar arquivo",
     hidden: true,
-    screen: "desktop",
+    screen: "explorer",
     w: 620,
     h: 460,
     singleton: false,
@@ -2044,14 +2170,16 @@
 
   window.CWDesktopApps = {
     all() {
-      return [...apps.values()].filter((a) => !a.hidden);
+      return [...apps.values()].filter((a) => !a.hidden).map(localizedApp);
     },
     get(id) {
-      return apps.get(id);
+      const a = apps.get(id);
+      return a ? localizedApp(a) : undefined;
     },
     visible() {
-      return this.all().filter((a) => !a.screen || canUseScreen(a.screen));
+      return this.all().filter((a) => canUseApp(a));
     },
+    canUseApp,
     formatBytes,
     pctBar,
     toggleSudo: desktopToggleSudo,

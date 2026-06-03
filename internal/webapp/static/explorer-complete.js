@@ -118,13 +118,6 @@
     $("#view-explorer")?.classList.add("explorer-compact");
   }
 
-  // Seletor idioma
-  $("#explorer-lang")?.addEventListener("change", (e) => {
-    window.CWI18n?.setLang?.(e.target.value);
-  });
-  const langSel = $("#explorer-lang");
-  if (langSel && window.CWI18n) langSel.value = window.CWI18n.lang();
-
   function firstSelected(side) {
     const set = side === "local" ? state.selLocalPaths : state.selRemotePaths;
     const entries = side === "local" ? state.localEntries : state.remoteEntries;

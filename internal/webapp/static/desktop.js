@@ -16,6 +16,7 @@
     docker: "docker",
     automations: "automations",
     editor: "explorer",
+    system: "disks",
   };
 
   function winMotionReduced() {
@@ -499,13 +500,8 @@
   }
 
   function canOpenDesktopApp(app) {
-    if (!app?.screen || typeof canScreen !== "function") return true;
-    if (canScreen(app.screen)) return true;
-    if (canScreen("desktop")) {
-      const allowedViaDesktop = ["explorer", "terminal", "docker", "disks", "services", "automations", "desktop"];
-      if (allowedViaDesktop.includes(app.screen)) return true;
-    }
-    return false;
+    if (typeof CWDesktopApps.canUseApp === "function") return CWDesktopApps.canUseApp(app);
+    return true;
   }
 
   function openApp(appId, opts = {}) {
@@ -699,13 +695,14 @@
   async function refreshDesktopLatency() {
     const pill = $("#linux-panel-ssh");
     if (!pill || !state.ssh?.connected) return;
+    const tr = (k, v) => (window.CWI18n && window.CWI18n.t(k, v)) || k;
     const t0 = performance.now();
     try {
       await api(`/api/remote/list?path=${encodeURIComponent(state.remotePath || "/")}`);
       const ms = Math.round(performance.now() - t0);
-      pill.title = `SSH ligado · ${ms} ms`;
+      pill.title = tr("linux.panel.sshOn", { ms });
     } catch {
-      pill.title = "SSH ligado";
+      pill.title = tr("linux.panel.connected");
     }
   }
 
@@ -718,12 +715,13 @@
       host.textContent = u ? `${u} · ${h}` : h;
     }
     if (ssh) {
+      const tr = (k, v) => (window.CWI18n && window.CWI18n.t(k, v)) || k;
       const on = state.ssh.connected;
-      ssh.textContent = on ? "Conectado" : "Desconectado";
+      ssh.textContent = on ? tr("linux.panel.connected") : tr("linux.panel.disconnected");
       ssh.classList.toggle("is-online", on);
       ssh.classList.toggle("is-offline", !on);
       if (on) refreshDesktopLatency();
-      else ssh.title = "SSH desligado";
+      else ssh.title = tr("linux.panel.sshOff");
     }
     if (!state.ssh.connected) {
       window.CWDesktopCore?.renderPanelStats?.(null, null, null);
@@ -968,6 +966,12 @@
 
   document.getElementById("linux-docker-logs-close")?.addEventListener("click", () => {
     document.getElementById("linux-docker-logs-dialog")?.close();
+  });
+
+  document.addEventListener("cw-lang-change", () => {
+    if (!document.querySelector(".app-desktop-mode")) return;
+    renderLaunchers();
+    updatePanelChrome();
   });
 
   window.CWDesktop = {

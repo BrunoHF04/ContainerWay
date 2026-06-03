@@ -362,16 +362,17 @@
     onDesktopEnter,
     onDesktopLeave,
     renderBreadcrumbs(path, target, containerName, onNav) {
+      const tr = (k, v) => (window.CWI18n && window.CWI18n.t(k, v)) || k;
       const wrap = document.createElement("nav");
       wrap.className = "linux-breadcrumbs";
-      wrap.setAttribute("aria-label", "Caminho");
+      wrap.setAttribute("aria-label", tr("linux.files.breadcrumb.aria"));
       const parts = String(path || "/")
         .split("/")
         .filter((p, i, a) => i > 0 || a.length > 1);
       const prefix =
         target === "container"
-          ? [{ label: `🐳 ${containerName || "Docker"}`, path: "/" }]
-          : [{ label: "Servidor", path: "/" }];
+          ? [{ label: `🐳 ${containerName || tr("linux.files.target.docker")}`, path: "/" }]
+          : [{ label: tr("linux.files.breadcrumb.server"), path: "/" }];
       let acc = "";
       const crumbs = [...prefix];
       for (const p of parts) {

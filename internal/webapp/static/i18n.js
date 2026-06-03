@@ -288,10 +288,74 @@
     },
   };
 
+  const HUB_MODULES_PT = {
+    "module.explorer.title": "Gerenciador de arquivos",
+    "module.explorer.desc": "Painel duplo local/remoto, enviar e receber arquivos.",
+    "module.docker.title": "Contêineres Docker",
+    "module.docker.desc": "Lista, métricas, logs, consola e ciclo de vida.",
+    "module.disks.title": "Discos e armazenamento",
+    "module.disks.desc": "lsblk, uso de pastas, LVM e ampliação.",
+    "module.services.title": "Serviços",
+    "module.services.desc": "systemd: estado, iniciar/parar e início automático.",
+    "module.terminal.title": "Terminal SSH",
+    "module.terminal.desc": "Console remota interativa.",
+    "module.automations.title": "Central de automações",
+    "module.automations.desc": "Regras e histórico por host.",
+    "module.settings.title": "Configurações",
+    "module.settings.desc": "Conta, interface, SSH, módulos e administração.",
+    "module.desktop.title": "Ambiente Linux",
+    "module.desktop.desc": "Desktop com janelas: arquivos, sistema, Docker e terminal.",
+    "module.hub.empty": "Nenhum módulo encontrado.",
+  };
+
+  const HUB_MODULES_EN = {
+    "module.explorer.title": "File manager",
+    "module.explorer.desc": "Local/remote dual pane, send and receive files.",
+    "module.docker.title": "Docker containers",
+    "module.docker.desc": "List, metrics, logs, console and lifecycle.",
+    "module.disks.title": "Disks and storage",
+    "module.disks.desc": "lsblk, folder usage, LVM and extension.",
+    "module.services.title": "Services",
+    "module.services.desc": "systemd: status, start/stop and boot enable.",
+    "module.terminal.title": "SSH terminal",
+    "module.terminal.desc": "Interactive remote console.",
+    "module.automations.title": "Automation center",
+    "module.automations.desc": "Rules and history per host.",
+    "module.settings.title": "Settings",
+    "module.settings.desc": "Account, UI, SSH, modules and administration.",
+    "module.desktop.title": "Linux environment",
+    "module.desktop.desc": "Windowed desktop: files, system, Docker and terminal.",
+    "module.hub.empty": "No modules found.",
+  };
+
+  const HUB_MODULES_ES = {
+    "module.explorer.title": "Administrador de archivos",
+    "module.explorer.desc": "Panel dual local/remoto, enviar y recibir archivos.",
+    "module.docker.title": "Contenedores Docker",
+    "module.docker.desc": "Lista, métricas, logs, consola y ciclo de vida.",
+    "module.disks.title": "Discos y almacenamiento",
+    "module.disks.desc": "lsblk, uso de carpetas, LVM y ampliación.",
+    "module.services.title": "Servicios",
+    "module.services.desc": "systemd: estado, iniciar/detener e inicio automático.",
+    "module.terminal.title": "Terminal SSH",
+    "module.terminal.desc": "Consola remota interactiva.",
+    "module.automations.title": "Central de automatizaciones",
+    "module.automations.desc": "Reglas e historial por host.",
+    "module.settings.title": "Configuración",
+    "module.settings.desc": "Cuenta, interfaz, SSH, módulos y administración.",
+    "module.desktop.title": "Entorno Linux",
+    "module.desktop.desc": "Escritorio con ventanas: archivos, sistema, Docker y terminal.",
+    "module.hub.empty": "Ningún módulo encontrado.",
+  };
+
+  const EXTRA = window.CWI18N_EXTRA || {};
+
   const STR = {
     pt: {
       ...DISKS_PT,
       ...TERM_I18N.pt,
+      ...HUB_MODULES_PT,
+      ...(EXTRA.pt || {}),
       "explorer.send": "Enviar",
       "explorer.receive": "Receber",
       "explorer.syncMirror": "Sync espelhada",
@@ -315,6 +379,8 @@
     },
     en: {
       ...TERM_I18N.en,
+      ...HUB_MODULES_EN,
+      ...(EXTRA.en || {}),
       "disks.title": "Server disks and storage",
       "disks.sudo.on": "Enable sudo",
       "disks.sudo.off": "Disable sudo",
@@ -447,6 +513,8 @@
     },
     es: {
       ...TERM_I18N.es,
+      ...HUB_MODULES_ES,
+      ...(EXTRA.es || {}),
       "disks.title": "Discos y almacenamiento en el servidor",
       "disks.sudo.on": "Activar sudo",
       "disks.sudo.off": "Desactivar sudo",
@@ -582,7 +650,7 @@
     es: { local: "Local", remote: "Remoto", send: "Enviar", receive: "Recibir" },
   };
 
-  let lang = localStorage.getItem("cw-lang") || "pt";
+  let lang = window.CWWebPrefs?.get?.("lang") || localStorage.getItem("cw-lang") || "pt";
   if (!STR[lang]) lang = "pt";
 
   function t(key, vars) {
@@ -599,26 +667,48 @@
     if (!STR[code]) return;
     lang = code;
     localStorage.setItem("cw-lang", code);
+    if (window.CWWebPrefs?.set) window.CWWebPrefs.set("lang", code);
     document.documentElement.lang = code === "en" ? "en" : code === "es" ? "es" : "pt-BR";
     applyLabels();
     document.dispatchEvent(new CustomEvent("cw-lang-change", { detail: { lang: code } }));
+    document.querySelectorAll("[data-app-lang]").forEach((sel) => {
+      if (sel.value !== code) sel.value = code;
+      window.CWUI?.refreshSelect?.(sel);
+    });
   }
 
-  function applyLabels() {
+  function applyLabels(root) {
     const L = LABELS[lang] || LABELS.pt;
-    document.querySelectorAll("[data-i18n]").forEach((el) => {
+    const scope = root && typeof root.querySelectorAll === "function" ? root : document;
+    scope.querySelectorAll("[data-i18n]").forEach((el) => {
       const k = el.dataset.i18n;
-      if (k?.startsWith("disks.") || k?.startsWith("term.")) {
-        const val = t(k);
-        if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
-          if (el.hasAttribute("placeholder") || el.dataset.i18nPlaceholder !== undefined) {
-            el.placeholder = val;
-          }
+      if (!k || !STR[lang]?.[k] && !STR.pt[k]) return;
+      const val = t(k);
+      if (el.tagName === "OPTION") {
+        el.textContent = val;
+      } else if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
+        if (el.dataset.i18nMode === "placeholder" || el.hasAttribute("placeholder")) {
+          el.placeholder = val;
+        } else if (el.type === "button" || el.type === "submit") {
+          el.value = val;
         } else {
           el.textContent = val;
         }
-        return;
+      } else {
+        el.textContent = val;
       }
+    });
+    scope.querySelectorAll("[data-i18n-title]").forEach((el) => {
+      const k = el.dataset.i18nTitle;
+      if (k) el.title = t(k);
+    });
+    scope.querySelectorAll("[data-i18n-aria]").forEach((el) => {
+      const k = el.dataset.i18nAria;
+      if (k) el.setAttribute("aria-label", t(k));
+    });
+    if (scope !== document) return;
+    scope.querySelectorAll("[data-i18n]").forEach((el) => {
+      const k = el.dataset.i18n;
       if (k === "explorer.local") el.textContent = L.local;
       if (k === "explorer.remote") el.textContent = L.remote;
       if (k === "explorer.send") el.textContent = L.send;

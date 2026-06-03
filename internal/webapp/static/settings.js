@@ -3,6 +3,7 @@
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => document.querySelectorAll(sel);
 
+  /** Manter IDs alinhados a accessauth.AllScreens() — ver docs/PERMISSOES_TELAS.md */
   const PERM_SCREENS = [
     { id: "desktop", label: "Ambiente Linux (simplificado)" },
     { id: "explorer", label: "Gerenciador de arquivos" },

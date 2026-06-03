@@ -43,6 +43,14 @@
       <div class="topbar-right">
         <span id="ssh-status" class="badge badge-pulse">SSH: offline</span>
         <span id="ssh-latency" class="badge latency-badge hidden" title="Latência SSH (listagem remota)">—</span>
+        <label class="topbar-lang-wrap" title="Idioma da interface">
+          <span class="sr-only">Idioma</span>
+          <select id="app-lang" class="panel-select app-lang-select" data-app-lang aria-label="Idioma">
+            <option value="pt">PT</option>
+            <option value="en">EN</option>
+            <option value="es">ES</option>
+          </select>
+        </label>
         <button type="button" class="help-toggle compact" id="btn-shortcuts" title="Ajuda desta tela (?)" aria-label="Ajuda">
           <svg class="help-toggle-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
             <circle cx="12" cy="12" r="10"/>
@@ -54,8 +62,8 @@
           <span class="theme-icon theme-icon-dark">☀</span>
           <span class="theme-icon theme-icon-light">☽</span>
         </button>
-        <button type="button" class="btn btn-ghost" id="btn-disconnect" hidden>Desconectar</button>
-        <button type="button" class="btn btn-ghost" id="btn-logout">Sair</button>
+        <button type="button" class="btn btn-ghost" id="btn-disconnect" hidden data-i18n="nav.disconnect">Desconectar</button>
+        <button type="button" class="btn btn-ghost" id="btn-logout" data-i18n="nav.logout">Sair</button>
       </div>
     </header>
 
@@ -142,19 +150,19 @@
         <div class="hub-hero animate-in">
           <div class="hub-hero-row">
             <div class="hub-hero-copy">
-              <p class="eyebrow">Sessão ativa</p>
-              <h2 class="hub-title">O que pretende fazer?</h2>
-              <p id="hub-connected" class="hub-sub muted"></p>
+              <p class="eyebrow" data-i18n="hub.eyebrow">Sessão ativa</p>
+              <h2 class="hub-title" data-i18n="hub.title">O que pretende fazer?</h2>
+              <p id="hub-connected" class="hub-sub muted" hidden></p>
               <div class="search-wrap">
                 <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                <input type="search" id="hub-search" class="search" placeholder="Buscar módulos…" />
+                <input type="search" id="hub-search" class="search" data-i18n="hub.search" data-i18n-mode="placeholder" placeholder="Buscar módulos…" />
               </div>
             </div>
             <div class="hub-mascot-wrap" id="hub-mascot" aria-hidden="true">
               <div class="hub-mascot-scene">
                 <div class="hub-mascot-glow" aria-hidden="true"></div>
                 <div class="hub-mascot-body">
-                  <img class="hub-mascot-img" src="/mascot-hero.png" width="260" height="260" alt="" decoding="async" />
+                  <img class="hub-mascot-img" src="/mascot-hero.png" width="160" height="160" alt="" decoding="async" />
                 </div>
               </div>
             </div>
@@ -179,6 +187,14 @@
               <span class="linux-panel-stats muted" id="linux-panel-stats" title="Resumo do host">—</span>
             </div>
             <div class="linux-panel-end">
+              <label class="linux-panel-lang-wrap" title="Idioma da interface">
+                <span class="sr-only">Idioma</span>
+                <select class="panel-select app-lang-select" data-app-lang aria-label="Idioma">
+                  <option value="pt">PT</option>
+                  <option value="en">EN</option>
+                  <option value="es">ES</option>
+                </select>
+              </label>
               <div class="linux-notify-wrap">
                 <button type="button" class="linux-panel-notify-btn" id="linux-btn-notify" title="Notificações" aria-label="Notificações" aria-expanded="false" aria-haspopup="true">🔔<span class="linux-notify-badge" id="linux-notify-badge" hidden>0</span></button>
                 <div class="linux-notify-pop glass-card" id="linux-notify-pop" hidden role="region" aria-label="Notificações">
@@ -328,14 +344,6 @@
             </div>
           </div>
           <div class="explorer-toolbar-end">
-            <label class="explorer-lang-wrap" title="Idioma da interface">
-              <span class="sr-only">Idioma</span>
-              <select id="explorer-lang" class="panel-select explorer-lang-select" aria-label="Idioma">
-                <option value="pt">PT</option>
-                <option value="en">EN</option>
-                <option value="es">ES</option>
-              </select>
-            </label>
             <button type="button" class="btn btn-ghost btn-sm" id="btn-compact-explorer" title="Modo compacto">Compacto</button>
             <button type="button" class="btn btn-ghost btn-sm" id="btn-cancel-xfer" title="Cancelar fila pendente">Cancelar fila</button>
             <button type="button" class="btn btn-ghost btn-sm btn-sudo" id="btn-sudo" title="Ativar sudo/root no host SFTP">Sudo</button>
@@ -479,10 +487,10 @@
         <div class="subview-body">
         <div class="docker-module-bar">
           <nav class="docker-module-tabs" role="tablist" aria-label="Seções Docker">
-            <button type="button" class="docker-module-tab active" data-docker-tab="containers" role="tab" aria-selected="true">Contêineres</button>
-            <button type="button" class="docker-module-tab" data-docker-tab="images" role="tab" aria-selected="false">Imagens</button>
-            <button type="button" class="docker-module-tab" data-docker-tab="volumes" role="tab" aria-selected="false">Volumes</button>
-            <button type="button" class="docker-module-tab" data-docker-tab="networks" role="tab" aria-selected="false">Redes</button>
+            <button type="button" class="docker-module-tab active" data-docker-tab="containers" data-i18n="docker.tab.containers" role="tab" aria-selected="true">Contêineres</button>
+            <button type="button" class="docker-module-tab" data-docker-tab="images" data-i18n="docker.tab.images" role="tab" aria-selected="false">Imagens</button>
+            <button type="button" class="docker-module-tab" data-docker-tab="volumes" data-i18n="docker.tab.volumes" role="tab" aria-selected="false">Volumes</button>
+            <button type="button" class="docker-module-tab" data-docker-tab="networks" data-i18n="docker.tab.networks" role="tab" aria-selected="false">Redes</button>
           </nav>
           <div id="docker-system-bar" class="docker-system-bar hidden" aria-live="polite"></div>
         </div>
@@ -490,27 +498,27 @@
         <header class="docker-page-header">
           <div class="docker-page-top">
             <div class="docker-page-title-block">
-              <h2>Contêineres Docker</h2>
+              <h2 data-i18n="docker.title.containers">Contêineres Docker</h2>
               <div class="docker-page-title-meta">
                 <p id="docker-status-bar" class="muted docker-status-bar">—</p>
                 <div id="docker-summary" class="docker-summary" aria-live="polite"></div>
               </div>
             </div>
             <div class="docker-page-primary-actions">
-              <button type="button" class="btn btn-ghost btn-sm" id="docker-create-container">Criar contêiner</button>
-              <button type="button" class="btn btn-ghost btn-sm" id="docker-export" title="Exportar CSV">Exportar CSV</button>
-              <button type="button" class="btn btn-primary btn-sm" id="docker-refresh">Atualizar</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="docker-create-container" data-i18n="docker.create.container">Criar contêiner</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="docker-export" data-i18n-title="docker.export.csv" data-i18n="docker.export.csv">Exportar CSV</button>
+              <button type="button" class="btn btn-primary btn-sm" id="docker-refresh" data-i18n="common.refresh">Atualizar</button>
             </div>
           </div>
           <div class="docker-toolbar-row" role="toolbar" aria-label="Filtros e visualização">
             <div class="docker-toolbar-group docker-toolbar-toggles">
               <label class="checkbox-row docker-toggle-all">
-                <input type="checkbox" id="docker-show-all" /> Incluir parados
+                <input type="checkbox" id="docker-show-all" /> <span data-i18n="docker.include.stopped">Incluir parados</span>
               </label>
               <label class="checkbox-row docker-toggle-auto" title="Intervalo de atualização automática">
                 <input type="checkbox" id="docker-auto-refresh" checked />
-                <span>Auto-atualizar</span>
-                <span class="muted docker-toolbar-muted">cada</span>
+                <span data-i18n="docker.auto">Auto-atualizar</span>
+                <span class="muted docker-toolbar-muted" data-i18n="docker.auto.every">cada</span>
                 <select id="docker-poll-interval" class="docker-sort docker-poll-select" aria-label="Intervalo de atualização">
                   <option value="5000">5 s</option>
                   <option value="8000">8 s</option>
@@ -520,24 +528,24 @@
                 </select>
               </label>
               <label class="checkbox-row docker-toggle-group" title="Agrupar por projeto Compose">
-                <input type="checkbox" id="docker-group-compose" /> Agrupar Compose
+                <input type="checkbox" id="docker-group-compose" /> <span data-i18n="docker.group.compose">Agrupar Compose</span>
               </label>
               <span class="docker-group-controls hidden" id="docker-group-controls">
-                <button type="button" class="btn btn-ghost btn-sm" id="docker-groups-expand">Expandir</button>
-                <button type="button" class="btn btn-ghost btn-sm" id="docker-groups-collapse">Colapsar</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="docker-groups-expand" data-i18n="common.expand">Expandir</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="docker-groups-collapse" data-i18n="common.collapse">Colapsar</button>
               </span>
             </div>
             <div class="docker-toolbar-group docker-toolbar-search">
-              <input type="search" id="docker-filter" class="docker-filter" placeholder="Filtrar por nome, imagem ou ID…" aria-label="Filtrar contêineres" />
+              <input type="search" id="docker-filter" class="docker-filter" data-i18n="docker.filter.ph" data-i18n-mode="placeholder" placeholder="Filtrar por nome, imagem ou ID…" data-i18n-aria="docker.filter.aria" aria-label="Filtrar contêineres" />
             </div>
             <div class="docker-toolbar-group docker-toolbar-meta">
               <select id="docker-sort" class="docker-sort docker-sort-compact" aria-label="Ordenar">
-                <option value="name">Nome A–Z</option>
-                <option value="name-desc">Nome Z–A</option>
-                <option value="cpu">CPU %</option>
-                <option value="mem">RAM %</option>
-                <option value="restarts">Reinícios</option>
-                <option value="state">Estado (ativos primeiro)</option>
+                <option value="name" data-i18n="docker.sort.name">Nome A–Z</option>
+                <option value="name-desc" data-i18n="docker.sort.nameDesc">Nome Z–A</option>
+                <option value="cpu" data-i18n="docker.sort.cpu">CPU %</option>
+                <option value="mem" data-i18n="docker.sort.mem">RAM %</option>
+                <option value="restarts" data-i18n="docker.sort.restarts">Reinícios</option>
+                <option value="state" data-i18n="docker.sort.state">Estado (ativos primeiro)</option>
               </select>
               <div class="view-toggle docker-view-toggle" role="group" aria-label="Modo de visualização">
                 <button type="button" class="view-toggle-btn active" id="docker-view-list" data-view="list" title="Lista">
@@ -549,40 +557,40 @@
               </div>
             </div>
             <div class="docker-toolbar-group docker-toolbar-filters">
-              <span class="muted docker-toolbar-filter-label">Filtros</span>
+              <span class="muted docker-toolbar-filter-label" data-i18n="docker.filters">Filtros</span>
               <select id="docker-quick-filter" class="docker-sort docker-quick-select" aria-label="Filtros">
-                <option value="all">Todos</option>
-                <option value="running">Em execução</option>
-                <option value="stopped">Parados</option>
-                <option value="warn">Alerta</option>
-                <option value="critical">Críticos</option>
-                <option value="compose">Compose</option>
-                <option value="swarm">Swarm</option>
+                <option value="all" data-i18n="docker.quick.all">Todos</option>
+                <option value="running" data-i18n="docker.quick.running">Em execução</option>
+                <option value="stopped" data-i18n="docker.quick.stopped">Parados</option>
+                <option value="warn" data-i18n="docker.quick.warn">Alerta</option>
+                <option value="critical" data-i18n="docker.quick.critical">Críticos</option>
+                <option value="compose" data-i18n="docker.quick.compose">Compose</option>
+                <option value="swarm" data-i18n="docker.quick.swarm">Swarm</option>
               </select>
             </div>
             <div class="docker-toolbar-group docker-toolbar-filters-end">
-              <span class="docker-legend-hint muted" title="Neutro · amarelo ≥75% CPU/RAM · vermelho ≥90%">Legenda cores</span>
+              <span class="docker-legend-hint muted" title="Neutro · amarelo ≥75% CPU/RAM · vermelho ≥90%" data-i18n="docker.legend">Legenda cores</span>
               <label class="checkbox-row docker-select-all-master" title="Marcar ou desmarcar todos os contêineres visíveis">
-                <input type="checkbox" id="docker-select-all-master" aria-label="Selecionar todos visíveis" />
-                Selecionar todos visíveis
+                <input type="checkbox" id="docker-select-all-master" data-i18n-aria="docker.select.all" aria-label="Selecionar todos visíveis" />
+                <span data-i18n="docker.select.all">Selecionar todos visíveis</span>
               </label>
             </div>
           </div>
           <div class="docker-batch-bar hidden" id="docker-batch-bar" role="toolbar" aria-label="Ações em lote">
             <span id="docker-batch-count" class="docker-batch-count">0 selecionados</span>
-            <button type="button" class="btn btn-ghost btn-sm" id="docker-batch-start">Iniciar</button>
-            <button type="button" class="btn btn-ghost btn-sm" id="docker-batch-restart" title="Recria os contêineres (compose up --force-recreate) para aplicar alterações no YAML">Recriar</button>
-            <button type="button" class="btn btn-ghost btn-sm" id="docker-batch-stop">Parar</button>
-            <button type="button" class="btn btn-ghost btn-sm" id="docker-batch-pause">Pausar</button>
-            <button type="button" class="btn btn-ghost btn-sm" id="docker-batch-unpause">Retomar</button>
-            <button type="button" class="btn btn-ghost btn-sm btn-danger" id="docker-batch-remove">Remover</button>
-            <button type="button" class="btn btn-ghost btn-sm" id="docker-batch-clear">Limpar</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="docker-batch-start" data-i18n="docker.batch.start">Iniciar</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="docker-batch-restart" data-i18n="docker.batch.restart" title="Recria os contêineres (compose up --force-recreate) para aplicar alterações no YAML">Recriar</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="docker-batch-stop" data-i18n="docker.batch.stop">Parar</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="docker-batch-pause" data-i18n="docker.batch.pause">Pausar</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="docker-batch-unpause" data-i18n="docker.batch.unpause">Retomar</button>
+            <button type="button" class="btn btn-ghost btn-sm btn-danger" id="docker-batch-remove" data-i18n="docker.batch.remove">Remover</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="docker-batch-clear" data-i18n="docker.batch.clear">Limpar</button>
           </div>
         </header>
         <div class="docker-workspace" id="docker-workspace">
           <div class="docker-master-pane">
             <div class="docker-master-toolbar hidden" id="docker-master-toolbar">
-              <button type="button" class="btn btn-ghost btn-sm" id="docker-back-list">← Todos os contêineres</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="docker-back-list" data-i18n="docker.back.all">← Todos os contêineres</button>
             </div>
             <div class="docker-list-scroll">
               <div id="docker-list" class="docker-list"></div>
@@ -598,20 +606,20 @@
           <header class="docker-page-header docker-subpage-header">
             <div class="docker-page-top">
               <div class="docker-page-title-block">
-                <h2>Imagens Docker</h2>
+                <h2 data-i18n="docker.title.images">Imagens Docker</h2>
                 <p id="docker-images-status" class="muted docker-status-bar">—</p>
               </div>
               <div class="docker-page-primary-actions">
-                <button type="button" class="btn btn-ghost btn-sm btn-danger" id="docker-images-prune" title="Remove imagens dangling">Limpar dangling</button>
-                <button type="button" class="btn btn-primary btn-sm" id="docker-images-refresh">Atualizar</button>
+                <button type="button" class="btn btn-ghost btn-sm btn-danger" id="docker-images-prune" data-i18n-title="docker.images.pruneTitle" data-i18n="docker.images.prune">Limpar dangling</button>
+                <button type="button" class="btn btn-primary btn-sm" id="docker-images-refresh" data-i18n="common.refresh">Atualizar</button>
               </div>
             </div>
             <div class="docker-toolbar-row">
               <div class="docker-toolbar-group docker-toolbar-search">
-                <input type="search" id="docker-images-filter" class="docker-filter" placeholder="Filtrar por tag ou ID…" aria-label="Filtrar imagens" />
+                <input type="search" id="docker-images-filter" class="docker-filter" data-i18n="docker.images.filter.ph" data-i18n-mode="placeholder" placeholder="Filtrar por tag ou ID…" aria-label="Filtrar imagens" />
               </div>
               <label class="checkbox-row docker-images-dangling">
-                <input type="checkbox" id="docker-images-dangling" /> Só dangling (&lt;none&gt;)
+                <input type="checkbox" id="docker-images-dangling" /> <span data-i18n="docker.images.dangling">Só dangling (&lt;none&gt;)</span>
               </label>
             </div>
           </header>
@@ -624,18 +632,18 @@
           <header class="docker-page-header docker-subpage-header">
             <div class="docker-page-top">
               <div class="docker-page-title-block">
-                <h2>Volumes Docker</h2>
+                <h2 data-i18n="docker.title.volumes">Volumes Docker</h2>
                 <p id="docker-volumes-status" class="muted docker-status-bar">—</p>
               </div>
               <div class="docker-page-primary-actions">
-                <button type="button" class="btn btn-ghost btn-sm" id="docker-create-volume">Criar volume</button>
-                <button type="button" class="btn btn-ghost btn-sm btn-danger" id="docker-volumes-prune" title="Remove volumes não usados">Limpar não usados</button>
-                <button type="button" class="btn btn-primary btn-sm" id="docker-volumes-refresh">Atualizar</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="docker-create-volume" data-i18n="docker.volumes.create">Criar volume</button>
+                <button type="button" class="btn btn-ghost btn-sm btn-danger" id="docker-volumes-prune" data-i18n-title="docker.volumes.pruneTitle" data-i18n="docker.volumes.prune">Limpar não usados</button>
+                <button type="button" class="btn btn-primary btn-sm" id="docker-volumes-refresh" data-i18n="common.refresh">Atualizar</button>
               </div>
             </div>
             <div class="docker-toolbar-row">
               <div class="docker-toolbar-group docker-toolbar-search">
-                <input type="search" id="docker-volumes-filter" class="docker-filter" placeholder="Filtrar por nome…" aria-label="Filtrar volumes" />
+                <input type="search" id="docker-volumes-filter" class="docker-filter" data-i18n="docker.volumes.filter.ph" data-i18n-mode="placeholder" placeholder="Filtrar por nome…" aria-label="Filtrar volumes" />
               </div>
             </div>
           </header>
@@ -648,17 +656,17 @@
           <header class="docker-page-header docker-subpage-header">
             <div class="docker-page-top">
               <div class="docker-page-title-block">
-                <h2>Redes Docker</h2>
+                <h2 data-i18n="docker.title.networks">Redes Docker</h2>
                 <p id="docker-networks-status" class="muted docker-status-bar">—</p>
               </div>
               <div class="docker-page-primary-actions">
-                <button type="button" class="btn btn-ghost btn-sm" id="docker-open-network-create">Criar rede</button>
-                <button type="button" class="btn btn-primary btn-sm" id="docker-networks-refresh">Atualizar</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="docker-open-network-create" data-i18n="docker.networks.create">Criar rede</button>
+                <button type="button" class="btn btn-primary btn-sm" id="docker-networks-refresh" data-i18n="common.refresh">Atualizar</button>
               </div>
             </div>
             <div class="docker-toolbar-row">
               <div class="docker-toolbar-group docker-toolbar-search">
-                <input type="search" id="docker-networks-filter" class="docker-filter" placeholder="Filtrar por nome ou driver…" aria-label="Filtrar redes" />
+                <input type="search" id="docker-networks-filter" class="docker-filter" data-i18n="docker.networks.filter.ph" data-i18n-mode="placeholder" placeholder="Filtrar por nome ou driver…" aria-label="Filtrar redes" />
               </div>
             </div>
           </header>
@@ -855,45 +863,45 @@
         <header class="svc-top-bar glass-card">
           <div class="svc-top-compact">
             <div class="svc-top-primary">
-              <h2 class="svc-screen-title">Serviços do sistema</h2>
+              <h2 class="svc-screen-title" data-i18n="svc.title">Serviços do sistema</h2>
               <span id="svc-sudo-status" class="svc-sudo-chip muted" title=""></span>
             </div>
             <div class="svc-top-actions">
-              <button type="button" class="btn btn-primary btn-sm" id="svc-refresh">Atualizar</button>
+              <button type="button" class="btn btn-primary btn-sm" id="svc-refresh" data-i18n="svc.refresh">Atualizar</button>
               <label class="checkbox-row svc-auto-check">
                 <input type="checkbox" id="svc-auto-refresh" />
-                <span>Auto 30 s</span>
+                <span data-i18n="svc.auto">Auto 30 s</span>
               </label>
-              <button type="button" class="btn btn-primary btn-sm" id="svc-sudo-on">Ativar sudo</button>
-              <button type="button" class="btn btn-ghost btn-sm hidden" id="svc-sudo-off">Desativar sudo</button>
+              <button type="button" class="btn btn-primary btn-sm" id="svc-sudo-on" data-i18n="svc.sudo.on">Ativar sudo</button>
+              <button type="button" class="btn btn-ghost btn-sm hidden" id="svc-sudo-off" data-i18n="svc.sudo.off">Desativar sudo</button>
               <span id="svc-updated-at" class="svc-updated muted">—</span>
             </div>
           </div>
-          <p class="svc-meta svc-meta-inline muted">systemd no host SSH · agora (iniciar/parar) e início automático ao ligar o servidor</p>
+          <p class="svc-meta svc-meta-inline muted" data-i18n="svc.meta">systemd no host SSH · agora (iniciar/parar) e início automático ao ligar o servidor</p>
         </header>
         <div class="svc-toolbar glass-card">
           <div class="svc-toolbar-row" role="toolbar" aria-label="Filtrar serviços">
-            <input type="search" id="svc-filter" class="svc-control svc-filter" placeholder="Filtrar por nome ou descrição…" aria-label="Filtrar serviços" />
+            <input type="search" id="svc-filter" class="svc-control svc-filter" data-i18n="svc.filter.ph" data-i18n-mode="placeholder" placeholder="Filtrar por nome ou descrição…" data-i18n-aria="svc.filter.aria" aria-label="Filtrar serviços" />
             <select id="svc-state-filter" class="svc-control svc-control--state" aria-label="Estado">
-              <option value="all">Todos os estados</option>
-              <option value="active">Em execução</option>
-              <option value="inactive">Parados</option>
-              <option value="failed">Com falha</option>
+              <option value="all" data-i18n="svc.state.all">Todos os estados</option>
+              <option value="active" data-i18n="svc.state.active">Em execução</option>
+              <option value="inactive" data-i18n="svc.state.inactive">Parados</option>
+              <option value="failed" data-i18n="svc.state.failed">Com falha</option>
             </select>
             <select id="svc-sort" class="svc-control svc-control--sort" aria-label="Ordenar">
-              <option value="name">Nome (A–Z)</option>
-              <option value="state">Estado</option>
+              <option value="name" data-i18n="svc.sort.name">Nome (A–Z)</option>
+              <option value="state" data-i18n="svc.sort.state">Estado</option>
             </select>
             <span id="svc-summary" class="svc-summary muted" aria-live="polite">—</span>
           </div>
         </div>
         <div class="svc-table-wrap">
           <div class="svc-table-header" aria-hidden="true">
-            <span class="svc-col-name">Serviço</span>
-            <span class="svc-col-state">Estado</span>
-            <span class="svc-col-boot">Início automático</span>
-            <span class="svc-col-desc">Descrição</span>
-            <span class="svc-col-actions">Ações</span>
+            <span class="svc-col-name" data-i18n="svc.col.service">Serviço</span>
+            <span class="svc-col-state" data-i18n="svc.col.state">Estado</span>
+            <span class="svc-col-boot" data-i18n="svc.col.boot">Início automático</span>
+            <span class="svc-col-desc" data-i18n="svc.col.desc">Descrição</span>
+            <span class="svc-col-actions" data-i18n="svc.col.actions">Ações</span>
           </div>
           <div id="svc-list" class="svc-list" role="list"></div>
         </div>
@@ -903,10 +911,10 @@
       <dialog id="svc-logs-dialog" class="modal-dialog svc-logs-dialog">
         <div class="modal-form svc-logs-form">
           <div class="svc-logs-head">
-            <h3 id="svc-logs-title">Logs do serviço</h3>
+            <h3 id="svc-logs-title" data-i18n="svc.logs.title">Logs do serviço</h3>
             <div class="btn-row svc-logs-actions">
-              <button type="button" class="btn btn-ghost btn-sm" id="svc-logs-refresh">Atualizar</button>
-              <button type="button" class="btn btn-ghost btn-sm" id="svc-logs-close">Fechar</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="svc-logs-refresh" data-i18n="common.refresh">Atualizar</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="svc-logs-close" data-i18n="common.close">Fechar</button>
             </div>
           </div>
           <pre id="svc-logs-body" class="svc-logs-body code-block" aria-live="polite"></pre>
@@ -915,11 +923,11 @@
 
       <div id="view-terminal" class="subview">
         <div class="subview-body">
-        <div class="page-head glass-bar-inline"><h2>Terminal SSH</h2>
-          <button type="button" class="btn btn-ghost" id="terminal-reconnect">Reconectar</button></div>
+        <div class="page-head glass-bar-inline"><h2 data-i18n="term.page.title">Terminal SSH</h2>
+          <button type="button" class="btn btn-ghost" id="terminal-reconnect" data-i18n="term.page.reconnect">Reconectar</button></div>
         <div id="terminal-ended-banner" class="terminal-ended-banner hidden" role="alert">
-          <span>Sessão SSH terminada.</span>
-          <button type="button" class="btn btn-primary btn-sm" id="terminal-ended-reconnect">Reconectar</button>
+          <span data-i18n="term.ended.banner">Sessão SSH terminada.</span>
+          <button type="button" class="btn btn-primary btn-sm" id="terminal-ended-reconnect" data-i18n="term.page.reconnect">Reconectar</button>
         </div>
         <div class="terminal-toolbar glass-bar-inline" id="terminal-toolbar">
           <button type="button" class="btn btn-ghost btn-sm" id="term-btn-htop" data-i18n="term.btn.htop">Ger. de Tarefas</button>
@@ -938,42 +946,42 @@
       <div id="view-automations" class="subview">
         <div class="subview-body">
         <div class="page-head glass-bar-inline">
-          <div><h2>Central de automações</h2>
-          <p class="muted auto-hint">Motor verifica Docker a cada 8s · regras compartilhadas com o desktop</p></div>
+          <div><h2 data-i18n="auto.title">Central de automações</h2>
+          <p class="muted auto-hint" data-i18n="auto.hint">Motor verifica Docker a cada 8s · regras compartilhadas com o desktop</p></div>
           <div class="page-head-actions">
-            <span id="auto-engine-status" class="badge">Motor parado</span>
-            <button type="button" class="btn btn-ghost" id="auto-engine-toggle">Iniciar motor</button>
-            <button type="button" class="btn btn-ghost" id="auto-refresh">Atualizar</button>
+            <span id="auto-engine-status" class="badge" data-i18n="auto.engine.off">Motor parado</span>
+            <button type="button" class="btn btn-ghost" id="auto-engine-toggle" data-i18n="auto.engine.start">Iniciar motor</button>
+            <button type="button" class="btn btn-ghost" id="auto-refresh" data-i18n="common.refresh">Atualizar</button>
           </div>
         </div>
         <div class="split-panels content-pad">
           <div class="glass-card split-card">
-            <div class="panel-head"><h3>Regras</h3>
-              <button type="button" class="btn btn-sm btn-primary" id="auto-save-rules" hidden>Salvar</button></div>
+            <div class="panel-head"><h3 data-i18n="auto.rules">Regras</h3>
+              <button type="button" class="btn btn-sm btn-primary" id="auto-save-rules" hidden data-i18n="auto.save">Salvar</button></div>
             <div id="auto-rules" class="data-list"></div>
           </div>
           <div class="glass-card split-card">
-            <div class="panel-head"><h3>Histórico</h3>
-              <button type="button" class="btn btn-ghost btn-sm" id="auto-clear-history">Limpar</button></div>
+            <div class="panel-head"><h3 data-i18n="auto.history">Histórico</h3>
+              <button type="button" class="btn btn-ghost btn-sm" id="auto-clear-history" data-i18n="auto.history.clear">Limpar</button></div>
             <pre id="auto-history" class="code-block"></pre>
           </div>
         </div>
         </div>
         <dialog id="auto-rule-dialog" class="modal-dialog">
           <form id="auto-rule-form" method="dialog" class="modal-form">
-            <h3 id="auto-dialog-title">Editar regra</h3>
-            <label class="field">Nome <input name="name" required /></label>
-            <label class="field">Descrição <input name="description" /></label>
-            <label class="field">Tipo <input name="kind" readonly /></label>
-            <label class="field">Gatilho <input name="trigger" /></label>
-            <label class="field">Ação <input name="action" /></label>
-            <label class="field">Alvo <input name="target" placeholder="ex: nginx" /></label>
-            <label class="field">Cooldown (s) <input name="cooldownSec" type="number" min="10" value="20" /></label>
-            <label class="field">Webhook <input name="webhookURL" type="url" placeholder="https://…" /></label>
-            <label class="checkbox-row"><input name="enabled" type="checkbox" /> Regra ativa</label>
+            <h3 id="auto-dialog-title" data-i18n="auto.dialog.title">Editar regra</h3>
+            <label class="field"><span data-i18n="auto.field.name">Nome</span> <input name="name" required /></label>
+            <label class="field"><span data-i18n="auto.field.desc">Descrição</span> <input name="description" /></label>
+            <label class="field"><span data-i18n="auto.field.kind">Tipo</span> <input name="kind" readonly /></label>
+            <label class="field"><span data-i18n="auto.field.trigger">Gatilho</span> <input name="trigger" /></label>
+            <label class="field"><span data-i18n="auto.field.action">Ação</span> <input name="action" /></label>
+            <label class="field"><span data-i18n="auto.field.target">Alvo</span> <input name="target" data-i18n="auto.field.targetPh" data-i18n-mode="placeholder" placeholder="ex: nginx" /></label>
+            <label class="field"><span data-i18n="auto.field.cooldown">Cooldown (s)</span> <input name="cooldownSec" type="number" min="10" value="20" /></label>
+            <label class="field"><span data-i18n="auto.field.webhook">Webhook</span> <input name="webhookURL" type="url" placeholder="https://…" /></label>
+            <label class="checkbox-row"><input name="enabled" type="checkbox" /> <span data-i18n="auto.field.active">Regra ativa</span></label>
             <div class="btn-row end">
-              <button type="button" class="btn btn-ghost" id="auto-dialog-cancel">Cancelar</button>
-              <button type="submit" class="btn btn-primary">Aplicar</button>
+              <button type="button" class="btn btn-ghost" id="auto-dialog-cancel" data-i18n="common.cancel">Cancelar</button>
+              <button type="submit" class="btn btn-primary" data-i18n="common.apply">Aplicar</button>
             </div>
           </form>
         </dialog>
@@ -1667,6 +1675,7 @@
   <script src="/services-manager.js"></script>
   <script src="/explorer.js"></script>
   <script src="/explorer-enhanced.js"></script>
+  <script src="/i18n-modules.js"></script>
   <script src="/i18n.js"></script>
   <script src="/explorer-complete.js"></script>
   <script src="/screen-help.js"></script>

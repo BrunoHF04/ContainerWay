@@ -211,6 +211,7 @@ function showView(id) {
 function setAppTopbar(visible) {
   $("#app-topbar")?.classList.toggle("hidden", !visible);
   $("#app")?.classList.toggle("app-authed", !!visible);
+  if (visible) requestAnimationFrame(syncAppTopbarHeight);
 }
 
 function showLoginPhase(phase) {
@@ -432,6 +433,57 @@ function bindHubCardTilt(shell) {
   card.addEventListener("blur", reset);
 }
 
+function hubModuleText(m, field) {
+  const key = `module.${m.id}.${field}`;
+  const fallback = field === "title" ? m.title : m.desc;
+  return window.CWI18n?.t?.(key) || fallback;
+}
+
+/** Ajusta offset do conteúdo quando a topbar quebra linha ao redimensionar. */
+function syncAppTopbarHeight() {
+  const bar = $("#app-topbar");
+  const app = $("#app");
+  if (!bar || !app || bar.classList.contains("hidden")) return;
+  const h = Math.ceil(bar.getBoundingClientRect().height);
+  if (h > 0) app.style.setProperty("--topbar-h", `${h}px`);
+}
+
+/** Limpa transforms 3D do hub após mudar de monitor / redimensionar. */
+function resetHubVisualState() {
+  document.querySelectorAll("#hub-grid .hub-card-3d").forEach((shell) => {
+    shell.classList.remove("is-tilt");
+    shell.style.transform = "";
+    shell.style.removeProperty("--mx");
+    shell.style.removeProperty("--my");
+  });
+  const wrap = $("#hub-mascot");
+  const scene = wrap?.querySelector(".hub-mascot-scene");
+  if (scene) scene.style.transform = "";
+  wrap?.classList.remove("is-active");
+}
+
+let hubLayoutResizeTimer = null;
+function scheduleHubLayoutSync() {
+  clearTimeout(hubLayoutResizeTimer);
+  hubLayoutResizeTimer = setTimeout(() => {
+    syncAppTopbarHeight();
+    resetHubVisualState();
+  }, 80);
+}
+
+function bindAppLayoutSync() {
+  if (bindAppLayoutSync.done) return;
+  bindAppLayoutSync.done = true;
+  window.addEventListener("resize", scheduleHubLayoutSync);
+  if (typeof ResizeObserver !== "undefined") {
+    const bar = $("#app-topbar");
+    if (bar) new ResizeObserver(syncAppTopbarHeight).observe(bar);
+    const hubBody = document.querySelector("#view-hub > .subview-body");
+    if (hubBody) new ResizeObserver(scheduleHubLayoutSync).observe(hubBody);
+  }
+  syncAppTopbarHeight();
+}
+
 function renderHub() {
   bindHubMascotMagnet();
   const q = ($("#hub-search").value || "").toLowerCase();
@@ -444,7 +496,9 @@ function renderHub() {
   for (const m of MODULES) {
     if (m.adminOnly && !isAdmin) continue;
     if (!canScreen(m.id)) continue;
-    const hay = `${m.title} ${m.desc} ${m.kw}`.toLowerCase();
+    const title = hubModuleText(m, "title");
+    const desc = hubModuleText(m, "desc");
+    const hay = `${title} ${desc} ${m.kw}`.toLowerCase();
     if (q && !hay.includes(q)) continue;
     const shell = document.createElement("div");
     shell.className = "hub-card-3d";
@@ -455,7 +509,7 @@ function renderHub() {
     const card = document.createElement("button");
     card.type = "button";
     card.className = "hub-card";
-    card.innerHTML = `<span class="hub-icon-wrap">${m.icon}</span><strong>${escapeHtml(m.title)}</strong><span class="hub-desc">${escapeHtml(m.desc)}</span>`;
+    card.innerHTML = `<span class="hub-icon-wrap">${m.icon}</span><strong>${escapeHtml(title)}</strong><span class="hub-desc">${escapeHtml(desc)}</span>`;
     card.addEventListener("click", () => showScreen(m.id));
 
     shell.appendChild(card);
@@ -464,9 +518,21 @@ function renderHub() {
     grid.appendChild(shell);
   }
   if (!grid.children.length) {
-    grid.innerHTML = '<p class="placeholder">Nenhum módulo encontrado.</p>';
+    const empty = window.CWI18n?.t?.("module.hub.empty") || "Nenhum módulo encontrado.";
+    grid.innerHTML = `<p class="placeholder">${escapeHtml(empty)}</p>`;
   }
+  requestAnimationFrame(syncAppTopbarHeight);
 }
+
+document.addEventListener("cw-lang-change", () => {
+  window.CWI18n?.applyLabels?.();
+  if (state.screen === "hub") renderHub();
+  const badge = $("#ssh-status");
+  if (badge && state.ssh) {
+    const sshKey = state.ssh.connected ? "nav.ssh.online" : "nav.ssh.offline";
+    badge.textContent = window.CWI18n?.t?.(sshKey) || badge.textContent;
+  }
+});
 
 async function refreshSSH() {
   const wasConnected = state.ssh.connected;
@@ -478,7 +544,8 @@ async function refreshSSH() {
   state.ssh.isAdmin = !!st.isAdmin;
   if (st.permissions) applyUserPermissions(st.permissions);
   const badge = $("#ssh-status");
-  badge.textContent = st.connected ? "SSH: online" : "SSH: offline";
+  const sshKey = st.connected ? "nav.ssh.online" : "nav.ssh.offline";
+  badge.textContent = window.CWI18n?.t?.(sshKey) || (st.connected ? "SSH: online" : "SSH: offline");
   badge.classList.toggle("online", st.connected);
   $("#btn-disconnect").hidden = !st.connected;
   $("#session-host").textContent = st.connected ? `${st.user}@${st.host}` : "";
@@ -1000,19 +1067,23 @@ function stopAutoPoll() {
   }
 }
 
+function autoTr(key, vars) {
+  return window.CWI18n?.t?.(key, vars) || key;
+}
+
 async function refreshAutoEngine() {
   const st = await api("/api/automations/engine");
   const running = !!st.running;
   const lbl = $("#auto-engine-status");
   const btn = $("#auto-engine-toggle");
-  lbl.textContent = running ? "Motor ativo" : "Motor parado";
+  lbl.textContent = running ? autoTr("auto.engine.on") : autoTr("auto.engine.off");
   lbl.className = running ? "badge on" : "badge muted";
-  btn.textContent = running ? "Parar motor" : "Iniciar motor";
+  btn.textContent = running ? autoTr("auto.engine.stop") : autoTr("auto.engine.start");
 }
 
 async function refreshAutoHistory() {
   const hist = await api("/api/automations/history");
-  $("#auto-history").textContent = (hist.lines || []).join("\n") || "(histórico vazio)";
+  $("#auto-history").textContent = (hist.lines || []).join("\n") || autoTr("auto.history.empty");
 }
 
 function renderAutoRules() {
@@ -1023,9 +1094,9 @@ function renderAutoRules() {
   if (!state.autoRules.length) {
     CWUI.emptyState(rulesBox, {
       icon: "⚙️",
-      title: "Sem regras",
-      desc: "Configure regras de automação para este host.",
-      actionLabel: "Recarregar",
+      title: autoTr("auto.rule.emptyTitle"),
+      desc: autoTr("auto.rule.emptyDesc"),
+      actionLabel: autoTr("common.refresh"),
       onAction: () => loadAutomations(),
     });
     return;
@@ -1034,21 +1105,23 @@ function renderAutoRules() {
     const row = document.createElement("div");
     row.className = "data-row";
     const editable = r.kind === "docker_container_stopped_restart";
-    const targetHint = editable ? escapeHtml(r.target || "(defina o alvo)") : escapeHtml(r.target || "");
-    row.innerHTML = `<div><strong>${escapeHtml(r.name || r.id)}</strong><span class="muted">${escapeHtml(r.trigger || "")} → ${escapeHtml(r.action || "")}</span><br/><span class="muted">${r.enabled ? "Ativa" : "Inativa"} · ${targetHint}</span></div>`;
+    const targetHint = editable
+      ? escapeHtml(r.target || autoTr("auto.rule.targetHint"))
+      : escapeHtml(r.target || "");
+    row.innerHTML = `<div><strong>${escapeHtml(r.name || r.id)}</strong><span class="muted">${escapeHtml(r.trigger || "")} → ${escapeHtml(r.action || "")}</span><br/><span class="muted">${r.enabled ? autoTr("auto.rule.active") : autoTr("auto.rule.inactive")} · ${targetHint}</span></div>`;
     const actions = document.createElement("div");
     actions.className = "data-row-actions";
     if (editable) {
       const editBtn = document.createElement("button");
       editBtn.type = "button";
       editBtn.className = "btn btn-ghost btn-sm";
-      editBtn.textContent = "Editar";
+      editBtn.textContent = autoTr("auto.rule.edit");
       editBtn.addEventListener("click", () => openAutoRuleDialog(idx));
       actions.appendChild(editBtn);
     } else {
       const tag = document.createElement("span");
       tag.className = "muted";
-      tag.textContent = "Em breve";
+      tag.textContent = autoTr("auto.rule.soon");
       actions.appendChild(tag);
     }
     row.appendChild(actions);
@@ -1070,7 +1143,7 @@ function openAutoRuleDialog(idx) {
   form.elements.cooldownSec.value = r.cooldownSec ?? 20;
   form.elements.webhookURL.value = r.webhookURL || "";
   form.elements.enabled.checked = !!r.enabled;
-  $("#auto-dialog-title").textContent = `Editar: ${r.name || r.id}`;
+  $("#auto-dialog-title").textContent = autoTr("auto.dialog.edit", { name: r.name || r.id });
   $("#auto-rule-dialog").showModal();
 }
 
@@ -1091,16 +1164,16 @@ function applyDockerAutomationPrefill() {
   );
   if (existing >= 0) {
     openAutoRuleDialog(existing);
-    CWUI.toast("Regra existente para este alvo — pode editar e salvar", "info");
+    CWUI.toast(autoTr("auto.toast.existingRule"), "info");
     return true;
   }
   const rule = {
     id: `docker-${Date.now()}`,
     kind: "docker_container_stopped_restart",
-    name: pre.name || `Reinício automático: ${target}`,
-    description: "Criada a partir do tela Contêineres Docker",
-    trigger: "Contêiner Docker deixou de correr",
-    action: "docker restart",
+    name: pre.name || autoTr("auto.rule.dockerName", { target }),
+    description: autoTr("auto.rule.dockerDesc"),
+    trigger: autoTr("auto.rule.dockerTrigger"),
+    action: autoTr("auto.rule.dockerAction"),
     target,
     cooldownSec: 60,
     enabled: true,
@@ -1110,14 +1183,14 @@ function applyDockerAutomationPrefill() {
   state.autoRulesDirty = true;
   renderAutoRules();
   openAutoRuleDialog(state.autoRules.length - 1);
-  CWUI.toast("Nova regra — confirme e clique em Salvar regras", "info");
+  CWUI.toast(autoTr("auto.toast.newRule"), "info");
   return true;
 }
 
 async function loadAutomations() {
   const rulesBox = $("#auto-rules");
   CWUI.skeletonList(rulesBox, 4);
-  $("#auto-history").textContent = "…";
+  $("#auto-history").textContent = autoTr("common.loading");
   try {
     await refreshAutoEngine();
     const rules = await api("/api/automations/rules");
@@ -1132,6 +1205,14 @@ async function loadAutomations() {
 }
 
 $("#auto-refresh").addEventListener("click", loadAutomations);
+
+document.addEventListener("cw-lang-change", () => {
+  if (!document.querySelector("#view-automations.active")) return;
+  window.CWI18n?.applyLabels?.();
+  void refreshAutoEngine();
+  renderAutoRules();
+  void refreshAutoHistory();
+});
 
 $("#auto-engine-toggle").addEventListener("click", async () => {
   try {
@@ -1150,18 +1231,18 @@ $("#auto-save-rules").addEventListener("click", async () => {
     await api("/api/automations/rules", { method: "PUT", body: JSON.stringify({ rules: state.autoRules }) });
     state.autoRulesDirty = false;
     renderAutoRules();
-    CWUI.toast("Regras salvas", "success");
+    CWUI.toast(autoTr("auto.toast.saved"), "success");
   } catch (e) {
     CWUI.toast(e.message, "error");
   }
 });
 
 $("#auto-clear-history").addEventListener("click", async () => {
-  if (!(await CWConfirm("Limpar histórico deste host?"))) return;
+  if (!(await CWConfirm(autoTr("auto.confirm.clearHistory")))) return;
   try {
     await api("/api/automations/history", { method: "DELETE" });
     await refreshAutoHistory();
-    CWUI.toast("Histórico limpo", "success");
+    CWUI.toast(autoTr("auto.toast.historyCleared"), "success");
   } catch (e) {
     CWUI.toast(e.message, "error");
   }
@@ -1189,4 +1270,5 @@ $("#auto-rule-form").addEventListener("submit", (ev) => {
   renderAutoRules();
 });
 
+bindAppLayoutSync();
 checkSession();

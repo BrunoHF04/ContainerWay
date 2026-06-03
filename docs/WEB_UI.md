@@ -65,6 +65,8 @@ Flags: `-addr 127.0.0.1:9000`, `-no-browser` (não abrir o navegador).
 
 Guia completo (desktop + web, atalhos, paridade): **[ARQUIVOS.md](ARQUIVOS.md)**.
 
+Padrões visuais (scrollbar, animações de menus/popovers): **[UI_PADROES.md](UI_PADROES.md)**.
+
 | Funcionalidade | Detalhe |
 |----------------|---------|
 | Painel **Local** | Pastas do PC onde corre o `ContainerWay Web` (Windows) |

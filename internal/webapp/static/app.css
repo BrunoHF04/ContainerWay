@@ -44,6 +44,7 @@
   --scrollbar-track: transparent;
   --scrollbar-thumb: color-mix(in srgb, var(--text-secondary) 42%, transparent);
   --scrollbar-thumb-hover: color-mix(in srgb, var(--accent) 75%, var(--text-secondary));
+  --motion-pop-in: 0.24s;
 }
 
 [data-theme="light"] {
@@ -893,6 +894,7 @@ select.cw-select-native {
   max-height: min(260px, 52vh);
   overflow-x: hidden;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   animation: cw-select-in 0.22s var(--ease-smooth) both;
 }
 
@@ -1074,17 +1076,51 @@ select.cw-select-native {
 .topbar {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.65rem 1rem;
   transition: transform 0.45s var(--motion-spring-soft), opacity 0.4s ease, box-shadow 0.35s ease;
-  padding: 0.7rem 1.25rem;
+  padding: 0.55rem 1rem;
   flex-wrap: wrap;
   position: sticky;
   top: 0;
   z-index: 50;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
-.topbar-left, .topbar-right { display: flex; align-items: center; gap: 0.65rem; }
-.topbar-center { flex: 1; min-width: 120px; text-align: center; }
+.topbar-left,
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.topbar-right {
+  flex: 1 1 auto;
+  justify-content: flex-end;
+}
+
+.topbar-center {
+  flex: 1 1 100%;
+  min-width: 0;
+  text-align: left;
+  order: 10;
+}
+
+@media (min-width: 1050px) {
+  .topbar-center {
+    flex: 1 1 auto;
+    order: 0;
+    text-align: center;
+  }
+}
+
+@media (max-width: 1049px) {
+  .topbar-center {
+    display: none;
+  }
+}
 
 .brand-mini {
   display: inline-flex;
@@ -1265,6 +1301,11 @@ select.cw-select-native {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  container-type: inline-size;
+  container-name: hub;
 }
 
 #view-terminal > .subview-body .terminal-box {
@@ -1342,37 +1383,52 @@ select.cw-select-native {
 .page-head-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .auto-hint { font-size: 0.8rem; margin-top: 0.25rem; }
 
-/* Hub */
+/* Hub — hero: sempre texto + busca à esquerda, mascote à direita (escala com o contentor) */
 .hub-hero {
-  padding: 1.5rem 1.25rem 0.5rem;
-  max-width: 1100px;
+  flex-shrink: 0;
+  padding: clamp(0.45rem, 1.2vh, 0.75rem) clamp(0.75rem, 2.5vw, 1.25rem) clamp(0.3rem, 0.8vh, 0.4rem);
+  max-width: 100%;
   margin: 0 auto;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .hub-hero-row {
-  display: grid;
-  grid-template-columns: 1fr min(300px, 36vw);
-  gap: clamp(1rem, 4vw, 2.5rem);
+  display: flex;
+  flex-flow: row nowrap;
   align-items: center;
-}
-
-.hub-hero-copy {
+  justify-content: space-between;
+  gap: clamp(0.5rem, 2.5cqw, 1.25rem);
+  width: 100%;
   min-width: 0;
 }
 
+.hub-hero-copy {
+  flex: 1 1 12rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
 .hub-mascot-wrap {
-  position: relative;
+  flex: 0 0 clamp(4.5rem, 16cqw, 10rem);
+  width: clamp(4.5rem, 16cqw, 10rem);
+  flex-shrink: 0;
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: min(280px, 32vw);
+  align-self: center;
+  min-height: 0;
+  pointer-events: none;
   user-select: none;
+}
+
+.hub-mascot-wrap.is-active {
+  pointer-events: auto;
 }
 
 .hub-mascot-scene {
   position: relative;
-  width: min(280px, 100%);
+  width: 100%;
   aspect-ratio: 1;
   display: grid;
   place-items: center;
@@ -1420,40 +1476,56 @@ select.cw-select-native {
 
 @keyframes hub-mascot-float {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-12px); }
+  50% { transform: translateY(-6px); }
 }
 
-@media (max-width: 820px) {
+@container hub (max-width: 640px) {
   .hub-hero-row {
-    grid-template-columns: 1fr;
-    gap: 0.5rem;
+    gap: 0.4rem;
   }
 
   .hub-mascot-wrap {
-    order: -1;
-    min-height: 200px;
-    max-width: 240px;
-    margin: 0 auto 0.5rem;
+    flex-basis: clamp(3.5rem, 14cqw, 5.5rem);
+    width: clamp(3.5rem, 14cqw, 5.5rem);
+  }
+}
+
+@container hub (max-width: 420px) {
+  .hub-mascot-wrap {
+    flex-basis: 3.25rem;
+    width: 3.25rem;
   }
 
-  .hub-mascot-scene {
-    width: min(220px, 72vw);
+  .hub-title {
+    font-size: 1.05rem;
   }
 }
 
 .hub-title {
-  font-size: clamp(1.5rem, 4vw, 2rem);
+  font-size: clamp(1.05rem, 2.8cqw + 0.65rem, 1.55rem);
   font-weight: 700;
   letter-spacing: -0.03em;
-  margin: 0.25rem 0 0.5rem;
+  margin: 0.08rem 0 clamp(0.25rem, 1cqh, 0.4rem);
+  line-height: 1.2;
 }
 
-.hub-sub { font-size: 0.9rem; }
+.hub-hero .eyebrow {
+  font-size: clamp(0.62rem, 1.2cqw + 0.45rem, 0.72rem);
+  margin-bottom: 0.12rem;
+}
+
+.hub-sub { font-size: 0.85rem; }
 
 .search-wrap {
   position: relative;
-  max-width: 420px;
-  margin-top: 1.25rem;
+  width: 100%;
+  max-width: min(32rem, 100%);
+  margin-top: clamp(0.35rem, 1.2cqh, 0.55rem);
+}
+
+.search-wrap .search {
+  min-height: clamp(2rem, 5cqh, 2.35rem);
+  font-size: clamp(0.82rem, 1.5cqw + 0.5rem, 0.9rem);
 }
 
 .search-icon {
@@ -1472,13 +1544,55 @@ select.cw-select-native {
 
 .hub-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  align-items: stretch;
-  gap: 1rem;
-  padding: 1rem 1.25rem 2rem;
-  overflow: auto;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: start;
+  align-content: start;
+  gap: 0.75rem;
+  padding: 0.5rem 1.25rem 1.25rem;
+  overflow-x: hidden;
+  overflow-y: auto;
   flex: 1;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   perspective: 1400px;
+}
+
+@container hub (max-width: 1180px) {
+  .hub-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container hub (max-width: 880px) {
+  .hub-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container hub (max-width: 480px) {
+  .hub-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-height: 760px) {
+  .hub-hero {
+    padding-top: 0.4rem;
+    padding-bottom: 0.2rem;
+  }
+
+  .hub-mascot-wrap {
+    flex-basis: clamp(3.25rem, 12cqh, 5rem);
+    width: clamp(3.25rem, 12cqh, 5rem);
+  }
+
+  .hub-grid {
+    gap: 0.6rem;
+    padding: 0.4rem 1rem 0.75rem;
+  }
 }
 
 /* Wrapper 3D — tilt no wrapper; cartão preenche a célula da grelha */
@@ -1486,8 +1600,11 @@ select.cw-select-native {
   position: relative;
   display: flex;
   flex-direction: column;
-  min-height: 10.5rem;
-  height: 100%;
+  min-height: 9rem;
+  height: auto;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   opacity: 0;
   transform-style: preserve-3d;
   transform-origin: center center;
@@ -1495,7 +1612,7 @@ select.cw-select-native {
   animation-delay: var(--delay, 0ms);
   transition: transform 0.5s var(--ease-smooth), box-shadow 0.35s ease;
   border-radius: var(--radius);
-  overflow: visible;
+  overflow: hidden;
 }
 
 .hub-card-3d.hub-card-entered {
@@ -1528,10 +1645,10 @@ select.cw-select-native {
   align-items: flex-start;
   gap: 0.5rem;
   width: 100%;
-  min-height: 100%;
-  height: 100%;
+  min-height: 0;
+  height: auto;
   text-align: left;
-  padding: 1.35rem;
+  padding: 1.1rem 1.15rem;
   background: var(--surface);
   backdrop-filter: var(--glass);
   border: 1px solid var(--border);
@@ -1916,15 +2033,15 @@ select.cw-select-native {
 }
 
 .hub-icon-wrap {
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
+  border-radius: 11px;
   background: var(--surface2);
-  font-size: 1.5rem;
-  margin-bottom: 0.25rem;
+  font-size: 1.4rem;
+  margin-bottom: 0.2rem;
   transform: translateZ(16px);
   transform-style: preserve-3d;
   transition: transform 0.45s var(--ease-smooth);
@@ -1932,12 +2049,14 @@ select.cw-select-native {
   z-index: 1;
 }
 
-.hub-card strong { font-size: 1.02rem; font-weight: 600; }
+.hub-card strong { font-size: 1rem; font-weight: 600; }
 .hub-desc {
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   color: var(--text-secondary);
   line-height: 1.45;
-  flex: 1;
+  flex: 0 1 auto;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 /* Explorer */
@@ -2399,7 +2518,6 @@ select.cw-select-native {
 @media (max-width: 900px) {
   .explorer-panels { grid-template-columns: 1fr; }
   .field-row { grid-template-columns: 1fr; }
-  .topbar-center { display: none; }
   .split-panels { grid-template-columns: 1fr !important; }
 }
 
@@ -2558,6 +2676,11 @@ select.cw-select-native {
 
 .panel-menu[open] .panel-menu-list { display: flex; }
 
+.panel-menu[open] > .panel-menu-list:not(.is-floating),
+.explorer-menu[open] > .explorer-menu-panel:not(.is-floating) {
+  animation: cw-surface-in var(--motion-pop-in) var(--ease-smooth) both;
+}
+
 .panel-menu-item {
   display: flex;
   align-items: center;
@@ -2585,7 +2708,12 @@ select.cw-select-native {
 @media (prefers-reduced-motion: reduce) {
   .explorer-menu-panel.is-floating,
   .panel-menu-list.is-floating,
-  .panel-menu-list.is-floating.docker-tools-float { animation: none; }
+  .panel-menu-list.is-floating.docker-tools-float,
+  .panel-menu[open] > .panel-menu-list:not(.is-floating),
+  .explorer-menu[open] > .explorer-menu-panel:not(.is-floating),
+  .ctx-menu:not(.hidden),
+  .linux-notify-pop:not([hidden]),
+  .cw-animate-in { animation: none; }
   .explorer-menu-backdrop { transition: none; }
 }
 .panel-menu-empty { font-size: 0.75rem; color: var(--text-secondary); padding: 0.35rem 0.5rem; }
@@ -3040,17 +3168,6 @@ select.cw-select-native {
   overflow: auto;
   margin: 0 -0.2rem;
   padding: 0.15rem 0.35rem 0.15rem 0.1rem;
-  scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
-}
-
-.terminal-cmd-results-scroll::-webkit-scrollbar {
-  width: var(--scrollbar-size);
-}
-
-.terminal-cmd-results-scroll::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb);
-  border-radius: 999px;
 }
 
 .terminal-cmd-results {
@@ -3993,15 +4110,6 @@ html.reduce-motion *::after {
   line-height: 1.35;
 }
 
-.settings-user-editor-body::-webkit-scrollbar {
-  width: 6px;
-}
-
-.settings-user-editor-body::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb, rgba(255, 255, 255, 0.18));
-  border-radius: 4px;
-}
-
 /* Modals — sheet estilo macOS (entrada CSS; saída via .modal-exit em motion.js) */
 .modal-dialog {
   position: fixed;
@@ -4337,90 +4445,354 @@ html.reduce-motion *::after {
 
 .confirm-dialog .btn-danger { background: var(--danger); color: #fff; }
 
-/* Scrollbars — finos, sem setas, alinhados ao tema */
-.file-list,
-.hub-grid,
-.data-list,
-.docker-list-scroll,
-.docker-resource-scroll,
-.docker-detail-content,
-.cmd-results,
-#transfer-log-list,
-.screen-help-body,
-.compare-sections,
-.compare-pre,
-.explorer-xfer-dock-body,
-.preview-content,
-.code-block,
-#auto-history,
-.transfer-log-list-compact,
-.disks-host-list,
-.disks-files-list,
-.disks-tech-pre,
-.disks-assistant,
-.svc-list,
-.svc-logs-body,
-.terminal-box .xterm-viewport,
-.modal-dialog:not(.screen-help-dialog) {
+/* Scrollbars — padrão global (classe .cw-scroll + alvos legados; ver docs/UI_PADROES.md) */
+:is(
+  .cw-scroll,
+  .cw-select-list,
+  .panel-menu-list,
+  .explorer-menu-panel,
+  .content-pad,
+  .page-center,
+  .hub-grid,
+  .file-list,
+  .data-list,
+  .table-wrap,
+  .code-block,
+  .docker-list-scroll,
+  .docker-resource-scroll,
+  .docker-detail-content,
+  .cmd-results,
+  .explorer-op-log,
+  #transfer-log-list,
+  .screen-help-body,
+  .compare-sections,
+  .compare-pre,
+  .explorer-xfer-dock-body,
+  .preview-content,
+  .preview-fullscreen-body,
+  .file-editor-image-wrap,
+  #auto-history,
+  .transfer-log-list-compact,
+  .disks-host-list,
+  .disks-files-list,
+  .disks-tech-pre,
+  .disks-assistant,
+  .svc-list,
+  .svc-logs-dialog .svc-logs-body,
+  .terminal-box .xterm-viewport,
+  .terminal-cmd-results-scroll,
+  .modal-dialog:not(.screen-help-dialog),
+  .settings-panels,
+  .settings-tabs,
+  .settings-connections-list,
+  .settings-modules-grid,
+  .settings-users-list,
+  .settings-user-editor-body,
+  .linux-scroll,
+  .linux-start-scroll,
+  .linux-app-list,
+  .linux-disks-list,
+  .linux-docker-list,
+  .linux-docker-detail,
+  .linux-sys-panels,
+  .linux-sys-scroll,
+  .linux-notify-pop,
+  .linux-files-toolbar,
+  .linux-auto-log,
+  .linux-auto-rules,
+  .linux-monitor-grid
+) {
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
-.file-list::-webkit-scrollbar,
-.hub-grid::-webkit-scrollbar,
-.data-list::-webkit-scrollbar,
-.docker-list-scroll::-webkit-scrollbar,
-.docker-resource-scroll::-webkit-scrollbar,
-.docker-detail-content::-webkit-scrollbar,
-.cmd-results::-webkit-scrollbar,
-#transfer-log-list::-webkit-scrollbar,
-.screen-help-body::-webkit-scrollbar,
-.compare-sections::-webkit-scrollbar,
-.compare-pre::-webkit-scrollbar,
-.explorer-xfer-dock-body::-webkit-scrollbar,
-.preview-content::-webkit-scrollbar,
-.code-block::-webkit-scrollbar,
-#auto-history::-webkit-scrollbar,
-.transfer-log-list-compact::-webkit-scrollbar,
-.disks-host-list::-webkit-scrollbar,
-.disks-files-list::-webkit-scrollbar,
-.disks-tech-pre::-webkit-scrollbar,
-.disks-assistant::-webkit-scrollbar,
-.svc-list::-webkit-scrollbar,
-.svc-logs-body::-webkit-scrollbar,
-.terminal-box .xterm-viewport::-webkit-scrollbar {
+:is(
+  .cw-scroll,
+  .cw-select-list,
+  .panel-menu-list,
+  .explorer-menu-panel,
+  .content-pad,
+  .page-center,
+  .hub-grid,
+  .file-list,
+  .data-list,
+  .table-wrap,
+  .code-block,
+  .docker-list-scroll,
+  .docker-resource-scroll,
+  .docker-detail-content,
+  .cmd-results,
+  .explorer-op-log,
+  #transfer-log-list,
+  .screen-help-body,
+  .compare-sections,
+  .compare-pre,
+  .explorer-xfer-dock-body,
+  .preview-content,
+  .preview-fullscreen-body,
+  .file-editor-image-wrap,
+  #auto-history,
+  .transfer-log-list-compact,
+  .disks-host-list,
+  .disks-files-list,
+  .disks-tech-pre,
+  .disks-assistant,
+  .svc-list,
+  .svc-logs-dialog .svc-logs-body,
+  .terminal-box .xterm-viewport,
+  .terminal-cmd-results-scroll,
+  .modal-dialog:not(.screen-help-dialog),
+  .settings-panels,
+  .settings-tabs,
+  .settings-connections-list,
+  .settings-modules-grid,
+  .settings-users-list,
+  .settings-user-editor-body,
+  .linux-scroll,
+  .linux-start-scroll,
+  .linux-app-list,
+  .linux-disks-list,
+  .linux-docker-list,
+  .linux-docker-detail,
+  .linux-sys-panels,
+  .linux-sys-scroll,
+  .linux-notify-pop,
+  .linux-files-toolbar,
+  .linux-auto-log,
+  .linux-auto-rules,
+  .linux-monitor-grid
+)::-webkit-scrollbar {
   width: var(--scrollbar-size);
   height: var(--scrollbar-size);
   -webkit-appearance: none;
   appearance: none;
 }
 
-.file-list::-webkit-scrollbar-button,
-.hub-grid::-webkit-scrollbar-button,
-.data-list::-webkit-scrollbar-button,
-.docker-list-scroll::-webkit-scrollbar-button,
-.docker-resource-scroll::-webkit-scrollbar-button,
-.docker-detail-content::-webkit-scrollbar-button,
-.cmd-results::-webkit-scrollbar-button,
-#transfer-log-list::-webkit-scrollbar-button,
-.screen-help-body::-webkit-scrollbar-button,
-.compare-sections::-webkit-scrollbar-button,
-.compare-pre::-webkit-scrollbar-button,
-.explorer-xfer-dock-body::-webkit-scrollbar-button,
-.preview-content::-webkit-scrollbar-button,
-.code-block::-webkit-scrollbar-button,
-#auto-history::-webkit-scrollbar-button,
-.transfer-log-list-compact::-webkit-scrollbar-button,
-.disks-host-list::-webkit-scrollbar-button,
-.disks-files-list::-webkit-scrollbar-button,
-.disks-tech-pre::-webkit-scrollbar-button,
-.disks-assistant::-webkit-scrollbar-button,
-.svc-list::-webkit-scrollbar-button,
-.svc-logs-body::-webkit-scrollbar-button,
-.terminal-box .xterm-viewport::-webkit-scrollbar-button,
-.terminal-box .xterm-viewport::-webkit-scrollbar-button:single-button,
-.terminal-box .xterm-viewport::-webkit-scrollbar-button:vertical:start:decrement,
-.terminal-box .xterm-viewport::-webkit-scrollbar-button:vertical:end:increment {
+:is(
+  .cw-scroll,
+  .cw-select-list,
+  .panel-menu-list,
+  .explorer-menu-panel,
+  .content-pad,
+  .page-center,
+  .hub-grid,
+  .file-list,
+  .data-list,
+  .table-wrap,
+  .code-block,
+  .docker-list-scroll,
+  .docker-resource-scroll,
+  .docker-detail-content,
+  .cmd-results,
+  .explorer-op-log,
+  #transfer-log-list,
+  .screen-help-body,
+  .compare-sections,
+  .compare-pre,
+  .explorer-xfer-dock-body,
+  .preview-content,
+  .preview-fullscreen-body,
+  .file-editor-image-wrap,
+  #auto-history,
+  .transfer-log-list-compact,
+  .disks-host-list,
+  .disks-files-list,
+  .disks-tech-pre,
+  .disks-assistant,
+  .svc-list,
+  .svc-logs-dialog .svc-logs-body,
+  .terminal-box .xterm-viewport,
+  .terminal-cmd-results-scroll,
+  .modal-dialog:not(.screen-help-dialog),
+  .settings-panels,
+  .settings-tabs,
+  .settings-connections-list,
+  .settings-modules-grid,
+  .settings-users-list,
+  .settings-user-editor-body,
+  .linux-scroll,
+  .linux-start-scroll,
+  .linux-app-list,
+  .linux-disks-list,
+  .linux-docker-list,
+  .linux-docker-detail,
+  .linux-sys-panels,
+  .linux-sys-scroll,
+  .linux-notify-pop,
+  .linux-files-toolbar,
+  .linux-auto-log,
+  .linux-auto-rules,
+  .linux-monitor-grid
+)::-webkit-scrollbar-button,
+:is(
+  .cw-scroll,
+  .cw-select-list,
+  .panel-menu-list,
+  .explorer-menu-panel,
+  .content-pad,
+  .page-center,
+  .hub-grid,
+  .file-list,
+  .data-list,
+  .table-wrap,
+  .code-block,
+  .docker-list-scroll,
+  .docker-resource-scroll,
+  .docker-detail-content,
+  .cmd-results,
+  .explorer-op-log,
+  #transfer-log-list,
+  .screen-help-body,
+  .compare-sections,
+  .compare-pre,
+  .explorer-xfer-dock-body,
+  .preview-content,
+  .preview-fullscreen-body,
+  .file-editor-image-wrap,
+  #auto-history,
+  .transfer-log-list-compact,
+  .disks-host-list,
+  .disks-files-list,
+  .disks-tech-pre,
+  .disks-assistant,
+  .svc-list,
+  .svc-logs-dialog .svc-logs-body,
+  .terminal-box .xterm-viewport,
+  .terminal-cmd-results-scroll,
+  .modal-dialog:not(.screen-help-dialog),
+  .settings-panels,
+  .settings-tabs,
+  .settings-connections-list,
+  .settings-modules-grid,
+  .settings-users-list,
+  .settings-user-editor-body,
+  .linux-scroll,
+  .linux-start-scroll,
+  .linux-app-list,
+  .linux-disks-list,
+  .linux-docker-list,
+  .linux-docker-detail,
+  .linux-sys-panels,
+  .linux-sys-scroll,
+  .linux-notify-pop,
+  .linux-files-toolbar,
+  .linux-auto-log,
+  .linux-auto-rules,
+  .linux-monitor-grid
+)::-webkit-scrollbar-button:single-button,
+:is(
+  .cw-scroll,
+  .cw-select-list,
+  .panel-menu-list,
+  .explorer-menu-panel,
+  .content-pad,
+  .page-center,
+  .hub-grid,
+  .file-list,
+  .data-list,
+  .table-wrap,
+  .code-block,
+  .docker-list-scroll,
+  .docker-resource-scroll,
+  .docker-detail-content,
+  .cmd-results,
+  .explorer-op-log,
+  #transfer-log-list,
+  .screen-help-body,
+  .compare-sections,
+  .compare-pre,
+  .explorer-xfer-dock-body,
+  .preview-content,
+  .preview-fullscreen-body,
+  .file-editor-image-wrap,
+  #auto-history,
+  .transfer-log-list-compact,
+  .disks-host-list,
+  .disks-files-list,
+  .disks-tech-pre,
+  .disks-assistant,
+  .svc-list,
+  .svc-logs-dialog .svc-logs-body,
+  .terminal-box .xterm-viewport,
+  .terminal-cmd-results-scroll,
+  .modal-dialog:not(.screen-help-dialog),
+  .settings-panels,
+  .settings-tabs,
+  .settings-connections-list,
+  .settings-modules-grid,
+  .settings-users-list,
+  .settings-user-editor-body,
+  .linux-scroll,
+  .linux-start-scroll,
+  .linux-app-list,
+  .linux-disks-list,
+  .linux-docker-list,
+  .linux-docker-detail,
+  .linux-sys-panels,
+  .linux-sys-scroll,
+  .linux-notify-pop,
+  .linux-files-toolbar,
+  .linux-auto-log,
+  .linux-auto-rules,
+  .linux-monitor-grid
+)::-webkit-scrollbar-button:vertical:start:decrement,
+:is(
+  .cw-scroll,
+  .cw-select-list,
+  .panel-menu-list,
+  .explorer-menu-panel,
+  .content-pad,
+  .page-center,
+  .hub-grid,
+  .file-list,
+  .data-list,
+  .table-wrap,
+  .code-block,
+  .docker-list-scroll,
+  .docker-resource-scroll,
+  .docker-detail-content,
+  .cmd-results,
+  .explorer-op-log,
+  #transfer-log-list,
+  .screen-help-body,
+  .compare-sections,
+  .compare-pre,
+  .explorer-xfer-dock-body,
+  .preview-content,
+  .preview-fullscreen-body,
+  .file-editor-image-wrap,
+  #auto-history,
+  .transfer-log-list-compact,
+  .disks-host-list,
+  .disks-files-list,
+  .disks-tech-pre,
+  .disks-assistant,
+  .svc-list,
+  .svc-logs-dialog .svc-logs-body,
+  .terminal-box .xterm-viewport,
+  .terminal-cmd-results-scroll,
+  .modal-dialog:not(.screen-help-dialog),
+  .settings-panels,
+  .settings-tabs,
+  .settings-connections-list,
+  .settings-modules-grid,
+  .settings-users-list,
+  .settings-user-editor-body,
+  .linux-scroll,
+  .linux-start-scroll,
+  .linux-app-list,
+  .linux-disks-list,
+  .linux-docker-list,
+  .linux-docker-detail,
+  .linux-sys-panels,
+  .linux-sys-scroll,
+  .linux-notify-pop,
+  .linux-files-toolbar,
+  .linux-auto-log,
+  .linux-auto-rules,
+  .linux-monitor-grid
+)::-webkit-scrollbar-button:vertical:end:increment {
   display: none;
   width: 0;
   height: 0;
@@ -4428,91 +4800,312 @@ html.reduce-motion *::after {
   appearance: none;
 }
 
-.file-list::-webkit-scrollbar-track,
-.hub-grid::-webkit-scrollbar-track,
-.data-list::-webkit-scrollbar-track,
-.docker-list-scroll::-webkit-scrollbar-track,
-.docker-resource-scroll::-webkit-scrollbar-track,
-.docker-detail-content::-webkit-scrollbar-track,
-.cmd-results::-webkit-scrollbar-track,
-#transfer-log-list::-webkit-scrollbar-track,
-.screen-help-body::-webkit-scrollbar-track,
-.compare-sections::-webkit-scrollbar-track,
-.compare-pre::-webkit-scrollbar-track,
-.explorer-xfer-dock-body::-webkit-scrollbar-track,
-.preview-content::-webkit-scrollbar-track,
-.code-block::-webkit-scrollbar-track,
-#auto-history::-webkit-scrollbar-track,
-.transfer-log-list-compact::-webkit-scrollbar-track,
-.disks-host-list::-webkit-scrollbar-track,
-.disks-files-list::-webkit-scrollbar-track,
-.disks-tech-pre::-webkit-scrollbar-track,
-.disks-assistant::-webkit-scrollbar-track,
-.svc-list::-webkit-scrollbar-track,
-.svc-logs-body::-webkit-scrollbar-track,
-.terminal-box .xterm-viewport::-webkit-scrollbar-track {
+:is(
+  .cw-scroll,
+  .cw-select-list,
+  .panel-menu-list,
+  .explorer-menu-panel,
+  .content-pad,
+  .page-center,
+  .hub-grid,
+  .file-list,
+  .data-list,
+  .table-wrap,
+  .code-block,
+  .docker-list-scroll,
+  .docker-resource-scroll,
+  .docker-detail-content,
+  .cmd-results,
+  .explorer-op-log,
+  #transfer-log-list,
+  .screen-help-body,
+  .compare-sections,
+  .compare-pre,
+  .explorer-xfer-dock-body,
+  .preview-content,
+  .preview-fullscreen-body,
+  .file-editor-image-wrap,
+  #auto-history,
+  .transfer-log-list-compact,
+  .disks-host-list,
+  .disks-files-list,
+  .disks-tech-pre,
+  .disks-assistant,
+  .svc-list,
+  .svc-logs-dialog .svc-logs-body,
+  .terminal-box .xterm-viewport,
+  .terminal-cmd-results-scroll,
+  .modal-dialog:not(.screen-help-dialog),
+  .settings-panels,
+  .settings-tabs,
+  .settings-connections-list,
+  .settings-modules-grid,
+  .settings-users-list,
+  .settings-user-editor-body,
+  .linux-scroll,
+  .linux-start-scroll,
+  .linux-app-list,
+  .linux-disks-list,
+  .linux-docker-list,
+  .linux-docker-detail,
+  .linux-sys-panels,
+  .linux-sys-scroll,
+  .linux-notify-pop,
+  .linux-files-toolbar,
+  .linux-auto-log,
+  .linux-auto-rules,
+  .linux-monitor-grid
+)::-webkit-scrollbar-track {
   background: var(--scrollbar-track);
+  margin: 4px 0;
+  border-radius: 999px;
 }
 
-.file-list::-webkit-scrollbar-thumb,
-.hub-grid::-webkit-scrollbar-thumb,
-.data-list::-webkit-scrollbar-thumb,
-.docker-list-scroll::-webkit-scrollbar-thumb,
-.docker-resource-scroll::-webkit-scrollbar-thumb,
-.docker-detail-content::-webkit-scrollbar-thumb,
-.cmd-results::-webkit-scrollbar-thumb,
-#transfer-log-list::-webkit-scrollbar-thumb,
-.screen-help-body::-webkit-scrollbar-thumb,
-.compare-sections::-webkit-scrollbar-thumb,
-.compare-pre::-webkit-scrollbar-thumb,
-.explorer-xfer-dock-body::-webkit-scrollbar-thumb,
-.preview-content::-webkit-scrollbar-thumb,
-.code-block::-webkit-scrollbar-thumb,
-#auto-history::-webkit-scrollbar-thumb,
-.transfer-log-list-compact::-webkit-scrollbar-thumb,
-.disks-host-list::-webkit-scrollbar-thumb,
-.disks-files-list::-webkit-scrollbar-thumb,
-.disks-tech-pre::-webkit-scrollbar-thumb,
-.disks-assistant::-webkit-scrollbar-thumb,
-.svc-list::-webkit-scrollbar-thumb,
-.svc-logs-body::-webkit-scrollbar-thumb,
-.terminal-box .xterm-viewport::-webkit-scrollbar-thumb {
+:is(
+  .cw-scroll,
+  .cw-select-list,
+  .panel-menu-list,
+  .explorer-menu-panel,
+  .content-pad,
+  .page-center,
+  .hub-grid,
+  .file-list,
+  .data-list,
+  .table-wrap,
+  .code-block,
+  .docker-list-scroll,
+  .docker-resource-scroll,
+  .docker-detail-content,
+  .cmd-results,
+  .explorer-op-log,
+  #transfer-log-list,
+  .screen-help-body,
+  .compare-sections,
+  .compare-pre,
+  .explorer-xfer-dock-body,
+  .preview-content,
+  .preview-fullscreen-body,
+  .file-editor-image-wrap,
+  #auto-history,
+  .transfer-log-list-compact,
+  .disks-host-list,
+  .disks-files-list,
+  .disks-tech-pre,
+  .disks-assistant,
+  .svc-list,
+  .svc-logs-dialog .svc-logs-body,
+  .terminal-box .xterm-viewport,
+  .terminal-cmd-results-scroll,
+  .modal-dialog:not(.screen-help-dialog),
+  .settings-panels,
+  .settings-tabs,
+  .settings-connections-list,
+  .settings-modules-grid,
+  .settings-users-list,
+  .settings-user-editor-body,
+  .linux-scroll,
+  .linux-start-scroll,
+  .linux-app-list,
+  .linux-disks-list,
+  .linux-docker-list,
+  .linux-docker-detail,
+  .linux-sys-panels,
+  .linux-sys-scroll,
+  .linux-notify-pop,
+  .linux-files-toolbar,
+  .linux-auto-log,
+  .linux-auto-rules,
+  .linux-monitor-grid
+)::-webkit-scrollbar-thumb {
   background: var(--scrollbar-thumb);
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 
-.file-list::-webkit-scrollbar-thumb:hover,
-.hub-grid::-webkit-scrollbar-thumb:hover,
-.data-list::-webkit-scrollbar-thumb:hover,
-.docker-list-scroll::-webkit-scrollbar-thumb:hover,
-.docker-resource-scroll::-webkit-scrollbar-thumb:hover,
-.docker-detail-content::-webkit-scrollbar-thumb:hover,
-.cmd-results::-webkit-scrollbar-thumb:hover,
-#transfer-log-list::-webkit-scrollbar-thumb:hover,
-.screen-help-body::-webkit-scrollbar-thumb:hover,
-.compare-sections::-webkit-scrollbar-thumb:hover,
-.compare-pre::-webkit-scrollbar-thumb:hover,
-.explorer-xfer-dock-body::-webkit-scrollbar-thumb:hover,
-.preview-content::-webkit-scrollbar-thumb:hover,
-.code-block::-webkit-scrollbar-thumb:hover,
-#auto-history::-webkit-scrollbar-thumb:hover,
-.transfer-log-list-compact::-webkit-scrollbar-thumb:hover,
-.disks-host-list::-webkit-scrollbar-thumb:hover,
-.disks-files-list::-webkit-scrollbar-thumb:hover,
-.disks-tech-pre::-webkit-scrollbar-thumb:hover,
-.disks-assistant::-webkit-scrollbar-thumb:hover,
-.svc-list::-webkit-scrollbar-thumb:hover,
-.svc-logs-body::-webkit-scrollbar-thumb:hover,
-.terminal-box .xterm-viewport::-webkit-scrollbar-thumb:hover {
+:is(
+  .cw-scroll,
+  .cw-select-list,
+  .panel-menu-list,
+  .explorer-menu-panel,
+  .content-pad,
+  .page-center,
+  .hub-grid,
+  .file-list,
+  .data-list,
+  .table-wrap,
+  .code-block,
+  .docker-list-scroll,
+  .docker-resource-scroll,
+  .docker-detail-content,
+  .cmd-results,
+  .explorer-op-log,
+  #transfer-log-list,
+  .screen-help-body,
+  .compare-sections,
+  .compare-pre,
+  .explorer-xfer-dock-body,
+  .preview-content,
+  .preview-fullscreen-body,
+  .file-editor-image-wrap,
+  #auto-history,
+  .transfer-log-list-compact,
+  .disks-host-list,
+  .disks-files-list,
+  .disks-tech-pre,
+  .disks-assistant,
+  .svc-list,
+  .svc-logs-dialog .svc-logs-body,
+  .terminal-box .xterm-viewport,
+  .terminal-cmd-results-scroll,
+  .modal-dialog:not(.screen-help-dialog),
+  .settings-panels,
+  .settings-tabs,
+  .settings-connections-list,
+  .settings-modules-grid,
+  .settings-users-list,
+  .settings-user-editor-body,
+  .linux-scroll,
+  .linux-start-scroll,
+  .linux-app-list,
+  .linux-disks-list,
+  .linux-docker-list,
+  .linux-docker-detail,
+  .linux-sys-panels,
+  .linux-sys-scroll,
+  .linux-notify-pop,
+  .linux-files-toolbar,
+  .linux-auto-log,
+  .linux-auto-rules,
+  .linux-monitor-grid
+)::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover);
   background-clip: padding-box;
 }
 
-.file-list::-webkit-scrollbar-corner,
-.screen-help-body::-webkit-scrollbar-corner,
-.compare-sections::-webkit-scrollbar-corner {
+:is(
+  .cw-scroll,
+  .cw-select-list,
+  .panel-menu-list,
+  .explorer-menu-panel,
+  .content-pad,
+  .page-center,
+  .hub-grid,
+  .file-list,
+  .data-list,
+  .table-wrap,
+  .code-block,
+  .docker-list-scroll,
+  .docker-resource-scroll,
+  .docker-detail-content,
+  .cmd-results,
+  .explorer-op-log,
+  #transfer-log-list,
+  .screen-help-body,
+  .compare-sections,
+  .compare-pre,
+  .explorer-xfer-dock-body,
+  .preview-content,
+  .preview-fullscreen-body,
+  .file-editor-image-wrap,
+  #auto-history,
+  .transfer-log-list-compact,
+  .disks-host-list,
+  .disks-files-list,
+  .disks-tech-pre,
+  .disks-assistant,
+  .svc-list,
+  .svc-logs-dialog .svc-logs-body,
+  .terminal-box .xterm-viewport,
+  .terminal-cmd-results-scroll,
+  .modal-dialog:not(.screen-help-dialog),
+  .settings-panels,
+  .settings-tabs,
+  .settings-connections-list,
+  .settings-modules-grid,
+  .settings-users-list,
+  .settings-user-editor-body,
+  .linux-scroll,
+  .linux-start-scroll,
+  .linux-app-list,
+  .linux-disks-list,
+  .linux-docker-list,
+  .linux-docker-detail,
+  .linux-sys-panels,
+  .linux-sys-scroll,
+  .linux-notify-pop,
+  .linux-files-toolbar,
+  .linux-auto-log,
+  .linux-auto-rules,
+  .linux-monitor-grid
+)::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Superfícies — entrada padrão (menus inline, contexto, popovers) */
+@keyframes cw-surface-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.cw-animate-in {
+  animation: cw-surface-in var(--motion-pop-in) var(--ease-smooth) both;
+}
+
+.ctx-menu:not(.hidden) {
+  animation: cw-surface-in 0.2s var(--ease-smooth) both;
+  transform-origin: top left;
+}
+
+.linux-notify-pop:not([hidden]) {
+  animation: cw-surface-in 0.22s var(--ease-smooth) both;
+  transform-origin: top right;
+}
+
+.ctx-menu {
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.ctx-menu::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.ctx-menu::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.ctx-menu::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  margin: 4px 0;
+  border-radius: 999px;
+}
+
+.ctx-menu::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.ctx-menu::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  background-clip: padding-box;
+}
+
+.ctx-menu::-webkit-scrollbar-corner {
   background: transparent;
 }
 
@@ -4539,6 +5132,9 @@ html.reduce-motion *::after {
   position: fixed;
   z-index: 9000;
   min-width: 11rem;
+  max-height: min(70vh, 24rem);
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: 0.35rem;
   border-radius: var(--radius-sm);
   background: var(--surface-solid);
@@ -4585,10 +5181,35 @@ html.reduce-motion *::after {
   white-space: nowrap;
   border: 0;
 }
-.explorer-lang-select {
+.topbar-lang-wrap,
+.linux-panel-lang-wrap {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+}
+
+.app-lang-select {
   min-width: 3.2rem;
   font-size: 0.75rem;
   padding: 0.2rem 0.35rem;
+}
+
+.topbar-right .app-lang-select + .cw-select,
+.topbar-right .cw-select:has(.app-lang-select) {
+  flex-shrink: 0;
+}
+
+.linux-panel-lang-wrap .cw-select {
+  width: auto;
+  min-width: 3.25rem;
+}
+
+.linux-panel-lang-wrap .cw-select-trigger {
+  height: 1.65rem;
+  min-height: 1.65rem;
+  max-height: 1.65rem;
+  padding: 0 0.45rem;
+  font-size: 0.72rem;
 }
 .explorer-compact .file-row {
   padding: 0.2rem 0.45rem;
@@ -7539,60 +8160,6 @@ body:has(#app.app-desktop-mode) > .ambient {
   overflow-y: auto;
   margin: 0 -0.15rem;
   padding: 0 0.15rem;
-  scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb) transparent;
-}
-
-.linux-start-scroll::-webkit-scrollbar {
-  width: var(--scrollbar-size);
-}
-
-.linux-start-scroll::-webkit-scrollbar-track {
-  background: transparent;
-  margin: 4px 0;
-}
-
-.linux-start-scroll::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb);
-  border-radius: 999px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-}
-
-.linux-start-scroll::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover);
-  background-clip: padding-box;
-}
-
-.linux-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb) transparent;
-}
-
-.linux-scroll::-webkit-scrollbar {
-  width: var(--scrollbar-size);
-  height: var(--scrollbar-size);
-}
-
-.linux-scroll::-webkit-scrollbar-track {
-  background: transparent;
-  margin: 4px 0;
-}
-
-.linux-scroll::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb);
-  border-radius: 999px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-}
-
-.linux-scroll::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover);
-  background-clip: padding-box;
-}
-
-.linux-scroll::-webkit-scrollbar-corner {
-  background: transparent;
 }
 
 @keyframes linux-start-tile-in {
@@ -8005,14 +8572,68 @@ body:has(#app.app-desktop-mode) > .ambient {
   flex-shrink: 0;
 }
 
+.linux-files-chrome {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+
 .linux-files-target {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.35rem 0.5rem;
+  gap: 0.35rem;
+  padding: 0.28rem 0.45rem;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+}
+
+.linux-files-toolbar {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.28rem 0.45rem;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.linux-files-toolbar-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.15rem;
+  flex-shrink: 0;
+}
+
+.linux-files-toolbar-actions .btn-sm {
+  padding: 0.18rem 0.38rem;
+  font-size: 0.78rem;
+  min-height: 1.65rem;
+}
+
+.linux-files-search {
+  flex: 1;
+  min-width: 4.5rem;
+  max-width: none;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.78rem;
+}
+
+.linux-fav-wrap {
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.linux-app-files .linux-fav-wrap .cw-select {
+  width: auto;
+  min-width: 6.25rem;
+  max-width: 8.5rem;
+}
+
+.linux-app-files .linux-fav-wrap .cw-select-trigger {
+  padding: 0.22rem 0.45rem;
+  font-size: 0.75rem;
 }
 
 .linux-target-tabs {
@@ -8810,13 +9431,16 @@ body:has(#app.app-desktop-mode) > .ambient {
 
 .linux-fav-select,
 .linux-docker-filter {
-  max-width: 9rem;
   font-size: 0.75rem;
-  padding: 0.15rem 0.35rem;
   border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--surface);
   color: inherit;
+}
+
+.linux-docker-filter {
+  max-width: 12rem;
+  padding: 0.15rem 0.35rem;
 }
 
 .linux-docker-filter {

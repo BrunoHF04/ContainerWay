@@ -63,11 +63,36 @@
     return theme;
   }
 
+  function langSelects() {
+    return [...document.querySelectorAll("[data-app-lang]")];
+  }
+
+  function syncLangSelects(code) {
+    for (const sel of langSelects()) {
+      if (sel.value !== code) sel.value = code;
+      window.CWUI?.refreshSelect?.(sel);
+    }
+  }
+
+  function bindAppLang() {
+    for (const sel of langSelects()) {
+      if (sel.dataset.langBound) continue;
+      sel.dataset.langBound = "1";
+      sel.addEventListener("change", (e) => {
+        const code = e.target.value;
+        if (window.CWI18n?.setLang) window.CWI18n.setLang(code);
+        else {
+          set("lang", code);
+          syncLangSelects(code);
+        }
+      });
+    }
+  }
+
   function applyLangFromPrefs() {
     const code = get("lang");
     if (window.CWI18n?.setLang) window.CWI18n.setLang(code);
-    const sel = document.querySelector("#explorer-lang");
-    if (sel) sel.value = code;
+    syncLangSelects(window.CWI18n?.lang?.() || code);
   }
 
   function applyReduceMotion() {
@@ -126,8 +151,17 @@
 
   function init() {
     applyReduceMotion();
+    bindAppLang();
     applyLangFromPrefs();
+    requestAnimationFrame(() => {
+      window.CWUI?.enhanceSelects?.(document.getElementById("app-topbar"));
+      window.CWUI?.enhanceSelects?.(document.querySelector(".linux-panel-end"));
+    });
   }
+
+  document.addEventListener("cw-lang-change", () => {
+    syncLangSelects(window.CWI18n?.lang?.() || get("lang"));
+  });
 
   window.CWWebPrefs = {
     defaults,

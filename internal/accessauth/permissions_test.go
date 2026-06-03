@@ -14,6 +14,9 @@ func TestResolvePermissionsDefault(t *testing.T) {
 	if !p.HasScreen(ScreenExplorer) {
 		t.Fatal("default deve incluir explorer")
 	}
+	if !p.HasScreen(ScreenDesktop) {
+		t.Fatal("default deve incluir desktop")
+	}
 	if p.HasAction(ActionSettingsManage) {
 		t.Fatal("default não deve gerir utilizadores")
 	}

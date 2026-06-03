@@ -1,7 +1,8 @@
 /** Serviços systemd no host SSH (web). */
 (function () {
   const $ = (sel) => document.querySelector(sel);
-  const $$ = (sel) => document.querySelectorAll(sel);
+  const tr = (k, v) => (window.CWI18n && window.CWI18n.t(k, v)) || k;
+
   const escapeHtml = (s) => {
     const d = document.createElement("div");
     d.textContent = s ?? "";
@@ -17,6 +18,11 @@
     autoTimer: null,
     logsUnit: null,
   };
+
+  function localeForSort() {
+    const code = window.CWI18n?.lang?.() || "pt";
+    return code === "en" ? "en" : code === "es" ? "es" : "pt-BR";
+  }
 
   function isRunning(row) {
     const a = (row.active || "").toLowerCase();
@@ -46,12 +52,12 @@
     return `<span class="${cls}">${escapeHtml(row.active || "—")}${escapeHtml(sub)}</span>`;
   }
 
-  const bootLabels = {
-    enabled: "habilitado",
-    disabled: "desabilitado",
-    static: "fixo (sempre)",
-    masked: "mascarado",
-    indirect: "indireto",
+  const bootKeyMap = {
+    enabled: "svc.boot.enabled",
+    disabled: "svc.boot.disabled",
+    static: "svc.boot.static",
+    masked: "svc.boot.masked",
+    indirect: "svc.boot.indirect",
   };
 
   function bootBadge(row) {
@@ -59,7 +65,7 @@
     let cls = "svc-badge svc-badge--boot";
     if (e === "enabled") cls += " svc-badge--ok";
     else if (e === "masked" || e === "disabled") cls += " svc-badge--warn";
-    const label = bootLabels[e] || row.enabled || row.loadState || "—";
+    const label = bootKeyMap[e] ? tr(bootKeyMap[e]) : row.enabled || row.loadState || "—";
     return `<span class="${cls}">${escapeHtml(label)}</span>`;
   }
 
@@ -75,15 +81,16 @@
         return hay.includes(q);
       });
     }
+    const loc = localeForSort();
     if (state.sort === "state") {
       list.sort((a, b) => {
         const sa = (a.active || "").toLowerCase();
         const sb = (b.active || "").toLowerCase();
-        if (sa !== sb) return sa.localeCompare(sb, "pt");
-        return (a.unit || "").localeCompare(b.unit || "", "pt");
+        if (sa !== sb) return sa.localeCompare(sb, loc);
+        return (a.unit || "").localeCompare(b.unit || "", loc);
       });
     } else {
-      list.sort((a, b) => (a.unit || "").localeCompare(b.unit || "", "pt"));
+      list.sort((a, b) => (a.unit || "").localeCompare(b.unit || "", loc));
     }
     return list;
   }
@@ -96,14 +103,19 @@
     const running = state.rows.filter(isRunning).length;
     const failed = state.rows.filter(isFailed).length;
     if (summary) {
-      summary.textContent = `${rows.length} visíveis · ${running} em execução · ${failed} com falha · ${state.rows.length} total`;
+      summary.textContent = tr("svc.summary", {
+        visible: rows.length,
+        running,
+        failed,
+        total: state.rows.length,
+      });
     }
     if (state.loading) {
-      list.innerHTML = `<div class="svc-row svc-row-empty" role="listitem"><span class="svc-col-name">A carregar serviços…</span></div>`;
+      list.innerHTML = `<div class="svc-row svc-row-empty" role="listitem"><span class="svc-col-name">${escapeHtml(tr("svc.loading"))}</span></div>`;
       return;
     }
     if (!rows.length) {
-      list.innerHTML = `<div class="svc-row svc-row-empty" role="listitem"><span class="svc-col-name">Nenhum serviço encontrado.</span></div>`;
+      list.innerHTML = `<div class="svc-row svc-row-empty" role="listitem"><span class="svc-col-name">${escapeHtml(tr("svc.empty"))}</span></div>`;
       return;
     }
     const canCtrl = typeof canAction === "function" ? canAction("services.control") : true;
@@ -117,23 +129,23 @@
         const bootOn = boot === "enabled";
         const bootOff = boot === "disabled";
         const actions = canCtrl
-          ? `<span class="svc-actions-group svc-actions-now" title="Estado agora (systemctl start/stop/restart)">
-              <button type="button" class="btn btn-ghost btn-sm svc-act" data-act="start" data-unit="${escapeHtml(unit)}" ${run ? "disabled" : ""} title="Iniciar agora">Iniciar</button>
-              <button type="button" class="btn btn-ghost btn-sm svc-act" data-act="stop" data-unit="${escapeHtml(unit)}" ${!run ? "disabled" : ""} title="Parar agora">Parar</button>
-              <button type="button" class="btn btn-ghost btn-sm svc-act" data-act="restart" data-unit="${escapeHtml(unit)}" title="Reiniciar agora">Reiniciar</button>
+          ? `<span class="svc-actions-group svc-actions-now" title="${escapeHtml(tr("svc.group.nowTitle"))}">
+              <button type="button" class="btn btn-ghost btn-sm svc-act" data-act="start" data-unit="${escapeHtml(unit)}" ${run ? "disabled" : ""} title="${escapeHtml(tr("svc.act.startTitle"))}">${escapeHtml(tr("svc.act.start"))}</button>
+              <button type="button" class="btn btn-ghost btn-sm svc-act" data-act="stop" data-unit="${escapeHtml(unit)}" ${!run ? "disabled" : ""} title="${escapeHtml(tr("svc.act.stopTitle"))}">${escapeHtml(tr("svc.act.stop"))}</button>
+              <button type="button" class="btn btn-ghost btn-sm svc-act" data-act="restart" data-unit="${escapeHtml(unit)}" title="${escapeHtml(tr("svc.act.restartTitle"))}">${escapeHtml(tr("svc.act.restart"))}</button>
             </span>
-            <span class="svc-actions-group svc-actions-boot" title="Início automático ao ligar o servidor (systemctl enable/disable)">
-              <button type="button" class="btn btn-ghost btn-sm svc-act svc-act-boot" data-act="enable" data-unit="${escapeHtml(unit)}" ${bootLocked || bootOn ? "disabled" : ""} title="Iniciar automaticamente quando o servidor ligar">Habilitar no boot</button>
-              <button type="button" class="btn btn-ghost btn-sm svc-act svc-act-boot" data-act="disable" data-unit="${escapeHtml(unit)}" ${bootLocked || bootOff ? "disabled" : ""} title="Não iniciar automaticamente ao ligar o servidor">Desabilitar no boot</button>
+            <span class="svc-actions-group svc-actions-boot" title="${escapeHtml(tr("svc.group.bootTitle"))}">
+              <button type="button" class="btn btn-ghost btn-sm svc-act svc-act-boot" data-act="enable" data-unit="${escapeHtml(unit)}" ${bootLocked || bootOn ? "disabled" : ""} title="${escapeHtml(tr("svc.act.enableTitle"))}">${escapeHtml(tr("svc.act.enable"))}</button>
+              <button type="button" class="btn btn-ghost btn-sm svc-act svc-act-boot" data-act="disable" data-unit="${escapeHtml(unit)}" ${bootLocked || bootOff ? "disabled" : ""} title="${escapeHtml(tr("svc.act.disableTitle"))}">${escapeHtml(tr("svc.act.disable"))}</button>
             </span>`
-          : `<span class="muted">Sem permissão</span>`;
+          : `<span class="muted">${escapeHtml(tr("common.noPerm"))}</span>`;
         return `<div class="svc-row" role="listitem" data-unit="${escapeHtml(unit)}">
           <span class="svc-col-name" title="${escapeHtml(unit)}"><strong>${escapeHtml(short)}</strong><span class="svc-unit-suffix muted">.service</span></span>
           <span class="svc-col-state">${stateBadge(r)}</span>
-          <span class="svc-col-boot" title="Início automático configurado">${bootBadge(r)}</span>
+          <span class="svc-col-boot" title="${escapeHtml(tr("svc.boot.colTitle"))}">${bootBadge(r)}</span>
           <span class="svc-col-desc" title="${escapeHtml(r.description || "")}">${escapeHtml(r.description || "—")}</span>
           <span class="svc-col-actions">
-            <button type="button" class="btn btn-ghost btn-sm svc-logs" data-unit="${escapeHtml(unit)}" title="Ver logs recentes">Logs</button>
+            <button type="button" class="btn btn-ghost btn-sm svc-logs" data-unit="${escapeHtml(unit)}" title="${escapeHtml(tr("svc.logs"))}">${escapeHtml(tr("svc.logs"))}</button>
             ${actions}
           </span>
         </div>`;
@@ -147,14 +159,14 @@
     const offBtn = $("#svc-sudo-off");
     if (!status) return;
     if (sudo?.enabled && sudo.user) {
-      status.textContent = `Sudo: ${sudo.user}`;
-      status.title = `Sudo ativo (${sudo.user})`;
+      status.textContent = tr("svc.sudo.active", { user: sudo.user });
+      status.title = tr("svc.sudo.activeTitle", { user: sudo.user });
       status.classList.add("is-on");
       onBtn?.setAttribute("disabled", "disabled");
       offBtn?.classList.remove("hidden");
     } else {
-      status.textContent = "Sudo inativo";
-      status.title = "Ativar sudo para controlar serviços";
+      status.textContent = tr("svc.sudo.inactive");
+      status.title = tr("svc.sudo.inactiveTitle");
       status.classList.remove("is-on");
       onBtn?.removeAttribute("disabled");
       offBtn?.classList.add("hidden");
@@ -181,12 +193,12 @@
       state.rows = Array.isArray(data.services) ? data.services : [];
       const at = $("#svc-updated-at");
       if (at) {
-        const t = data.updatedAt ? new Date(data.updatedAt) : new Date();
-        at.textContent = t.toLocaleTimeString("pt-BR");
+        const d = data.updatedAt ? new Date(data.updatedAt) : new Date();
+        at.textContent = d.toLocaleTimeString(localeForSort());
       }
     } catch (e) {
       state.rows = [];
-      CWUI.toast(e.message || "Falha ao listar serviços", "error");
+      CWUI.toast(e.message || tr("svc.toast.listFail"), "error");
     } finally {
       state.loading = false;
       renderList();
@@ -194,16 +206,16 @@
   }
 
   async function serviceAction(unit, action) {
-    const labels = {
-      start: "iniciar agora",
-      stop: "parar agora",
-      restart: "reiniciar agora",
-      enable: "habilitar o início automático no boot de",
-      disable: "desabilitar o início automático no boot de",
+    const actionKeys = {
+      start: "svc.confirm.start",
+      stop: "svc.confirm.stop",
+      restart: "svc.confirm.restart",
+      enable: "svc.confirm.enable",
+      disable: "svc.confirm.disable",
     };
-    const label = labels[action] || action;
-    const ok = await CWConfirm(`Confirma ${label} ${unit}?`, {
-      ok: action === "stop" || action === "disable" ? "Confirmar" : "Sim",
+    const actionLabel = tr(actionKeys[action] || action);
+    const ok = await CWConfirm(tr("svc.confirm.body", { action: actionLabel, unit }), {
+      ok: action === "stop" || action === "disable" ? tr("common.confirm") : tr("common.yes"),
       danger: action === "stop" || action === "disable",
     });
     if (!ok) return;
@@ -212,10 +224,10 @@
         method: "POST",
         body: JSON.stringify({ unit, action }),
       });
-      CWUI.toast(`${unit}: ${label}`, "success");
+      CWUI.toast(tr("svc.toast.ok", { unit, action: actionLabel }), "success");
       await loadServicesList();
     } catch (e) {
-      CWUI.toast(e.message || "Operação falhou — verifique sudo", "error");
+      CWUI.toast(e.message || tr("svc.toast.opFail"), "error");
     }
   }
 
@@ -224,14 +236,14 @@
     const dlg = $("#svc-logs-dialog");
     const title = $("#svc-logs-title");
     const body = $("#svc-logs-body");
-    if (title) title.textContent = `Logs — ${unit}`;
-    if (body) body.textContent = "A carregar…";
+    if (title) title.textContent = tr("svc.logs.titleUnit", { unit });
+    if (body) body.textContent = tr("common.loading");
     dlg?.showModal();
     try {
       const data = await api(`/api/services/logs?unit=${encodeURIComponent(unit)}&lines=120`);
-      if (body) body.textContent = data.log || "(vazio)";
+      if (body) body.textContent = data.log || tr("common.empty");
     } catch (e) {
-      if (body) body.textContent = e.message || "Erro";
+      if (body) body.textContent = e.message || tr("svc.toast.fail");
     }
   }
 
@@ -269,13 +281,13 @@
       else $("#sudo-dialog")?.showModal();
     });
     $("#svc-sudo-off")?.addEventListener("click", async () => {
-      if (!(await CWConfirm("Desativar sessão sudo?"))) return;
+      if (!(await CWConfirm(tr("svc.confirm.sudoOff")))) return;
       try {
         await api("/api/ssh/sudo", { method: "POST", body: JSON.stringify({ action: "disable" }) });
-        CWUI.toast("Sudo desativado", "success");
+        CWUI.toast(tr("svc.toast.sudoOff"), "success");
         await fetchSudoStatus();
       } catch (e) {
-        CWUI.toast(e.message || "Falha", "error");
+        CWUI.toast(e.message || tr("svc.toast.fail"), "error");
       }
     });
     $("#svc-auto-refresh")?.addEventListener("change", () => {
@@ -296,6 +308,11 @@
     });
     $("#svc-logs-close")?.addEventListener("click", () => $("#svc-logs-dialog")?.close());
     document.addEventListener("cw-sudo-changed", () => void fetchSudoStatus());
+    document.addEventListener("cw-lang-change", () => {
+      window.CWI18n?.applyLabels?.();
+      renderList();
+      void fetchSudoStatus();
+    });
   }
 
   window.servicesOnScreenLeave = function servicesOnScreenLeave() {

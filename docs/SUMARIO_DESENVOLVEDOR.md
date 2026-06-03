@@ -17,6 +17,9 @@ Este arquivo serve como guia rapido para manutencao do projeto `ContainerWay`.
 - `cmd/iconforge/`: utilitario para gerar/converter icones da aplicacao.
 - `docs/`: toda a documentacao Markdown ([indice](README.md)).
 - `docs/WEB_UI.md`: guia da versao web (API, scripts, roadmap).
+- `docs/UI_PADROES.md`: scrollbar, animacoes de superficie e checklist de UI web.
+- `docs/I18N_MULTILINGUE.md`: traducoes obrigatorias pt-BR / EN / ES na web.
+- `docs/PERMISSOES_TELAS.md`: checklist de permissoes ao criar modulos/telas.
 - `docs/ARQUIVOS.md`: gerenciador de arquivos (explorador desktop + web).
 - `docs/SCRIPTS.md`: referencia dos scripts em `scripts/`.
 - `scripts/build.ps1`: build desktop e pacotes Linux.
