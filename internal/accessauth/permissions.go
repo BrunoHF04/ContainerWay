@@ -13,6 +13,8 @@ const (
 	ScreenTerminal     = "terminal"
 	ScreenAutomations  = "automations"
 	ScreenSettings     = "settings"
+	ScreenDBBackup     = "dbbackup"
+	ScreenVolBackup    = "volbackup"
 )
 
 // IDs de ações (API + UI).
@@ -52,6 +54,8 @@ func AllScreens() []string {
 		ScreenTerminal,
 		ScreenAutomations,
 		ScreenSettings,
+		ScreenDBBackup,
+		ScreenVolBackup,
 	}
 }
 
@@ -97,6 +101,8 @@ func DefaultPermissions() Permissions {
 			ScreenTerminal,
 			ScreenAutomations,
 			ScreenSettings,
+			ScreenDBBackup,
+			ScreenVolBackup,
 		},
 		Actions: without(AllActions(), ActionSettingsManage),
 	}

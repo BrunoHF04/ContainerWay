@@ -168,6 +168,9 @@ Listagem dentro de contêineres: `docker exec ls` (sem depender de `CopyFromCont
 | GET / POST | `/api/automations/engine` | Motor (`start` \| `stop`) |
 | GET / PUT | `/api/admin/users` | Utilizadores (só admin) |
 | GET / PUT / POST | `/api/admin/mail` | SMTP e teste |
+| GET | `/api/compose-opt/discover` | Descobrir YAML Compose/Swarm no host (`roots`, `max`, `depth`) |
+| GET / POST | `/api/compose-opt/analyze` | Analisar YAML e sugerir otimizações (`path` ou `content`, `mode`) |
+| POST | `/api/compose-opt/validate` | Validar YAML no host (`docker stack config` ou `docker compose config`) |
 | WS | `/api/ssh/terminal/ws` | Terminal interativo |
 
 ## Estado atual (telas)
@@ -183,6 +186,7 @@ Listagem dentro de contêineres: `docker exec ls` (sem depender de `CopyFromCont
 | Serviços systemd (lista, controlo, logs) | Sim |
 | Terminal SSH (WebSocket + xterm) | Sim |
 | Automações (regras, motor, histórico) | Sim |
+| Otimizador Compose/Swarm YAML (descoberta, diff, gravação remota) | Sim |
 | Admin: utilizadores e SMTP | Sim |
 | i18n (pt-BR / EN / ES) — explorador e módulo Discos | Parcial |
 | Multi-seleção, drag-and-drop, atalhos, comparar acionável, preview, dock | Disponível (`explorer-enhanced.js`) |
@@ -225,6 +229,9 @@ Código: `internal/diskutil/` (scripts bash), `internal/webapp/disks.go`, `disks
 | `internal/diskutil/` | `ProbeScript`, parse LVS/VGS, scripts `grow`/`shrink`/`ops` |
 | `internal/webapp/static/disks-manager.js` | Módulo Discos na UI |
 | `internal/webapp/static/services-manager.js` | Módulo Serviços systemd |
+| `internal/composeopt/` | Análise e patch de YAML Compose/Swarm (CPU, RAM, JVM, Swarm) |
+| `internal/webapp/api_compose_opt.go` | API discover/analyze/validate do otimizador |
+| `internal/webapp/static/compose-opt-manager.js` | UI do otimizador YAML |
 | `internal/webapp/api_editor.go` | Leitura/gravação de ficheiros para editor |
 | `internal/webapp/api_open_external.go` | Abrir no Windows e sincronizar remoto |
 | `internal/webapp/api_sudo.go` | API sudo |

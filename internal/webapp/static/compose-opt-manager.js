@@ -265,14 +265,78 @@
     });
   }
 
-  function diffLineHtml(line) {
+  function diffLineHtml(line, rowIdx) {
+    const rowAttr = rowIdx >= 0 ? ` data-copt-row="${rowIdx}"` : "";
     if (line.type === "pad") {
-      return '<div class="copt-line copt-line--pad" aria-hidden="true">\u00a0</div>';
+      return `<div class="copt-line copt-line--pad"${rowAttr} aria-hidden="true">\u00a0</div>`;
     }
     const show = escapeHtml(line.text);
-    if (line.type === "del") return `<div class="copt-line copt-line--del">${show}</div>`;
-    if (line.type === "add") return `<div class="copt-line copt-line--add">${show}</div>`;
-    return `<div class="copt-line copt-line--same">${show}</div>`;
+    if (line.type === "del") return `<div class="copt-line copt-line--del"${rowAttr}>${show}</div>`;
+    if (line.type === "add") return `<div class="copt-line copt-line--add"${rowAttr}>${show}</div>`;
+    return `<div class="copt-line copt-line--same"${rowAttr}>${show}</div>`;
+  }
+
+  function collectDiffChangeRows(left, right) {
+    const rows = [];
+    for (let i = 0; i < left.length; i++) {
+      const l = left[i];
+      const r = right[i];
+      if (l.type === "pad" && r.type === "pad") continue;
+      if (l.type !== "same" || r.type !== "same") rows.push(i);
+    }
+    return rows;
+  }
+
+  function clearDiffFocus() {
+    document.querySelectorAll(".copt-line--focus").forEach((el) => el.classList.remove("copt-line--focus"));
+  }
+
+  function updateDiffNavUI() {
+    const n = copt.diffChanges.length;
+    const has = n > 0;
+    ["#copt-diff-prev", "#copt-diff-next"].forEach((sel) => {
+      const btn = $(sel);
+      if (btn) btn.disabled = !has;
+    });
+    const label = $("#copt-diff-nav-label");
+    if (label) {
+      if (!has) {
+        label.classList.add("hidden");
+        label.textContent = "";
+      } else {
+        label.classList.remove("hidden");
+        const cur = copt.diffChangeCursor >= 0 ? copt.diffChangeCursor + 1 : 0;
+        label.textContent = tr("copt.diff.nav", { cur, total: n });
+      }
+    }
+  }
+
+  function scrollDiffToRow(row) {
+    clearDiffFocus();
+    const panes = ["#copt-yaml-orig-pre", "#copt-yaml-opt-pre", "#copt-fs-yaml-orig-pre", "#copt-fs-yaml-opt-pre"];
+    panes.forEach((sel) => {
+      const pane = $(sel);
+      if (!pane) return;
+      const el = pane.querySelector(`[data-copt-row="${row}"]`);
+      if (!el) return;
+      el.classList.add("copt-line--focus");
+      const paneRect = pane.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+      const delta = elRect.top - paneRect.top - paneRect.height / 2 + elRect.height / 2;
+      pane.scrollTop += delta;
+    });
+    updateDiffNavUI();
+  }
+
+  function navigateDiff(delta) {
+    const n = copt.diffChanges.length;
+    if (!n) return;
+    if (copt.diffChangeCursor < 0) {
+      copt.diffChangeCursor = delta > 0 ? 0 : n - 1;
+    } else {
+      copt.diffChangeCursor = (copt.diffChangeCursor + delta + n) % n;
+    }
+    scrollDiffToRow(copt.diffChanges[copt.diffChangeCursor]);
   }
 
   function getOptYamlText() {
@@ -288,15 +352,22 @@
     const orig = normYamlText(original);
     const opt = normYamlText(optimized);
     const { left, right } = computeAlignedYamlDiff(orig, opt);
+    const isMain = origPre?.id === "copt-yaml-orig-pre";
+    if (isMain) {
+      copt.diffChanges = collectDiffChangeRows(left, right);
+      copt.diffChangeCursor = -1;
+      clearDiffFocus();
+      updateDiffNavUI();
+    }
     if (origPre) {
-      origPre.innerHTML = left.map(diffLineHtml).join("");
+      origPre.innerHTML = left.map((line, i) => diffLineHtml(line, i)).join("");
       if (document.activeElement !== origPre) {
         origPre.scrollTop = 0;
         origPre.scrollLeft = 0;
       }
     }
     if (optPre && document.activeElement !== optPre) {
-      optPre.innerHTML = right.map(diffLineHtml).join("");
+      optPre.innerHTML = right.map((line, i) => diffLineHtml(line, i)).join("");
       optPre.scrollTop = 0;
       optPre.scrollLeft = 0;
     }
@@ -393,6 +464,8 @@
     yamlOriginal: "",
     yamlOptimized: "",
     externalSessionId: "",
+    diffChanges: [],
+    diffChangeCursor: -1,
   };
 
   let externalPoll = null;
@@ -419,6 +492,36 @@
     if (fs) fs.disabled = !on;
     if (npp) npp.disabled = !on;
     if (fsNpp) fsNpp.disabled = !on;
+    if (!on) {
+      copt.diffChanges = [];
+      copt.diffChangeCursor = -1;
+      clearDiffFocus();
+      updateDiffNavUI();
+    }
+  }
+
+  function renderCriticalBanner(findings) {
+    const el = $("#copt-alert-banner");
+    if (!el) return;
+    const alerts = (findings || []).filter(
+      (f) => f.severity === "warn" && (f.category === "java" || f.category === "memory")
+    );
+    if (!alerts.length) {
+      el.classList.add("hidden");
+      el.innerHTML = "";
+      return;
+    }
+    el.classList.remove("hidden");
+    const items = alerts
+      .map((f) => `<li><strong>${escapeHtml(f.service)}</strong> — ${escapeHtml(f.message)}</li>`)
+      .join("");
+    el.innerHTML = `<p class="copt-alert-title">${escapeHtml(tr("copt.alert.title"))}</p><ul class="copt-alert-list">${items}</ul>`;
+  }
+
+  function resolveValidateMode() {
+    const m = copt.lastResult?.mode || copt.mode;
+    if (m === "swarm" || m === "compose") return m;
+    return copt.lastResult?.detectedKind === "swarm" ? "swarm" : "compose";
   }
 
   function flushOptEditor() {
@@ -691,6 +794,7 @@
   }
 
   function setFindingsMessage(msg, isError) {
+    if (isError || !copt.lastResult?.findings?.length) renderCriticalBanner([]);
     const box = $("#copt-findings");
     if (!box) return;
     box.className = isError ? "copt-findings cw-scroll copt-findings--err" : "copt-findings cw-scroll muted";
@@ -715,6 +819,7 @@
     copt.selectedPath = path || "";
     copt.selectedKind = kind || "compose";
     copt.lastResult = null;
+    renderCriticalBanner([]);
     copt.externalSessionId = "";
     stopExternalPoll();
     updateSyncExternalBtns(false);
@@ -757,6 +862,7 @@
   const sevClass = { info: "copt-finding--info", warn: "copt-finding--warn", suggest: "copt-finding--suggest" };
 
   function renderFindings(findings, result) {
+    renderCriticalBanner(findings);
     const box = $("#copt-findings");
     const badge = $("#copt-mode-badge");
     if (badge && result) {
@@ -767,6 +873,7 @@
     }
     if (!box) return;
     if (!findings?.length) {
+      renderCriticalBanner([]);
       box.className = "copt-findings muted";
       box.textContent = tr("copt.findings.none");
       updateFindingsCount(0);
@@ -894,6 +1001,11 @@
     if (saveBtn) saveBtn.disabled = true;
     if (fsSave) fsSave.disabled = true;
     try {
+      setUpdated(tr("copt.validating"));
+      await api("/api/compose-opt/validate", {
+        method: "POST",
+        body: JSON.stringify({ content, mode: resolveValidateMode() }),
+      });
       await api("/api/remote/file", {
         method: "PUT",
         body: JSON.stringify({ path: copt.selectedPath, content }),
@@ -1034,6 +1146,8 @@
     $("#copt-copy-opt")?.addEventListener("click", () => copyYaml("opt"));
     $("#copt-fs-copy-orig")?.addEventListener("click", () => copyYaml("orig"));
     $("#copt-fs-copy-opt")?.addEventListener("click", () => copyYaml("opt"));
+    $("#copt-diff-prev")?.addEventListener("click", () => navigateDiff(-1));
+    $("#copt-diff-next")?.addEventListener("click", () => navigateDiff(1));
     $("#copt-fullscreen")?.addEventListener("click", openCoptFullscreen);
     $("#copt-fullscreen-close")?.addEventListener("click", closeCoptFullscreen);
     $("#copt-fullscreen-dialog")?.addEventListener("close", () => {

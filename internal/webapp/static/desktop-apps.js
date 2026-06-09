@@ -2142,6 +2142,123 @@
     },
   });
 
+  /* —— Backup de Volumes —— */
+  register({
+    id: "volbackup",
+    label: "Backup de Volumes",
+    icon: "📦",
+    desc: "Backup e restauro de volumes Docker",
+    screen: "volbackup",
+    w: 880,
+    h: 520,
+    singleton: true,
+    mount(body, ctx) {
+      body.className = "linux-app linux-app-volbackup";
+      const subview = document.getElementById("view-volbackup");
+      if (subview) {
+        ctx.originalParent = subview.parentElement;
+        body.appendChild(subview);
+        subview.style.display = "flex";
+        subview.style.flexDirection = "column";
+        subview.style.height = "100%";
+        subview.style.padding = "0";
+        if (typeof window.loadVolBackup === "function") {
+          window.loadVolBackup();
+        }
+      } else {
+        body.innerHTML = '<p class="error">Módulo não encontrado.</p>';
+      }
+    },
+    unmount(ctx) {
+      const subview = document.getElementById("view-volbackup");
+      if (subview && ctx.originalParent) {
+        subview.style.display = "";
+        subview.style.flexDirection = "";
+        subview.style.height = "";
+        subview.style.padding = "";
+        ctx.originalParent.appendChild(subview);
+      }
+    }
+  });
+
+  /* —— Backup de Bancos —— */
+  register({
+    id: "dbbackup",
+    label: "Backup de Bancos",
+    icon: "🗄️",
+    desc: "Backup de bancos de dados",
+    screen: "dbbackup",
+    w: 800,
+    h: 520,
+    singleton: true,
+    mount(body, ctx) {
+      body.className = "linux-app linux-app-dbbackup";
+      const subview = document.getElementById("view-dbbackup");
+      if (subview) {
+        ctx.originalParent = subview.parentElement;
+        body.appendChild(subview);
+        subview.style.display = "flex";
+        subview.style.flexDirection = "column";
+        subview.style.height = "100%";
+        subview.style.padding = "0";
+        if (typeof window.loadDBBackup === "function") {
+          window.loadDBBackup();
+        }
+      } else {
+        body.innerHTML = '<p class="error">Módulo não encontrado.</p>';
+      }
+    },
+    unmount(ctx) {
+      const subview = document.getElementById("view-dbbackup");
+      if (subview && ctx.originalParent) {
+        subview.style.display = "";
+        subview.style.flexDirection = "";
+        subview.style.height = "";
+        subview.style.padding = "";
+        ctx.originalParent.appendChild(subview);
+      }
+    }
+  });
+
+  /* —— Otimizador YAML —— */
+  register({
+    id: "composeopt",
+    label: "Otimizador YAML",
+    icon: "📋",
+    desc: "Otimizar Compose/Swarm YAML",
+    screen: "composeopt",
+    w: 920,
+    h: 550,
+    singleton: true,
+    mount(body, ctx) {
+      body.className = "linux-app linux-app-composeopt";
+      const subview = document.getElementById("view-composeopt");
+      if (subview) {
+        ctx.originalParent = subview.parentElement;
+        body.appendChild(subview);
+        subview.style.display = "flex";
+        subview.style.flexDirection = "column";
+        subview.style.height = "100%";
+        subview.style.padding = "0";
+        if (typeof window.composeOptOnScreenEnter === "function") {
+          window.composeOptOnScreenEnter();
+        }
+      } else {
+        body.innerHTML = '<p class="error">Módulo não encontrado.</p>';
+      }
+    },
+    unmount(ctx) {
+      const subview = document.getElementById("view-composeopt");
+      if (subview && ctx.originalParent) {
+        subview.style.display = "";
+        subview.style.flexDirection = "";
+        subview.style.height = "";
+        subview.style.padding = "";
+        ctx.originalParent.appendChild(subview);
+      }
+    }
+  });
+
   /* —— Ajuda —— */
   register({
     id: "help",
@@ -2160,6 +2277,8 @@
           <li><strong>Sistema</strong> — rede (hostname, DNS, interfaces), LVM e serviços (com sudo).</li>
           <li><strong>Docker</strong> — arquivos, console e logs por container; clique no card para detalhes.</li>
           <li><strong>Automações</strong> — ligue o motor, edite regras de reinício e veja o histórico.</li>
+          <li><strong>Backups</strong> — crie e restaure cópias de volumes Docker ou bancos de dados (Postgres, MySQL, etc).</li>
+          <li><strong>Otimizador YAML</strong> — analise e otimize recursos (CPU/RAM/JVM) em arquivos Compose/Swarm.</li>
           <li>Atalhos: <kbd>Alt</kbd>+<kbd>Tab</kbd> janelas, <kbd>Ctrl</kbd>+<kbd>W</kbd> fechar, <kbd>Ctrl</kbd>+<kbd>M</kbd> minimizar tudo, <kbd>Ctrl</kbd>+<kbd>K</kbd> lista de comandos (terminal), <kbd>?</kbd> esta ajuda.</li>
           <li>Arraste a janela ao <strong>topo</strong> para maximizar; às <strong>bordas</strong> para metade da tela; duplo-clique na barra de título alterna maximizar.</li>
           <li>Menu <strong>CW</strong>: pesquisa, recentes e papel de fundo. Botão <strong>⌂</strong> na janela abre o módulo técnico.</li>

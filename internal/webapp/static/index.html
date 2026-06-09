@@ -122,6 +122,7 @@
                 <label class="field">Nome do perfil<input type="text" id="ssh-name" placeholder="ex.: VM 63" required /></label>
                 <div class="field-row">
                   <label class="field">Host<input type="text" id="ssh-host" required placeholder="10.0.1.63" /></label>
+                  <label class="field">Porta<input type="text" id="ssh-port" placeholder="22" value="22" /></label>
                   <label class="field">Usuário<input type="text" id="ssh-user" required /></label>
                 </div>
                 <label class="field">Senha<input type="password" id="ssh-pass" autocomplete="current-password" /></label>
@@ -966,6 +967,7 @@
               <div id="copt-selected" class="copt-selected-inline muted" data-i18n="copt.pickFile">Selecione um arquivo na lista</div>
               <section id="copt-host" class="copt-host-inline hidden" aria-live="polite"></section>
             </div>
+            <section id="copt-alert-banner" class="copt-alert-banner glass-card hidden" role="alert" aria-live="polite"></section>
             <section id="copt-findings-wrap" class="copt-findings-wrap glass-card is-collapsed">
               <div class="copt-findings-head">
                 <button type="button" id="copt-findings-toggle" class="copt-collapse-btn" aria-expanded="false" aria-controls="copt-findings" title=""></button>
@@ -979,6 +981,9 @@
               <div class="copt-diff-meta">
                 <p class="copt-diff-legend muted" data-i18n="copt.diff.legend">Sem cor = sem alteração sugerida · Vermelho/verde = mudança real na mesma linha</p>
                 <div class="copt-diff-tools">
+                  <button type="button" class="btn btn-ghost btn-sm" id="copt-diff-prev" data-i18n="copt.diff.prev" disabled title="">Anterior</button>
+                  <button type="button" class="btn btn-ghost btn-sm" id="copt-diff-next" data-i18n="copt.diff.next" disabled title="">Próxima</button>
+                  <span id="copt-diff-nav-label" class="copt-diff-nav-label muted hidden" aria-live="polite"></span>
                   <button type="button" class="btn btn-ghost btn-sm" id="copt-fullscreen" data-i18n="copt.fullscreen" disabled>Tela cheia</button>
                   <button type="button" class="btn btn-ghost btn-sm" id="copt-notepad" data-i18n="copt.notepad" disabled>Notepad++</button>
                   <button type="button" class="btn btn-ghost btn-sm hidden" id="copt-sync-external" data-i18n="copt.syncExternal">Sincronizar do Notepad++</button>
@@ -1072,6 +1077,780 @@
           </div>
         </form>
       </dialog>
+
+      <div id="view-volbackup" class="subview volbackup-module">
+        <style>
+          #view-volbackup.subview.active {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            padding-top: 1.15rem;
+            box-sizing: border-box;
+            overflow: hidden;
+          }
+          #view-volbackup > .subview-body {
+            display: flex;
+            flex-direction: column;
+            gap: 0.45rem;
+            min-height: 0;
+            flex: 1;
+            overflow: hidden;
+            padding: 0 1.15rem 1.15rem;
+          }
+          .volbackup-layout {
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr;
+            gap: 20px;
+            margin-top: 0.45rem;
+            align-items: start;
+          }
+          .volbackup-panel-card {
+            padding: 20px;
+          }
+          .volbackup-top-bar {
+            padding: 0.75rem 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+          }
+          .volbackup-top-compact {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.45rem 0.65rem;
+            flex-wrap: wrap;
+          }
+          .volbackup-top-primary {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            min-width: 0;
+          }
+          .volbackup-top-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-shrink: 0;
+          }
+          .volbackup-meta {
+            font-size: 0.78rem;
+            margin-top: 0.2rem;
+          }
+          .volbackup-left {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            padding: 20px;
+            min-height: 500px;
+          }
+          .volbackup-right {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+          }
+          .volbackup-table-wrap {
+            flex: 1;
+            max-height: 550px;
+            overflow-y: auto;
+          }
+          .volbackup-table tbody tr {
+            cursor: pointer;
+            transition: background 0.2s ease;
+          }
+          .volbackup-table tbody tr:hover {
+            background: rgba(255, 255, 255, 0.04);
+          }
+          .volbackup-table tbody tr.selected {
+            background: rgba(255, 255, 255, 0.08);
+            border-left: 3px solid var(--accent, #6366f1);
+          }
+          .volbackup-hint-card {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 200px;
+            text-align: center;
+            border: 1px dashed rgba(255, 255, 255, 0.15);
+          }
+          .volbackup-selected-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--accent, #6366f1);
+            margin-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 10px;
+          }
+          .volbackup-tabs {
+            display: flex;
+            gap: 5px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 15px;
+          }
+          .volbackup-tab {
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.6);
+            padding: 10px 15px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            border-bottom: 2px solid transparent;
+          }
+          .volbackup-tab:hover {
+            color: #fff;
+          }
+          .volbackup-tab.active {
+            color: #fff;
+            border-bottom: 2px solid var(--accent, #6366f1);
+          }
+          .volbackup-tab-content {
+            display: none;
+          }
+          .volbackup-tab-content.active {
+            display: block;
+          }
+          .radio-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 5px;
+          }
+          .radio-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+          }
+          .radio-row input[type="radio"] {
+            width: auto;
+            height: auto;
+            padding: 0;
+            margin: 0;
+            background: none;
+            border: none;
+            accent-color: var(--accent, #6366f1);
+          }
+          .btn-block {
+            width: 100%;
+          }
+          .volbackup-logs-card {
+            padding: 20px;
+            flex: 1;
+          }
+          .volbackup-logs-card h3 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+          }
+          #volbackup-logs {
+            max-height: 250px;
+            overflow-y: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 6px;
+            white-space: pre-wrap;
+            color: rgba(255, 255, 255, 0.85);
+          }
+          .vol-container-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            margin: 2px;
+          }
+          .vol-container-badge.running {
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+          }
+          .vol-container-badge.stopped {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+          }
+        </style>
+        <div class="subview-body">
+          <header class="volbackup-top-bar glass-card">
+            <div class="volbackup-top-compact">
+              <div class="volbackup-top-primary">
+                <h2 class="volbackup-screen-title" data-i18n="volbackup.title">Backup & Restauração de Volumes</h2>
+              </div>
+              <div class="volbackup-top-actions">
+                <button type="button" class="btn btn-primary btn-sm" id="volbackup-refresh" data-i18n="volbackup.refresh">Atualizar Volumes</button>
+                <span id="volbackup-updated-at" class="volbackup-updated muted">—</span>
+              </div>
+            </div>
+            <p class="volbackup-meta muted" data-i18n="volbackup.meta">Gerenciamento de cópias de segurança de volumes Docker (tarball compactado)</p>
+          </header>
+
+          <div class="volbackup-layout">
+            <div class="volbackup-left glass-card">
+              <div class="panel-search">
+                <input type="search" id="volbackup-filter" class="panel-filter" placeholder="Filtrar por nome do volume..." data-i18n="volbackup.filter.ph" data-i18n-mode="placeholder" />
+              </div>
+              <div class="volbackup-table-wrap cw-scroll">
+                <table class="data-table volbackup-table">
+                  <thead>
+                    <tr>
+                      <th data-i18n="volbackup.col.name">Volume</th>
+                      <th data-i18n="volbackup.col.driver">Driver</th>
+                      <th data-i18n="volbackup.col.containers">Contêineres Associados</th>
+                      <th data-i18n="volbackup.col.actions">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody id="volbackup-list">
+                    <!-- Dinâmico -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="volbackup-right">
+              <div id="volbackup-select-hint" class="volbackup-hint-card glass-card">
+                <p class="muted" data-i18n="volbackup.panel.selectVolume">Selecione um volume para iniciar o backup ou restauração.</p>
+              </div>
+
+              <div id="volbackup-panel-card" class="volbackup-panel-card glass-card hidden">
+                <h3 id="volbackup-selected-title" class="volbackup-selected-title"></h3>
+                
+                <div class="volbackup-tabs">
+                  <button type="button" class="volbackup-tab active" data-tab="backup" data-i18n="volbackup.backup.title">Criar Backup</button>
+                  <button type="button" class="volbackup-tab" data-tab="restore" data-i18n="volbackup.restore.title">Restaurar Backup</button>
+                </div>
+
+                <!-- Aba de Backup -->
+                <div id="volbackup-tab-backup" class="volbackup-tab-content active">
+                  <form id="volbackup-form-backup" class="form-stack">
+                    <div class="field">
+                      <span data-i18n="volbackup.backup.dest">Destino do Backup</span>
+                      <div class="radio-group">
+                        <label class="radio-row">
+                          <input type="radio" name="backupDestType" value="download" checked />
+                          <span data-i18n="volbackup.backup.dest.download">Baixar no PC (Browser)</span>
+                        </label>
+                        <label class="radio-row">
+                          <input type="radio" name="backupDestType" value="ssh" />
+                          <span data-i18n="volbackup.backup.dest.ssh">Salvar no Servidor</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div id="volbackup-backup-path-container" class="field hidden">
+                      <span data-i18n="volbackup.backup.path">Caminho do Arquivo (Ex: /tmp/backup.tar)</span>
+                      <input type="text" id="volbackup-backup-path" placeholder="/tmp/backup.tar" />
+                    </div>
+
+                    <div class="btn-row">
+                      <button type="submit" class="btn btn-primary btn-glow" id="btn-run-backup" data-i18n="volbackup.backup.btn">Iniciar Backup</button>
+                    </div>
+                  </form>
+                </div>
+
+                <!-- Aba de Restauração -->
+                <div id="volbackup-tab-restore" class="volbackup-tab-content">
+                  <form id="volbackup-form-restore" class="form-stack">
+                    <div class="field">
+                      <span data-i18n="volbackup.restore.source">Origem do Backup</span>
+                      <div class="radio-group">
+                        <label class="radio-row">
+                          <input type="radio" name="restoreSourceType" value="upload" checked />
+                          <span data-i18n="volbackup.restore.source.upload">Enviar do PC (Upload)</span>
+                        </label>
+                        <label class="radio-row">
+                          <input type="radio" name="restoreSourceType" value="ssh" />
+                          <span data-i18n="volbackup.restore.source.ssh">Carregar do Servidor</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div id="volbackup-restore-path-container" class="field hidden">
+                      <span data-i18n="volbackup.restore.path">Caminho do Arquivo (.tar)</span>
+                      <input type="text" id="volbackup-restore-path" placeholder="/tmp/backup.tar" />
+                    </div>
+
+                    <div id="volbackup-restore-file-container" class="field">
+                      <span data-i18n="volbackup.restore.file">Escolher Arquivo</span>
+                      <input type="file" id="volbackup-restore-file" accept=".tar" />
+                    </div>
+
+                    <div class="btn-row">
+                      <button type="submit" class="btn btn-primary btn-glow" id="btn-run-restore" data-i18n="volbackup.restore.btn">Iniciar Restauração</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+
+              <!-- Terminal de Logs -->
+              <div class="volbackup-logs-card glass-card">
+                <h3 data-i18n="volbackup.logs.title">Progresso & Logs da Operação</h3>
+                <pre id="volbackup-logs" class="code-block" data-i18n="volbackup.logs.placeholder">Os logs das operações de backup/restauração serão exibidos aqui...</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="view-dbbackup" class="subview dbbackup-module">
+        <style>
+          #view-dbbackup.subview.active {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            padding-top: 1.15rem;
+            box-sizing: border-box;
+            overflow: hidden;
+          }
+          #view-dbbackup > .subview-body {
+            display: flex;
+            flex-direction: column;
+            gap: 0.45rem;
+            min-height: 0;
+            flex: 1;
+            overflow: hidden;
+            padding: 0 1.15rem 1.15rem;
+          }
+          .dbbackup-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 0.45rem;
+            align-items: start;
+            min-height: 0;
+            flex: 1;
+            overflow: hidden;
+            transition: grid-template-columns 0.25s var(--ease-smooth);
+          }
+          .dbbackup-layout.no-selection {
+            grid-template-columns: 1fr;
+          }
+          .dbbackup-layout.no-selection .dbbackup-right {
+            display: none;
+          }
+          .dbbackup-panel-card {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            max-height: 100%;
+            overflow-y: auto;
+          }
+          .dbbackup-top-bar {
+            padding: 0.75rem 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+          }
+          .dbbackup-top-compact {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.45rem 0.65rem;
+            flex-wrap: wrap;
+          }
+          .dbbackup-top-primary {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            min-width: 0;
+          }
+          .dbbackup-top-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-shrink: 0;
+          }
+          .dbbackup-meta {
+            font-size: 0.78rem;
+            margin-top: 0.2rem;
+          }
+          .dbbackup-left {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            padding: 20px;
+            min-height: 500px;
+            max-height: 100%;
+            overflow: hidden;
+          }
+          .dbbackup-right {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            min-height: 0;
+            max-height: 100%;
+            overflow: hidden;
+            animation: cw-surface-in 0.24s var(--ease-smooth) both;
+          }
+          .dbbackup-table-wrap {
+            flex: 1;
+            overflow-y: auto;
+          }
+          .dbbackup-table tbody tr {
+            cursor: pointer;
+            transition: background 0.2s ease;
+          }
+          .dbbackup-table tbody tr:hover {
+            background: rgba(255, 255, 255, 0.04);
+          }
+          .dbbackup-table tbody tr.selected {
+            background: rgba(255, 255, 255, 0.08);
+            border-left: 3px solid var(--accent, #6366f1);
+          }
+          .dbbackup-hint-card {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 200px;
+            text-align: center;
+            border: 1px dashed rgba(255, 255, 255, 0.15);
+          }
+          .dbbackup-selected-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--accent, #6366f1);
+            margin-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 10px;
+          }
+          .dbbackup-tabs {
+            display: flex;
+            gap: 5px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 15px;
+          }
+          .dbbackup-tab {
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.6);
+            padding: 10px 15px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            border-bottom: 2px solid transparent;
+          }
+          .dbbackup-tab:hover {
+            color: #fff;
+          }
+          .dbbackup-tab.active {
+            color: #fff;
+            border-bottom: 2px solid var(--accent, #6366f1);
+          }
+          .dbbackup-tab-content {
+            display: none;
+            min-height: 0;
+            overflow-y: auto;
+          }
+          .dbbackup-tab-content.active {
+            display: block;
+          }
+          .dbbackup-logs-card {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+          }
+          #dbbackup-logs {
+            height: 150px;
+            overflow-y: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 6px;
+            white-space: pre-wrap;
+            color: rgba(255, 255, 255, 0.85);
+          }
+          .db-autocomplete-wrapper {
+            position: relative;
+          }
+          .db-autocomplete-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            max-height: 200px;
+            overflow-y: auto;
+            background: rgba(21, 32, 51, 0.96);
+            backdrop-filter: blur(8px);
+            border: 1px solid var(--border-strong);
+            border-radius: var(--radius-sm);
+            margin-top: 4px;
+            box-shadow: var(--shadow), 0 8px 32px rgba(0, 0, 0, 0.5);
+            padding: 0.35rem;
+          }
+          [data-theme="light"] .db-autocomplete-dropdown {
+            background: rgba(255, 255, 255, 0.98);
+            box-shadow: var(--shadow), 0 8px 32px rgba(15, 23, 42, 0.1);
+          }
+          .db-autocomplete-item {
+            padding: 0.58rem 0.75rem;
+            cursor: pointer;
+            border-radius: calc(var(--radius-sm) - 2px);
+            color: var(--text);
+            font-size: 0.88rem;
+            transition: background var(--transition-fast), color var(--transition-fast);
+            text-align: left;
+          }
+          .db-autocomplete-item:hover,
+          .db-autocomplete-item.is-focused {
+            background: color-mix(in srgb, var(--accent) 14%, var(--surface2));
+            color: var(--accent);
+          }
+          .db-autocomplete-no-results {
+            padding: 0.58rem 0.75rem;
+            color: var(--text-secondary);
+            font-size: 0.88rem;
+            font-style: italic;
+          }
+        </style>
+        <div class="subview-body">
+          <header class="dbbackup-top-bar glass-card">
+            <div class="dbbackup-top-compact">
+              <div class="dbbackup-top-primary">
+                <h2 class="dbbackup-screen-title" data-i18n="dbbackup.title">Backup & Rotinas de Bancos de Dados</h2>
+              </div>
+              <div class="dbbackup-top-actions">
+                <button type="button" class="btn btn-primary btn-sm" id="dbbackup-refresh" data-i18n="dbbackup.refresh">Atualizar Bancos</button>
+                <span id="dbbackup-updated-at" class="dbbackup-updated muted">—</span>
+              </div>
+            </div>
+            <p class="dbbackup-meta muted" data-i18n="dbbackup.meta">Gerenciamento de backups integrais ou agendamento de rotinas para bancos de dados locais ou Docker</p>
+          </header>
+
+          <div class="dbbackup-layout no-selection">
+            <div class="dbbackup-left glass-card">
+              <div class="panel-search">
+                <input type="search" id="dbbackup-filter" class="panel-filter" placeholder="Filtrar bancos de dados..." data-i18n="dbbackup.filter.ph" data-i18n-mode="placeholder" />
+              </div>
+              <div class="dbbackup-table-wrap cw-scroll">
+                <table class="data-table dbbackup-table">
+                  <thead>
+                    <tr>
+                      <th data-i18n="dbbackup.col.engine">Motor</th>
+                      <th data-i18n="dbbackup.col.source">Origem</th>
+                      <th data-i18n="dbbackup.col.name">Identificador</th>
+                      <th data-i18n="dbbackup.col.status">Estado</th>
+                      <th data-i18n="dbbackup.col.actions">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dbbackup-list">
+                    <!-- Dinâmico -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="dbbackup-right">
+              <div id="dbbackup-select-hint" class="dbbackup-hint-card glass-card">
+                <p class="muted" data-i18n="dbbackup.panel.selectDB">Selecione um banco de dados para iniciar.</p>
+              </div>
+
+              <div id="dbbackup-panel-card" class="dbbackup-panel-card glass-card cw-scroll hidden">
+                <h3 id="dbbackup-selected-title" class="dbbackup-selected-title"></h3>
+                
+                <div class="dbbackup-tabs">
+                  <button type="button" class="dbbackup-tab active" data-tab="backup" data-i18n="dbbackup.tab.backup">Backup Integral</button>
+                  <button type="button" class="dbbackup-tab" data-tab="restore" data-i18n="dbbackup.tab.restore">Restaurar Backup</button>
+                  <button type="button" class="dbbackup-tab" data-tab="routine" data-i18n="dbbackup.tab.routine">Nova Rotina</button>
+                  <button type="button" class="dbbackup-tab" data-tab="routines" data-i18n="dbbackup.tab.routines">Rotinas Ativas</button>
+                </div>
+
+                <!-- Aba de Backup Integral -->
+                <div id="dbbackup-tab-backup" class="dbbackup-tab-content active">
+                  <form id="dbbackup-form-backup" class="form-stack">
+                    <div class="field">
+                      <span data-i18n="dbbackup.backup.dest">Destino do Backup</span>
+                      <div class="radio-group">
+                        <label class="radio-row">
+                          <input type="radio" name="dbbackupDestType" value="download" checked />
+                          <span data-i18n="dbbackup.backup.dest.download">Baixar no PC (Navegador)</span>
+                        </label>
+                        <label class="radio-row">
+                          <input type="radio" name="dbbackupDestType" value="ssh" />
+                          <span data-i18n="dbbackup.backup.dest.ssh">Salvar no Servidor</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div class="field db-autocomplete-wrapper">
+                      <span data-i18n="dbbackup.backup.dbName">Nome do Banco de Dados (opcional)</span>
+                      <input type="text" id="dbbackup-backup-dbName" autocomplete="off" data-i18n="dbbackup.backup.dbName.ph" data-i18n-mode="placeholder" placeholder="Deixe vazio para fazer backup de todos" />
+                    </div>
+
+                    <div class="field-row">
+                      <label class="field">
+                        <span data-i18n="dbbackup.backup.user">Usuário do Banco</span>
+                        <input type="text" id="dbbackup-backup-user" required />
+                      </label>
+                      <label class="field">
+                        <span data-i18n="dbbackup.backup.pass">Senha do Banco</span>
+                        <input type="password" id="dbbackup-backup-pass" />
+                      </label>
+                    </div>
+
+                    <div id="dbbackup-backup-path-container" class="field hidden">
+                      <span data-i18n="dbbackup.backup.path">Caminho do Arquivo no Servidor</span>
+                      <input type="text" id="dbbackup-backup-path" data-i18n="dbbackup.backup.path.ph" data-i18n-mode="placeholder" placeholder="Ex: /tmp/backup.sql.gz" />
+                    </div>
+
+                    <div class="btn-row">
+                      <button type="submit" class="btn btn-primary btn-glow" id="btn-run-dbbackup" data-i18n="dbbackup.backup.btn">Iniciar Backup Integral</button>
+                    </div>
+                  </form>
+                </div>
+
+                <!-- Aba de Restaurar Backup -->
+                <div id="dbbackup-tab-restore" class="dbbackup-tab-content">
+                  <form id="dbbackup-form-restore" class="form-stack">
+                    <div class="field">
+                      <span data-i18n="dbbackup.restore.source">Origem do Backup</span>
+                      <div class="radio-group">
+                        <label class="radio-row">
+                          <input type="radio" name="dbrestoreSourceType" value="upload" checked />
+                          <span data-i18n="dbbackup.restore.source.upload">Enviar do PC (Upload)</span>
+                        </label>
+                        <label class="radio-row">
+                          <input type="radio" name="dbrestoreSourceType" value="ssh" />
+                          <span data-i18n="dbbackup.restore.source.ssh">Carregar do Servidor</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div class="field db-autocomplete-wrapper">
+                      <span data-i18n="dbbackup.restore.dbName">Nome do Banco de Dados (Destino)</span>
+                      <input type="text" id="dbbackup-restore-dbName" autocomplete="off" required data-i18n="dbbackup.restore.dbName.ph" data-i18n-mode="placeholder" placeholder="Ex: orion_tn" />
+                    </div>
+
+                    <div class="field-row">
+                      <label class="field">
+                        <span data-i18n="dbbackup.backup.user">Usuário do Banco</span>
+                        <input type="text" id="dbbackup-restore-user" required />
+                      </label>
+                      <label class="field">
+                        <span data-i18n="dbbackup.backup.pass">Senha do Banco</span>
+                        <input type="password" id="dbbackup-restore-pass" />
+                      </label>
+                    </div>
+
+                    <div id="dbbackup-restore-path-container" class="field hidden">
+                      <span data-i18n="dbbackup.restore.path">Caminho do Arquivo no Servidor</span>
+                      <input type="text" id="dbbackup-restore-path" data-i18n="dbbackup.restore.path.ph" data-i18n-mode="placeholder" placeholder="Ex: /tmp/backup.sql.gz" />
+                    </div>
+
+                    <div id="dbbackup-restore-file-container" class="field">
+                      <span data-i18n="dbbackup.restore.file">Escolher Arquivo (.sql, .sql.gz, .bak, .bak.gz)</span>
+                      <input type="file" id="dbbackup-restore-file" accept=".sql,.gz,.bak" />
+                    </div>
+
+                    <div class="btn-row">
+                      <button type="submit" class="btn btn-primary btn-glow" id="btn-run-dbrestore" data-i18n="dbbackup.restore.btn">Iniciar Restauração</button>
+                    </div>
+                  </form>
+                </div>
+
+                <!-- Aba de Nova Rotina -->
+                <div id="dbbackup-tab-routine" class="dbbackup-tab-content">
+                  <form id="dbbackup-form-routine" class="form-stack">
+                    <div class="field-row">
+                      <label class="field">
+                        <span data-i18n="dbbackup.routine.type">Tipo de Rotina</span>
+                        <select id="dbbackup-routine-type" class="panel-select">
+                          <option value="full" data-i18n="dbbackup.routine.type.full">Backup Integral Periódico</option>
+                          <option value="incremental" data-i18n="dbbackup.routine.type.incremental">Backup Incremental / Diferencial</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span data-i18n="dbbackup.routine.freq">Frequência / Agendamento</span>
+                        <select id="dbbackup-routine-freq" class="panel-select">
+                          <option value="min15" data-i18n="dbbackup.routine.freq.min15">A cada 15 minutos</option>
+                          <option value="min30" data-i18n="dbbackup.routine.freq.min30">A cada 30 minutos</option>
+                          <option value="hourly" data-i18n="dbbackup.routine.freq.hourly">De hora em hora</option>
+                          <option value="daily" selected data-i18n="dbbackup.routine.freq.daily">Diário (às 02:00)</option>
+                          <option value="weekly" data-i18n="dbbackup.routine.freq.weekly">Semanal (Domingo às 03:00)</option>
+                          <option value="monthly" data-i18n="dbbackup.routine.freq.monthly">Mensal (Dia 1 às 04:00)</option>
+                          <option value="custom" data-i18n="dbbackup.routine.freq.custom">Cron Customizado</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <div id="dbbackup-routine-cron-container" class="field hidden">
+                      <span data-i18n="dbbackup.routine.cron">Expressão Cron (ex: 0 2 * * *)</span>
+                      <input type="text" id="dbbackup-routine-cron" placeholder="0 2 * * *" />
+                      <small class="muted" style="margin-top: 4px; font-size: 0.75rem;" data-i18n="dbbackup.routine.cron.hint">Formato: minuto hora dia-do-mês mês dia-da-semana (ex: */15 * * * * = a cada 15 min)</small>
+                    </div>
+
+                    <div class="field db-autocomplete-wrapper">
+                      <span data-i18n="dbbackup.backup.dbName">Nome do Banco de Dados (opcional)</span>
+                      <input type="text" id="dbbackup-routine-dbName" autocomplete="off" data-i18n="dbbackup.backup.dbName.ph" data-i18n-mode="placeholder" placeholder="Deixe vazio para fazer backup de todos" />
+                    </div>
+
+                    <div class="field-row">
+                      <label class="field">
+                        <span data-i18n="dbbackup.backup.user">Usuário do Banco</span>
+                        <input type="text" id="dbbackup-routine-user" required />
+                      </label>
+                      <label class="field">
+                        <span data-i18n="dbbackup.backup.pass">Senha do Banco</span>
+                        <input type="password" id="dbbackup-routine-pass" />
+                      </label>
+                    </div>
+
+                    <div class="field-row">
+                      <label class="field">
+                        <span data-i18n="dbbackup.routine.dest">Diretório de Destino no Servidor</span>
+                        <input type="text" id="dbbackup-routine-dest" required data-i18n="dbbackup.routine.dest.ph" data-i18n-mode="placeholder" placeholder="Ex: /var/backups" />
+                      </label>
+                      <label class="field">
+                        <span data-i18n="dbbackup.routine.retention">Retenção de Arquivos (dias)</span>
+                        <input type="number" id="dbbackup-routine-retention" min="0" value="7" />
+                      </label>
+                    </div>
+
+                    <div class="btn-row">
+                      <button type="submit" class="btn btn-primary btn-glow" id="btn-create-routine" data-i18n="dbbackup.routine.btn">Criar Rotina de Backup</button>
+                    </div>
+                  </form>
+                </div>
+
+                <!-- Aba de Rotinas Ativas -->
+                <div id="dbbackup-tab-routines" class="dbbackup-tab-content">
+                  <div class="dbbackup-table-wrap cw-scroll" style="max-height: 250px;">
+                    <table class="data-table">
+                      <thead>
+                        <tr>
+                          <th data-i18n="dbbackup.routines.col.schedule">Agendamento</th>
+                          <th>Banco / Tipo</th>
+                          <th>Banco Nome</th>
+                          <th data-i18n="dbbackup.routines.col.dest">Destino / Retenção</th>
+                          <th>Última Execução / Status</th>
+                          <th>Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody id="dbbackup-routines-list">
+                        <!-- Dinâmico -->
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div id="db-autocomplete-list" class="db-autocomplete-dropdown cw-scroll hidden"></div>
+              </div>
+
+              <!-- Logs console -->
+              <div class="dbbackup-logs-card glass-card">
+                <h3 data-i18n="dbbackup.logs.title">Logs e Progresso</h3>
+                <pre id="dbbackup-logs" class="code-block" data-i18n="dbbackup.logs.placeholder">Logs de execução serão exibidos aqui...</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div id="view-terminal" class="subview">
         <div class="subview-body">
@@ -1825,6 +2604,8 @@
   <script src="/docker-manager.js"></script>
   <script src="/compose-opt-manager.js"></script>
   <script src="/disks-manager.js"></script>
+  <script src="/volbackup-manager.js"></script>
+  <script src="/dbbackup-manager.js"></script>
   <script src="/services-manager.js"></script>
   <script src="/explorer.js"></script>
   <script src="/explorer-enhanced.js"></script>

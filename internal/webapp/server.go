@@ -26,8 +26,9 @@ var staticEmbed embed.FS
 
 // Options parâmetros de arranque do servidor web.
 type Options struct {
-	Addr        string
-	OpenBrowser bool
+	Addr         string
+	OpenBrowser  bool
+	AutoShutdown bool
 }
 
 // Run inicia o servidor HTTP do ContainerWay Web.
@@ -80,6 +81,9 @@ func Run(opts Options) error {
 		log.Printf("Abra no browser: %s", baseURL)
 	}
 
+	if opts.AutoShutdown {
+		StartHeartbeatMonitor()
+	}
 	return srv.httpServer.Serve(ln)
 }
 
@@ -137,6 +141,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("/api/explorer/paste", s.handleExplorerPaste)
 	mux.HandleFunc("/api/compose-opt/discover", s.handleComposeOptDiscover)
 	mux.HandleFunc("/api/compose-opt/analyze", s.handleComposeOptAnalyze)
+	mux.HandleFunc("/api/compose-opt/validate", s.handleComposeOptValidate)
 	mux.HandleFunc("/api/docker/containers", s.handleDockerContainers)
 	mux.HandleFunc("/api/docker/export", s.handleDockerExport)
 	mux.HandleFunc("/api/docker/restart", s.handleDockerRestart)
@@ -144,6 +149,12 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("/api/docker/compose/restart-project", s.handleDockerComposeRestartProject)
 	mux.HandleFunc("/api/docker/images", s.handleDockerImages)
 	mux.HandleFunc("/api/docker/volumes", s.handleDockerVolumes)
+	mux.HandleFunc("/api/docker/volumes/backup", s.handleDockerVolumeBackup)
+	mux.HandleFunc("/api/docker/volumes/restore", s.handleDockerVolumeRestore)
+	mux.HandleFunc("/api/backup/db/discover", s.handleDBDiscover)
+	mux.HandleFunc("/api/backup/db/run", s.handleDBBackupRun)
+	mux.HandleFunc("/api/backup/db/routines", s.handleDBBackupRoutines)
+	mux.HandleFunc("/api/backup/db/restore", s.handleDBBackupRestore)
 	mux.HandleFunc("/api/docker/images/remove", s.handleDockerImageRemove)
 	mux.HandleFunc("/api/docker/volumes/remove", s.handleDockerVolumeRemove)
 	mux.HandleFunc("/api/docker/networks", s.handleDockerNetworks)
@@ -195,6 +206,8 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("/api/admin/web-settings", s.handleAdminWebSettings)
 	mux.HandleFunc("/api/settings/diagnostics", s.handleSettingsDiagnostics)
 	mux.HandleFunc("/api/ssh/terminal/ws", s.handleTerminalWS)
+	mux.HandleFunc("/api/heartbeat", s.handleHeartbeat)
+	mux.HandleFunc("/api/heartbeat/unload", s.handleHeartbeatUnload)
 
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" || !strings.Contains(r.URL.Path, ".") {

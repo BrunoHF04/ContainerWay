@@ -74,6 +74,8 @@ Este arquivo serve como guia rapido para manutencao do projeto `ContainerWay`.
 - `internal/webapp/disks.go`, `disks_ops.go`: API web de discos (probe, extend/shrink, fsck, snapshots, smart, …).
 - `internal/webapp/static/disks-manager.js`: UI do modulo Discos na web.
 - `internal/webapp/services.go`, `api_services.go`, `static/services-manager.js`: servicos systemd na web.
+- `internal/composeopt/`: otimizador YAML Compose/Swarm (analise de hardware, limites CPU/RAM, JVM, politicas Swarm).
+- `internal/webapp/api_compose_opt.go`, `static/compose-opt-manager.js`: API e UI do otimizador na web.
 - `internal/appui/theme.go`: definicao e aplicacao de tema visual.
 - `internal/appui/window_maximize_darwin.go`: comportamento de maximizar janela no macOS.
 - `internal/appui/window_maximize_windows.go`: comportamento de maximizar janela no Windows.
@@ -108,7 +110,7 @@ Este arquivo serve como guia rapido para manutencao do projeto `ContainerWay`.
 
 ## Notas recentes de manutencao
 
-- **Web (`dev_browser`):** explorador com toggle SFTP/Docker; **CWConfirm** antes de transferencias (Enviar/Receber/Lote); reset para `/` ao mudar contêiner; editor + open-external + sudo; assistente LVM completo em `disks-manager.js`; modulo servicos systemd.
+- **Web (`dev_browser`):** explorador com toggle SFTP/Docker; **CWConfirm** antes de transferencias (Enviar/Receber/Lote); reset para `/` ao mudar contêiner; editor + open-external + sudo; assistente LVM completo em `disks-manager.js`; modulo servicos systemd; **otimizador Compose/Swarm** (`compose-opt-manager.js`) com diff espelhado, validacao `docker stack/compose config` antes de gravar e quotas ponderadas por tipo de servico.
 - **Politica local:** `internal/policy` + ficheiro `%APPDATA%\\ContainerWay\\policy.json` (ou equivalente) com `forbidInsecureHostKey`, ou env `CONTAINERWAY_FORBID_INSECURE_HOSTKEY`; UI em login e botao **Políticas** na central de automacoes (`securityui.go`).
 - **Docker/Podman remoto:** campo de socket na ligacao (`connections.json` / `savedConnection.dockerSocket`) → `session.Credentials.DockerUnixSocket`.
 - **Explorador:** botao **Comparar** (`foldercompare.go`); favoritos do painel direito por host/contexto em preferencias (`remoteFavoritesPreferenceKey` em `appui.go`); fila de transferencias mostra `Queued`/`Running` (`internal/transfer/transfer.go`); upload SFTP ficheiro unico pode omitir se destino ja tem mesmo tamanho (`hostfs.Stat` + `appui.go`).

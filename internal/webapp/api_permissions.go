@@ -51,6 +51,11 @@ func permissionForRequest(method, path string) string {
 		return accessauth.ActionSudoUse
 	case strings.HasPrefix(path, "/api/compose-opt/"):
 		return accessauth.ActionDockerView
+	case strings.HasPrefix(path, "/api/backup/db/"):
+		if method == http.MethodGet {
+			return accessauth.ActionDockerView
+		}
+		return accessauth.ActionDockerControl
 	case strings.HasPrefix(path, "/api/docker/"):
 		return dockerPermission(method, path)
 	case strings.HasPrefix(path, "/api/transfer/"):

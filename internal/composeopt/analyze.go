@@ -68,6 +68,16 @@ func Analyze(path, content string, host HostSpec, opts AnalyzeOptions) (AnalyzeR
 	memAvail := hostMemAvailable(host)
 	totalMem := totalDeclaredMemLimits(services, mode)
 
+	totalWeight := 0.0
+	weights := make(map[string]float64, n)
+	for name, raw := range services {
+		svc, _ := raw.(map[string]any)
+		w := serviceResourceWeight(name, svc)
+		weights[name] = w
+		totalWeight += w
+	}
+	avgWeight := totalWeight / float64(n)
+
 	var findings []Finding
 	for name, raw := range services {
 		svc, _ := raw.(map[string]any)
@@ -79,7 +89,9 @@ func Analyze(path, content string, host HostSpec, opts AnalyzeOptions) (AnalyzeR
 			optSvc = map[string]any{}
 			optServices[name] = optSvc
 		}
-		fs := analyzeService(name, svc, optSvc, host, fairMem, fairCPU, isJavaService(svc), mode, opts)
+		w := weights[name]
+		svcFairMem, svcFairCPU := scaleFairShare(fairMem, fairCPU, w, avgWeight)
+		fs := analyzeService(name, svc, optSvc, host, svcFairMem, svcFairCPU, isJavaService(svc), mode, opts)
 		findings = append(findings, fs...)
 	}
 
@@ -264,9 +276,9 @@ func analyzeService(name string, svc, optSvc map[string]any, host HostSpec, fair
 			})
 		} else if xmx > int64(float64(lim)*0.85) {
 			out = append(out, Finding{
-				Service: name, Severity: SeverityInfo, Category: "java",
+				Service: name, Severity: SeverityWarn, Category: "java",
 				Message: fmt.Sprintf(
-					"-Xmx (%s) próximo do limite do contêiner (%s). Reserve RAM para metaspace/threads ou aumente o limite.",
+					"-Xmx (%s) muito próximo do limite do contêiner (%s) — risco de OOM por metaspace/threads. Reduza -Xmx ou aumente o limite.",
 					FormatBytes(xmx), FormatBytes(lim),
 				),
 				DocRef: "https://docs.docker.com/config/containers/resource_constraints/",

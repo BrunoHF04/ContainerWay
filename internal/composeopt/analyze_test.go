@@ -235,3 +235,50 @@ func TestParseDiscoverLines(t *testing.T) {
 		t.Fatalf("%+v", files)
 	}
 }
+
+func TestWeightedFairShareHigherForPostgres(t *testing.T) {
+	yml := `
+services:
+  postgresql:
+    image: postgres:17
+  cache:
+    image: redis:alpine
+`
+	host := HostSpec{CPUs: 4, MemTotal: 8 * 1024 * 1024 * 1024}
+	res, err := Analyze("/stack.yml", yml, host, AnalyzeOptions{Mode: ModeSwarm})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pgMem, ok := parseDeployMemLimit(res.Optimized, "postgresql")
+	if !ok {
+		t.Fatal("postgresql deve ganhar limite")
+	}
+	redisMem, ok := parseDeployMemLimit(res.Optimized, "cache")
+	if !ok {
+		t.Fatal("cache deve ganhar limite")
+	}
+	if pgMem <= redisMem {
+		t.Fatalf("postgres (%d) deve receber mais RAM que redis (%d)", pgMem, redisMem)
+	}
+}
+
+func parseDeployMemLimit(yml, service string) (int64, bool) {
+	inSvc := false
+	for _, line := range strings.Split(yml, "\n") {
+		trim := strings.TrimSpace(line)
+		if strings.HasPrefix(trim, service+":") {
+			inSvc = true
+			continue
+		}
+		if inSvc && strings.HasPrefix(trim, "memory:") {
+			parts := strings.Fields(trim)
+			if len(parts) >= 2 {
+				return ParseBytes(parts[1])
+			}
+		}
+		if inSvc && trim != "" && !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "\t") {
+			break
+		}
+	}
+	return 0, false
+}

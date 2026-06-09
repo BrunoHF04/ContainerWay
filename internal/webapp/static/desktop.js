@@ -17,6 +17,9 @@
     automations: "automations",
     editor: "explorer",
     system: "disks",
+    dbbackup: "dbbackup",
+    volbackup: "volbackup",
+    composeopt: "composeopt",
   };
 
   function winMotionReduced() {

@@ -2,6 +2,7 @@ package webapp
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -165,6 +166,77 @@ func (s *Server) handleComposeOptDiscover(w http.ResponseWriter, r *http.Request
 		"swarmNodes":  swarm.Nodes,
 		"stacks":      swarm.Stacks,
 	})
+}
+
+// composeValidateCmd valida YAML no host remoto com docker stack config ou docker compose config.
+func composeValidateCmd(content, mode string) string {
+	b64 := base64.StdEncoding.EncodeToString([]byte(content))
+	script := `
+content_b64=` + shellQuote(b64) + `
+mode=` + shellQuote(mode) + `
+tmp=$(mktemp /tmp/cw-copt.XXXXXX.yml)
+echo "$content_b64" | base64 -d > "$tmp" 2>/dev/null || { rm -f "$tmp"; exit 2; }
+if [ "$mode" = "swarm" ]; then
+  docker stack config -c "$tmp" >/tmp/cw-copt-val.out 2>&1
+else
+  docker compose -f "$tmp" config >/tmp/cw-copt-val.out 2>&1
+fi
+ec=$?
+if [ $ec -eq 0 ]; then
+  rm -f "$tmp" /tmp/cw-copt-val.out
+  exit 0
+fi
+tail -30 /tmp/cw-copt-val.out
+rm -f "$tmp" /tmp/cw-copt-val.out
+exit 1
+`
+	return "sh -lc " + shellQuote(strings.TrimSpace(script))
+}
+
+func (s *Server) handleComposeOptValidate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "método não permitido"})
+		return
+	}
+	_, b, ok := s.requireSSH(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		Content string `json:"content"`
+		Mode    string `json:"mode"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "JSON inválido"})
+		return
+	}
+	content := strings.TrimSpace(body.Content)
+	if content == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "content obrigatório"})
+		return
+	}
+	mode := strings.TrimSpace(body.Mode)
+	if mode == "" || mode == "auto" {
+		mode = composeopt.ModeCompose
+	}
+	if mode != composeopt.ModeSwarm && mode != composeopt.ModeCompose {
+		mode = composeopt.ModeCompose
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
+	defer cancel()
+	out, stderr, err := b.runSSHCommand(ctx, composeValidateCmd(content, mode), "")
+	if err != nil {
+		msg := strings.TrimSpace(out)
+		if msg == "" {
+			msg = strings.TrimSpace(stderr)
+		}
+		if msg == "" {
+			msg = err.Error()
+		}
+		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": msg})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
 func (s *Server) handleComposeOptAnalyze(w http.ResponseWriter, r *http.Request) {

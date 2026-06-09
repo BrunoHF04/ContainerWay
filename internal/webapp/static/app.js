@@ -146,6 +146,8 @@ bindThemeButtons();
 const MODULES = [
   { id: "explorer", icon: "📁", accent: "cyan", title: "Gerenciador de arquivos", desc: "Painel duplo local/remoto, enviar e receber arquivos.", kw: "arquivos sftp transferência" },
   { id: "docker", icon: "🐳", accent: "indigo", title: "Contêineres Docker", desc: "Lista, métricas, logs, consola e ciclo de vida.", kw: "docker container" },
+  { id: "volbackup", icon: "📦", accent: "indigo", title: "Backup de Volumes", desc: "Localize volumes Docker, faça backups (local/SSH) e restaure volumes.", kw: "backup restore volume docker salvar carregar sftp" },
+  { id: "dbbackup", icon: "🗄️", accent: "indigo", title: "Backup de Bancos", desc: "Identifique bancos de dados no servidor e faça backups integrais ou agende rotinas.", kw: "backup banco dados database postgres mysql mariadb sqlserver integral incremental rotina" },
   { id: "composeopt", icon: "📋", accent: "indigo", title: "Otimizador YAML", desc: "Compose e Swarm: localiza YAML, compara hardware e sugere CPU, RAM e JVM.", kw: "compose swarm stack yaml docker otimizar memoria cpu java" },
   { id: "disks", icon: "💾", accent: "emerald", title: "Discos e armazenamento", desc: "lsblk, uso de pastas, LVM e ampliação.", kw: "disco lsblk armazenamento lvm ncdu treesize" },
   { id: "services", icon: "⚡", accent: "teal", title: "Serviços", desc: "systemd: estado agora, iniciar/parar e início automático ao ligar o servidor.", kw: "serviço systemd systemctl nginx apache boot enable" },
@@ -304,6 +306,12 @@ function showScreen(name) {
   if (name === "docker") {
     loadDocker();
     window.dockerOnScreenEnter?.();
+  }
+  if (name === "volbackup") {
+    loadVolBackup();
+  }
+  if (name === "dbbackup") {
+    loadDBBackup();
   }
   if (name === "composeopt") window.composeOptOnScreenEnter?.();
   if (prevScreen === "disks" && name !== "disks") window.disksOnScreenLeave?.();
@@ -668,11 +676,19 @@ $("#btn-hub").addEventListener("click", () => {
 });
 
 $("#btn-ssh-test")?.addEventListener("click", async () => {
-  const host = $("#ssh-host")?.value?.trim();
+  let host = $("#ssh-host")?.value?.trim();
+  const port = $("#ssh-port")?.value?.trim() || "22";
   const user = $("#ssh-user")?.value?.trim();
   if (!host || !user) {
     CWUI.toast("Preencha host e usuário.", "error");
     return;
+  }
+  if (port && port !== "22") {
+    if (host.includes(":") && !host.startsWith("[")) {
+      host = `[${host}]:${port}`;
+    } else {
+      host = `${host}:${port}`;
+    }
   }
   const out = $("#ssh-test-result");
   if (out) {
@@ -684,10 +700,11 @@ $("#btn-ssh-test")?.addEventListener("click", async () => {
     const data = await api("/api/ssh/test", {
       method: "POST",
       body: JSON.stringify({
-        profileName: $("#ssh-profile")?.value || $("#ssh-name")?.value?.trim(),
+        profileName: $("#ssh-profile")?.value || "",
         host,
         user,
         password: $("#ssh-pass")?.value || "",
+        insecureHostKey: true,
       }),
     });
     const steps = (data.steps || []).join(" · ");
@@ -711,14 +728,24 @@ $("#ssh-form").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   CWUI.showSplash("Estabelecendo conexão SSH…");
   try {
-    const profileName = $("#ssh-profile").value || $("#ssh-name").value.trim();
+    const profileName = $("#ssh-profile").value || "";
+    let host = $("#ssh-host").value.trim();
+    const port = $("#ssh-port")?.value?.trim() || "22";
+    if (port && port !== "22") {
+      if (host.includes(":") && !host.startsWith("[")) {
+        host = `[${host}]:${port}`;
+      } else {
+        host = `${host}:${port}`;
+      }
+    }
     await api("/api/ssh/connect", {
       method: "POST",
       body: JSON.stringify({
         profileName,
-        host: $("#ssh-host").value,
+        host,
         user: $("#ssh-user").value,
         password: $("#ssh-pass").value,
+        insecureHostKey: true,
       }),
     });
     if (profileName) CWWebPrefs?.set?.("lastSSHProfile", profileName);
@@ -751,6 +778,7 @@ async function loadSelectedProfile() {
   if (!name) {
     $("#ssh-name").value = "";
     $("#ssh-host").value = "";
+    if ($("#ssh-port")) $("#ssh-port").value = "22";
     $("#ssh-user").value = "";
     $("#ssh-pass").value = "";
     $("#ssh-conn-status").textContent = "";
@@ -761,7 +789,20 @@ async function loadSelectedProfile() {
     const p = data.profile;
     if (!p) return;
     $("#ssh-name").value = p.name || name;
-    $("#ssh-host").value = p.host || "";
+    
+    let hostVal = p.host || "";
+    let portVal = "22";
+    const lastColon = hostVal.lastIndexOf(":");
+    if (lastColon !== -1 && lastColon > hostVal.lastIndexOf("]")) {
+      portVal = hostVal.slice(lastColon + 1);
+      hostVal = hostVal.slice(0, lastColon);
+      if (hostVal.startsWith("[") && hostVal.endsWith("]")) {
+        hostVal = hostVal.slice(1, -1);
+      }
+    }
+    $("#ssh-host").value = hostVal;
+    if ($("#ssh-port")) $("#ssh-port").value = portVal;
+    
     $("#ssh-user").value = p.user || "";
     $("#ssh-pass").value = p.password || "";
     $("#ssh-save-secrets").checked = !!(p.password || p.hasPassword);
@@ -775,11 +816,19 @@ $("#ssh-profile").addEventListener("change", loadSelectedProfile);
 
 $("#ssh-save-profile").addEventListener("click", async () => {
   const name = $("#ssh-name").value.trim();
-  const host = $("#ssh-host").value.trim();
+  let host = $("#ssh-host").value.trim();
+  const port = $("#ssh-port")?.value?.trim() || "22";
   const user = $("#ssh-user").value.trim();
   if (!name || !host || !user) {
     CWUI.toast("Preencha nome do perfil, host e usuário.", "error");
     return;
+  }
+  if (port && port !== "22") {
+    if (host.includes(":") && !host.startsWith("[")) {
+      host = `[${host}]:${port}`;
+    } else {
+      host = `${host}:${port}`;
+    }
   }
   try {
     await api("/api/connections", {
@@ -1273,4 +1322,38 @@ $("#auto-rule-form").addEventListener("submit", (ev) => {
 });
 
 bindAppLayoutSync();
+
+// Monitor de atividade (heartbeat) para encerramento automático do serviço ao fechar a aba
+(function() {
+  const tabId = Math.random().toString(36).substring(2, 15);
+
+  function sendHeartbeat(isUnload = false) {
+    const url = isUnload ? "/api/heartbeat/unload" : "/api/heartbeat";
+    const payload = JSON.stringify({ tabId });
+    if (isUnload && navigator.sendBeacon) {
+      const blob = new Blob([payload], { type: "application/json" });
+      navigator.sendBeacon(url, blob);
+    } else {
+      fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+        keepalive: isUnload
+      }).catch(() => {});
+    }
+  }
+
+  // Envia o primeiro ping
+  sendHeartbeat();
+
+  // Envia ping periódico a cada 15 segundos (seguro contra background throttling)
+  setInterval(() => {
+    sendHeartbeat();
+  }, 15000);
+
+  // Envia sinal ao fechar ou recarregar a aba
+  window.addEventListener("beforeunload", () => {
+    sendHeartbeat(true);
+  });
+})();
 checkSession();

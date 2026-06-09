@@ -20,6 +20,7 @@
       },
       { id: "explorer", title: "Explorador", sub: "Arquivos SFTP", screen: "explorer", run: () => showScreen("explorer") },
       { id: "docker", title: "Docker", sub: "Contêineres", screen: "docker", run: () => showScreen("docker") },
+      { id: "volbackup", title: "Backup de Volumes", sub: "Backup & Restauração", screen: "volbackup", run: () => showScreen("volbackup") },
       { id: "composeopt", title: "Otimizador Compose", sub: "YAML docker-compose", screen: "composeopt", run: () => showScreen("composeopt") },
       { id: "disks", title: "Discos", sub: "Armazenamento", screen: "disks", run: () => showScreen("disks") },
       { id: "services", title: "Serviços", sub: "systemd", screen: "services", run: () => showScreen("services") },

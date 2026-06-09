@@ -32,6 +32,7 @@ Cada tela navegável (`showScreen("…")`) precisa de um **ID estável** registr
 | `services` | Serviços systemd | `view-services` |
 | `terminal` | Terminal SSH | `view-terminal` |
 | `automations` | Central de automações | `view-automations` |
+| `composeopt` | Otimizador Compose/Swarm YAML | `view-composeopt` |
 | `settings` | Configurações (conta) | `view-settings` |
 
 O **hub** (`showScreen("hub")`) não é permissão separada: é o menu inicial após conectar.

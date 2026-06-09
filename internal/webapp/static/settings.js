@@ -14,6 +14,8 @@
     { id: "terminal", label: "Terminal SSH" },
     { id: "automations", label: "Central de automações" },
     { id: "settings", label: "Configurações (conta)" },
+    { id: "dbbackup", label: "Backup de Bancos" },
+    { id: "volbackup", label: "Backup de Volumes" },
   ];
 
   const PERM_ACTIONS = [
