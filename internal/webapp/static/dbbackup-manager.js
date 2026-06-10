@@ -43,6 +43,12 @@
   // Reseta estado
   function resetPanelState() {
     $(".dbbackup-layout")?.classList.add("no-selection");
+    $(".dbbackup-layout")?.classList.remove("dbbackup-fullscreen");
+    const fsBtn = $("#btn-dbbackup-fullscreen");
+    if (fsBtn) {
+      fsBtn.innerHTML = `<svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>`;
+      fsBtn.title = "Alternar visualização em tela cheia";
+    }
     $("#dbbackup-select-hint").classList.remove("hidden");
     $("#dbbackup-panel-card").classList.add("hidden");
     $("#dbbackup-logs").textContent = tr("dbbackup.logs.placeholder");
@@ -67,6 +73,9 @@
     $("#dbbackup-routine-cron").value = "";
     $("#dbbackup-routine-freq").value = "daily";
     $("#dbbackup-routine-type").value = "full";
+    $("#dbbackup-routine-time").value = "02:00";
+    $("#dbbackup-routine-dayofweek").value = "0";
+    $("#dbbackup-routine-dayofmonth").value = "1";
     
     // Reset radios
     $$('input[name="dbbackupDestType"]').forEach((r, idx) => r.checked = idx === 0);
@@ -217,13 +226,29 @@
     }
   }
 
-  // Controla campo de cron customizado
+  // Controla campo de cron customizado e seletores amigáveis
   function syncCronVisibility(val) {
     const cronField = $("#dbbackup-routine-cron-container");
+    const timeField = $("#dbbackup-routine-time-container");
+    const dayOfWeekField = $("#dbbackup-routine-dayofweek-container");
+    const dayOfMonthField = $("#dbbackup-routine-dayofmonth-container");
+
+    // Oculta tudo por padrão
+    cronField?.classList.add("hidden");
+    timeField?.classList.add("hidden");
+    dayOfWeekField?.classList.add("hidden");
+    dayOfMonthField?.classList.add("hidden");
+
     if (val === "custom") {
-      cronField.classList.remove("hidden");
-    } else {
-      cronField.classList.add("hidden");
+      cronField?.classList.remove("hidden");
+    } else if (val === "daily") {
+      timeField?.classList.remove("hidden");
+    } else if (val === "weekly") {
+      timeField?.classList.remove("hidden");
+      dayOfWeekField?.classList.remove("hidden");
+    } else if (val === "monthly") {
+      timeField?.classList.remove("hidden");
+      dayOfMonthField?.classList.remove("hidden");
     }
   }
 
@@ -346,11 +371,26 @@
     $("#dbbackup-routine-retention").disabled = disabled;
     $("#dbbackup-routine-cron").disabled = disabled;
     $("#dbbackup-routine-freq").disabled = disabled;
+    $("#dbbackup-routine-time").disabled = disabled;
+    $("#dbbackup-routine-dayofweek").disabled = disabled;
+    $("#dbbackup-routine-dayofmonth").disabled = disabled;
     $("#btn-create-routine").disabled = disabled;
   }
 
   // Configura Listeners de evento
   function setupListeners() {
+    // Popula dia do mês se estiver vazio
+    const dayOfMonthSelect = $("#dbbackup-routine-dayofmonth");
+    if (dayOfMonthSelect && dayOfMonthSelect.options.length === 0) {
+      for (let i = 1; i <= 28; i++) {
+        const opt = document.createElement("option");
+        opt.value = i.toString();
+        opt.textContent = i.toString();
+        if (i === 1) opt.selected = true;
+        dayOfMonthSelect.appendChild(opt);
+      }
+    }
+
     // Filtro de pesquisa
     $("#dbbackup-filter")?.addEventListener("input", (e) => {
       state.filter = e.target.value;
@@ -564,6 +604,14 @@
       const backupMode = $("#dbbackup-routine-type").value;
       let cronExpr = "";
 
+      // Extrai hora e minuto do seletor amigável
+      const timeVal = $("#dbbackup-routine-time")?.value || "02:00";
+      const parts = timeVal.split(":");
+      const hour = parts[0] ? parseInt(parts[0], 10) : 2;
+      const min = parts[1] ? parseInt(parts[1], 10) : 0;
+      const cronMin = isNaN(min) ? "0" : min.toString();
+      const cronHour = isNaN(hour) ? "2" : hour.toString();
+
       switch (freq) {
         case "min15":
           cronExpr = "*/15 * * * *";
@@ -575,13 +623,15 @@
           cronExpr = "0 * * * *";
           break;
         case "daily":
-          cronExpr = "0 2 * * *";
+          cronExpr = `${cronMin} ${cronHour} * * *`;
           break;
         case "weekly":
-          cronExpr = "0 3 * * 0";
+          const dayOfWeek = $("#dbbackup-routine-dayofweek")?.value || "0";
+          cronExpr = `${cronMin} ${cronHour} * * ${dayOfWeek}`;
           break;
         case "monthly":
-          cronExpr = "0 4 1 * *";
+          const dayOfMonth = $("#dbbackup-routine-dayofmonth")?.value || "1";
+          cronExpr = `${cronMin} ${cronHour} ${dayOfMonth} * *`;
           break;
         case "custom":
           cronExpr = $("#dbbackup-routine-cron").value.trim();
@@ -637,6 +687,21 @@
         CWUI.toast(err.message, "error");
       } finally {
         toggleInputs(false);
+      }
+    });
+
+    $("#btn-dbbackup-fullscreen")?.addEventListener("click", () => {
+      const layout = $(".dbbackup-layout");
+      const btn = $("#btn-dbbackup-fullscreen");
+      if (!layout || !btn) return;
+      layout.classList.toggle("dbbackup-fullscreen");
+      const isFS = layout.classList.contains("dbbackup-fullscreen");
+      if (isFS) {
+        btn.innerHTML = `<svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/></svg>`;
+        btn.title = "Recolher tela cheia";
+      } else {
+        btn.innerHTML = `<svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>`;
+        btn.title = "Alternar visualização em tela cheia";
       }
     });
 

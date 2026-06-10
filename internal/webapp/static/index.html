@@ -163,7 +163,6 @@
               <div class="hub-mascot-scene">
                 <div class="hub-mascot-glow" aria-hidden="true"></div>
                 <div class="hub-mascot-body">
-                  <img class="hub-mascot-img" src="/mascot-hero.png" width="160" height="160" alt="" decoding="async" />
                 </div>
               </div>
             </div>
@@ -1508,13 +1507,37 @@
             text-align: center;
             border: 1px dashed rgba(255, 255, 255, 0.15);
           }
+          .dbbackup-selected-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+            gap: 10px;
+          }
           .dbbackup-selected-title {
             font-size: 1.15rem;
             font-weight: 700;
             color: var(--accent, #6366f1);
-            margin-bottom: 10px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            padding-bottom: 10px;
+            margin-bottom: 0;
+            border-bottom: none;
+            padding-bottom: 0;
+          }
+          .dbbackup-layout.dbbackup-fullscreen {
+            grid-template-columns: 1fr;
+          }
+          .dbbackup-layout.dbbackup-fullscreen .dbbackup-left {
+            display: none;
+          }
+          .dbbackup-table .badge {
+            display: inline-block !important;
+            white-space: nowrap !important;
+            padding: 3px 8px !important;
+            border-radius: 6px !important;
+            font-size: 0.72rem !important;
+            font-weight: 600 !important;
+            line-height: 1.2 !important;
           }
           .dbbackup-tabs {
             display: flex;
@@ -1652,7 +1675,12 @@
               </div>
 
               <div id="dbbackup-panel-card" class="dbbackup-panel-card glass-card cw-scroll hidden">
-                <h3 id="dbbackup-selected-title" class="dbbackup-selected-title"></h3>
+                <div class="dbbackup-selected-header">
+                  <h3 id="dbbackup-selected-title" class="dbbackup-selected-title"></h3>
+                  <button type="button" class="btn btn-ghost btn-sm" id="btn-dbbackup-fullscreen" title="Alternar visualização em tela cheia">
+                    <svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+                  </button>
+                </div>
                 
                 <div class="dbbackup-tabs">
                   <button type="button" class="dbbackup-tab active" data-tab="backup" data-i18n="dbbackup.tab.backup">Backup Integral</button>
@@ -1771,12 +1799,37 @@
                           <option value="min15" data-i18n="dbbackup.routine.freq.min15">A cada 15 minutos</option>
                           <option value="min30" data-i18n="dbbackup.routine.freq.min30">A cada 30 minutos</option>
                           <option value="hourly" data-i18n="dbbackup.routine.freq.hourly">De hora em hora</option>
-                          <option value="daily" selected data-i18n="dbbackup.routine.freq.daily">Diário (às 02:00)</option>
-                          <option value="weekly" data-i18n="dbbackup.routine.freq.weekly">Semanal (Domingo às 03:00)</option>
-                          <option value="monthly" data-i18n="dbbackup.routine.freq.monthly">Mensal (Dia 1 às 04:00)</option>
+                          <option value="daily" selected data-i18n="dbbackup.routine.freq.daily">Diário</option>
+                          <option value="weekly" data-i18n="dbbackup.routine.freq.weekly">Semanal</option>
+                          <option value="monthly" data-i18n="dbbackup.routine.freq.monthly">Mensal</option>
                           <option value="custom" data-i18n="dbbackup.routine.freq.custom">Cron Customizado</option>
                         </select>
                       </label>
+                    </div>
+
+                    <div class="field-row">
+                      <div id="dbbackup-routine-time-container" class="field">
+                        <span data-i18n="dbbackup.routine.time">Horário de Execução</span>
+                        <input type="time" id="dbbackup-routine-time" class="panel-input" value="02:00" style="max-width: 140px;" />
+                      </div>
+
+                      <div id="dbbackup-routine-dayofweek-container" class="field hidden">
+                        <span data-i18n="dbbackup.routine.dayofweek">Dia da Semana</span>
+                        <select id="dbbackup-routine-dayofweek" class="panel-select">
+                          <option value="0" selected data-i18n="dbbackup.routine.day.0">Domingo</option>
+                          <option value="1" data-i18n="dbbackup.routine.day.1">Segunda-feira</option>
+                          <option value="2" data-i18n="dbbackup.routine.day.2">Terça-feira</option>
+                          <option value="3" data-i18n="dbbackup.routine.day.3">Quarta-feira</option>
+                          <option value="4" data-i18n="dbbackup.routine.day.4">Quinta-feira</option>
+                          <option value="5" data-i18n="dbbackup.routine.day.5">Sexta-feira</option>
+                          <option value="6" data-i18n="dbbackup.routine.day.6">Sábado</option>
+                        </select>
+                      </div>
+
+                      <div id="dbbackup-routine-dayofmonth-container" class="field hidden">
+                        <span data-i18n="dbbackup.routine.dayofmonth">Dia do Mês</span>
+                        <select id="dbbackup-routine-dayofmonth" class="panel-select"></select>
+                      </div>
                     </div>
 
                     <div id="dbbackup-routine-cron-container" class="field hidden">
@@ -1928,6 +1981,7 @@
             <button type="button" class="settings-tab" data-tab="session" role="tab">Sessão SSH</button>
             <button type="button" class="settings-tab" data-tab="modules" role="tab">Módulos</button>
             <button type="button" class="settings-tab" data-tab="connections" role="tab">Conexões</button>
+            <button type="button" class="settings-tab" data-tab="deploy" role="tab">Cadastrar Cliente</button>
             <button type="button" class="settings-tab" data-tab="security" id="settings-tab-security" role="tab" hidden>Segurança</button>
             <button type="button" class="settings-tab" data-tab="notifications" id="settings-tab-notifications" role="tab" hidden>Notificações</button>
             <button type="button" class="settings-tab" data-tab="users" id="settings-tab-users" role="tab" hidden>Usuários</button>
@@ -2150,6 +2204,44 @@
               </div>
             </div>
 
+            <div id="settings-panel-deploy" class="settings-panel settings-panel--form glass-card" role="tabpanel" hidden>
+              <form id="settings-deploy-form" class="form-stack settings-prefs-form">
+                <h3 class="settings-section-title">
+                  Cadastrar Novo Cliente VPN (Headscale)
+                  <button type="button" class="help-toggle compact" id="btn-deploy-help" title="Passo a passo da instalação (Ajuda)" aria-label="Ajuda" style="margin-left: 0.75rem; display: inline-flex; align-items: center; gap: 0.3rem; vertical-align: middle; padding: 0.25rem 0.5rem; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 4px; cursor: pointer; color: #818cf8; font-size: 0.8rem; font-weight: normal;">
+                    <svg class="help-toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="display: block;">
+                      <circle cx="12" cy="12" r="10"/>
+                      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                      <line x1="12" y1="17" x2="12.01" y2="17"/>
+                    </svg>
+                    Ajuda / Passo a Passo (?)
+                  </button>
+                </h3>
+                <p class="muted">Gere um comando autoinstalador para configurar a VPN e o ContainerWay Web no Linux do seu cliente.</p>
+                
+                <label class="field">Nome/Identificador do Cliente
+                  <input type="text" id="deploy-client-name" placeholder="ex: cliente-padaria-01" required autocomplete="off" />
+                </label>
+                
+                <div class="btn-row">
+                  <button type="submit" class="btn btn-primary">Gerar Comando de Instalação</button>
+                </div>
+              </form>
+
+              <div id="deploy-result" class="settings-deploy-result hidden" style="margin-top: 1.5rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+                <h4 class="settings-section-title" style="margin-bottom: 0.75rem;">Comando de Instalação Gerado</h4>
+                <p class="muted" style="margin-bottom: 0.75rem;">Copie o comando abaixo e execute-o com privilégios de <code>root</code> no terminal Linux do cliente:</p>
+                
+                <div class="code-block-wrap" style="position: relative; background: var(--bg-card-sub); border: 1px solid var(--border-color); border-radius: 6px; padding: 1rem; margin-bottom: 1rem;">
+                  <code id="deploy-command-code" style="font-family: var(--font-mono); font-size: 0.9rem; word-break: break-all; color: var(--text-accent);"></code>
+                </div>
+
+                <div class="btn-row">
+                  <button type="button" class="btn btn-ghost" id="btn-deploy-copy">Copiar Comando</button>
+                </div>
+              </div>
+            </div>
+
             <div id="settings-panel-mail" class="settings-panel glass-card" role="tabpanel" hidden>
               <form id="settings-mail-form" class="form-stack">
                 <label class="checkbox-row"><input type="checkbox" name="enabled" /> Ativar alertas por e-mail</label>
@@ -2183,6 +2275,42 @@
         </div>
         </div>
       </div>
+
+      <dialog id="deploy-help-dialog" class="modal-dialog">
+        <div class="modal-form glass-card" style="max-width: 580px; max-height: 85vh; overflow-y: auto;">
+          <header style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; margin-bottom: 1rem;">
+            <h3 style="margin: 0; font-size: 1.15rem; color: var(--text-accent);">Passo a Passo: Deploy do Cliente</h3>
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-deploy-help-close" style="font-size: 1.25rem; line-height: 1; padding: 0.25rem 0.5rem; cursor: pointer;">&times;</button>
+          </header>
+          
+          <div style="font-size: 0.9rem; line-height: 1.5; display: flex; flex-direction: column; gap: 1rem;">
+            <div>
+              <strong style="color: var(--text-accent); display: block; margin-bottom: 0.25rem;">1. Servidor Central (Windows Server)</strong>
+              <span class="muted">Certifique-se de que a VPS ou Windows Server está rodando o Headscale (porta padrão 8080) e que você gerou uma API Key executando o comando <code>headscale apikeys create</code>.</span>
+            </div>
+            
+            <div>
+              <strong style="color: var(--text-accent); display: block; margin-bottom: 0.25rem;">2. Inicialização deste Painel</strong>
+              <span class="muted">Suba este ContainerWay passando a API Key e endereço do Headscale: <code>./containerway-web -hs-url="http://seu-server:8080" -hs-apikey="SUA_API_KEY"</code>.</span>
+            </div>
+
+            <div>
+              <strong style="color: var(--text-accent); display: block; margin-bottom: 0.25rem;">3. Gerar o Comando</strong>
+              <span class="muted">Na aba anterior, digite o nome do cliente (ex: <code>cliente-loja-01</code>) e clique em <strong>Gerar Comando de Instalação</strong>.</span>
+            </div>
+
+            <div>
+              <strong style="color: var(--text-accent); display: block; margin-bottom: 0.25rem;">4. Instalar no Cliente Linux</strong>
+              <span class="muted">Copie o comando gerado, abra o terminal do Linux do cliente e execute como superusuário (<code>sudo</code>). O script fará o download do binário do agente, criará o serviço systemd de inicialização automática no boot e ativará a VPN.</span>
+            </div>
+
+            <div>
+              <strong style="color: var(--text-accent); display: block; margin-bottom: 0.25rem;">5. Acesso Direto</strong>
+              <span class="muted">Conecte sua própria máquina de trabalho no seu Headscale usando o aplicativo Tailscale (<code>tailscale login --login-server http://seu-server:8080</code>). Agora você poderá acessar o cliente pelo navegador em <code>http://cliente-loja-01:8765</code> ou SSH na porta <code>2222</code>!</span>
+            </div>
+          </div>
+        </div>
+      </dialog>
 
       <dialog id="settings-password-dialog" class="modal-dialog">
         <form method="dialog" id="settings-password-form" class="modal-form">

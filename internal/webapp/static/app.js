@@ -153,6 +153,7 @@ const MODULES = [
   { id: "services", icon: "⚡", accent: "teal", title: "Serviços", desc: "systemd: estado agora, iniciar/parar e início automático ao ligar o servidor.", kw: "serviço systemd systemctl nginx apache boot enable" },
   { id: "terminal", icon: "⌨️", accent: "amber", title: "Terminal SSH", desc: "Consola remota interativa.", kw: "terminal ssh shell" },
   { id: "automations", icon: "⚙️", accent: "violet", title: "Central de automações", desc: "Regras e histórico por host.", kw: "automação regras" },
+  { id: "deploy", icon: "🚀", accent: "violet", title: "Cadastrar Cliente", desc: "Gere o comando de instalação para conectar o cliente à VPN.", kw: "vpn deploy cadastrar instalar cliente headscale", adminOnly: true },
   { id: "settings", icon: "🔧", accent: "rose", title: "Configurações", desc: "Conta, interface, SSH, módulos e administração.", kw: "configurações admin", adminOnly: true },
   { id: "desktop", icon: "🖥️", accent: "sky", title: "Ambiente Linux", desc: "Desktop com janelas: arquivos, sistema (rede/disco), Docker e terminal.", kw: "linux desktop ubuntu gui gráfico leigo iniciante ambiente janelas rede armazenamento" },
 ];
@@ -206,7 +207,10 @@ async function api(path, options = {}) {
 
 function showView(id) {
   closeTerminalCmdPanel();
-  if (id === "#view-login") closeAllAppDialogs();
+  if (id === "#view-login") {
+    closeAllAppDialogs();
+    window.hubAntColony?.stop();
+  }
   $$(".view").forEach((v) => v.classList.remove("active"));
   $(id).classList.add("active");
 }
@@ -290,6 +294,11 @@ function closeTerminalCmdPanel() {
 
 function showScreen(name) {
   if (name !== "terminal") closeTerminalCmdPanel();
+  if (name === "deploy") {
+    showScreen("settings");
+    window.CWSettings?.showSettingsTab?.("deploy");
+    return;
+  }
   if (!canScreen(name)) {
     CWUI.toast("Sem permissão para acessar este módulo.", "error");
     if (state.ssh.connected && name !== "hub") name = "hub";
@@ -297,6 +306,9 @@ function showScreen(name) {
   }
   const prevScreen = state.screen;
   state.screen = name;
+  if (name !== "hub") {
+    window.hubAntColony?.stop();
+  }
   $$(".subview").forEach((v) => {
     v.classList.toggle("active", v.id === `view-${name}`);
   });
@@ -494,8 +506,246 @@ function bindAppLayoutSync() {
   syncAppTopbarHeight();
 }
 
+const CARGO_THEMES = [
+  { top: "#38bdf8", left: "#0284c7", right: "#0369a1" }, // Docker Blue
+  { top: "#34d399", left: "#059669", right: "#047857" }, // Emerald Green
+  { top: "#fb7185", left: "#e11d48", right: "#be123c" }, // Rose Red
+  { top: "#fbbf24", left: "#d97706", right: "#b45309" }, // Amber Yellow
+  { top: "#c084fc", left: "#9333ea", right: "#7e22ce" }, // Purple
+];
+
+class HubAntColony {
+  constructor() {
+    this.container = null;
+    this.ants = [];
+    this.active = false;
+    this.animationFrame = null;
+    this.spawnTimer = null;
+    this.lastTime = 0;
+  }
+
+  init() {
+    const hubView = document.getElementById("view-hub");
+    if (!hubView) return;
+    
+    if (this.container && document.body.contains(this.container)) {
+      return;
+    }
+    
+    this.container = document.createElement("div");
+    this.container.className = "hub-ant-highway";
+    hubView.appendChild(this.container);
+  }
+
+  start() {
+    this.init();
+    if (this.active) return;
+    this.active = true;
+    this.lastTime = performance.now();
+    this.loop();
+    this.scheduleSpawning();
+  }
+
+  stop() {
+    this.active = false;
+    if (this.animationFrame) {
+      cancelAnimationFrame(this.animationFrame);
+      this.animationFrame = null;
+    }
+    if (this.spawnTimer) {
+      clearTimeout(this.spawnTimer);
+      this.spawnTimer = null;
+    }
+    if (this.container) {
+      this.container.innerHTML = "";
+    }
+    this.ants = [];
+  }
+
+  scheduleSpawning() {
+    if (!this.active) return;
+    this.spawnAnt();
+    const nextSpawnMs = 3000 + Math.random() * 5000;
+    this.spawnTimer = setTimeout(() => this.scheduleSpawning(), nextSpawnMs);
+  }
+
+  spawnAnt() {
+    if (!this.container) return;
+    if (this.ants.length >= 8) return;
+
+    const dir = Math.random() > 0.5 ? 1 : -1;
+    const speed = 40 + Math.random() * 30;
+    const y = 5 + Math.random() * 16;
+    
+    const containerWidth = this.container.offsetWidth || window.innerWidth || 800;
+    const startX = dir === 1 ? -60 : containerWidth + 10;
+    const targetX = dir === 1 ? containerWidth + 60 : -60;
+    
+    const antEl = document.createElement("div");
+    antEl.className = "hub-ant is-walking";
+    if (dir === -1) {
+      antEl.style.transform = `scaleX(-1)`;
+    }
+    
+    const theme = CARGO_THEMES[Math.floor(Math.random() * CARGO_THEMES.length)];
+    
+    antEl.innerHTML = `
+      <div class="hub-ant-cargo" style="--cargo-top: ${theme.top}; --cargo-left: ${theme.left}; --cargo-right: ${theme.right}">
+        <svg viewBox="0 0 16 16" width="100%" height="100%">
+          <path d="M 8 2 L 14 5 L 8 8 L 2 5 Z" fill="var(--cargo-top)" />
+          <path d="M 2 5 L 8 8 L 8 14 L 2 11 Z" fill="var(--cargo-left)" />
+          <path d="M 8 8 L 14 5 L 14 11 L 8 14 Z" fill="var(--cargo-right)" />
+        </svg>
+      </div>
+      <svg class="hub-ant-svg" viewBox="0 0 40 20">
+        <!-- Antennae pointing forward/up -->
+        <path class="hub-ant-antenna" d="M 31 9 Q 34 5 36 6" />
+        <path class="hub-ant-antenna" d="M 31 10 Q 33 6 35 8" />
+        
+        <!-- Legs pointing down from body connections -->
+        <!-- Far legs (fl, ml, bl) -->
+        <path class="hub-ant-leg leg-fl" d="M 23 11 Q 25 15 27 19" />
+        <path class="hub-ant-leg leg-ml" d="M 19 11 Q 19 15 18 19" />
+        <path class="hub-ant-leg leg-bl" d="M 15 11 Q 12 15 9 19" />
+        
+        <!-- Near legs (fr, mr, br) -->
+        <path class="hub-ant-leg leg-fr" d="M 23 11 Q 25 15 27 19" />
+        <path class="hub-ant-leg leg-mr" d="M 19 11 Q 19 15 18 19" />
+        <path class="hub-ant-leg leg-br" d="M 15 11 Q 12 15 9 19" />
+        
+        <!-- Body parts in side profile -->
+        <ellipse class="hub-ant-abdomen" cx="10" cy="10" rx="6" ry="5" />
+        <ellipse class="hub-ant-thorax" cx="20" cy="11" rx="4.5" ry="3" />
+        <ellipse class="hub-ant-head" cx="28" cy="11" rx="3.5" ry="3.5" />
+      </svg>
+    `;
+    
+    antEl.style.left = `${startX}px`;
+    antEl.style.top = `${y}px`;
+    this.container.appendChild(antEl);
+    
+    const ant = {
+      el: antEl,
+      x: startX,
+      y: y,
+      baseY: y,
+      dir: dir,
+      speed: speed,
+      targetX: targetX,
+      isWalking: true,
+      stopDuration: 0,
+      stateTime: 0,
+    };
+    
+    this.ants.push(ant);
+  }
+
+  loop() {
+    if (!this.active) return;
+    
+    const now = performance.now();
+    const dt = (now - this.lastTime) / 1000;
+    this.lastTime = now;
+    
+    const width = this.container ? (this.container.offsetWidth || window.innerWidth || 800) : (window.innerWidth || 800);
+    
+    for (let i = this.ants.length - 1; i >= 0; i--) {
+      const ant = this.ants[i];
+      ant.stateTime += dt;
+      
+      let targetY = ant.baseY;
+      let minSameDirDist = Infinity;
+      let speedScale = 1.0;
+      
+      for (let j = 0; j < this.ants.length; j++) {
+        if (i === j) continue;
+        const other = this.ants[j];
+        
+        const dx = other.x - ant.x;
+        const dy = other.y - ant.y;
+        const dist = Math.abs(dx);
+        
+        // 1. Vertical lane steering/repulsion if close horizontally
+        if (dist < 45) {
+          if (Math.abs(dy) < 8) {
+            // Push away vertically
+            const pushDir = dy > 0 ? -1 : (dy < 0 ? 1 : (i > j ? 1 : -1));
+            targetY += pushDir * 8;
+          }
+        }
+        
+        // 2. Queueing/Collision avoidance for ants in front in same direction
+        const sameDir = (other.dir === ant.dir);
+        const isAhead = ant.dir === 1 ? (dx > 0) : (dx < 0);
+        if (sameDir && isAhead) {
+          const aheadDist = Math.abs(dx);
+          // Check if they are in overlapping/nearby lanes
+          if (Math.abs(dy) < 6) {
+            if (aheadDist < minSameDirDist) {
+              minSameDirDist = aheadDist;
+            }
+          }
+        }
+      }
+      
+      // Calculate speed scale
+      if (minSameDirDist < 25) {
+        speedScale = 0; // Stop
+      } else if (minSameDirDist < 50) {
+        speedScale = (minSameDirDist - 25) / 25; // Gradual slow down
+      }
+      
+      // Update vertical position smoothly
+      targetY = Math.max(3, Math.min(23, targetY));
+      ant.y += (targetY - ant.y) * 4 * dt;
+      ant.el.style.top = `${ant.y}px`;
+      
+      if (ant.isWalking) {
+        const currentSpeed = ant.speed * speedScale;
+        ant.x += ant.dir * currentSpeed * dt;
+        ant.el.style.left = `${ant.x}px`;
+        
+        if (currentSpeed < 5) {
+          ant.el.classList.remove("is-walking");
+        } else {
+          ant.el.classList.add("is-walking");
+        }
+        
+        // Random pause only if not stuck in traffic
+        if (speedScale > 0.8 && ant.x > 120 && ant.x < width - 120 && ant.stateTime > 3 && Math.random() < 0.006) {
+          ant.isWalking = false;
+          ant.stateTime = 0;
+          ant.stopDuration = 1 + Math.random() * 1.5;
+          ant.el.classList.remove("is-walking");
+        }
+        
+        const out = ant.dir === 1 ? ant.x > ant.targetX : ant.x < ant.targetX;
+        if (out) {
+          ant.el.remove();
+          this.ants.splice(i, 1);
+        }
+      } else {
+        // Paused state
+        ant.el.classList.remove("is-walking");
+        if (ant.stateTime >= ant.stopDuration) {
+          ant.isWalking = true;
+          ant.stateTime = 0;
+          ant.el.classList.add("is-walking");
+        }
+      }
+    }
+    
+    this.animationFrame = requestAnimationFrame(() => this.loop());
+  }
+}
+
 function renderHub() {
   bindHubMascotMagnet();
+  
+  if (!window.hubAntColony) {
+    window.hubAntColony = new HubAntColony();
+  }
+  window.hubAntColony.start();
   const q = ($("#hub-search").value || "").toLowerCase();
   const grid = $("#hub-grid");
   grid.innerHTML = "";

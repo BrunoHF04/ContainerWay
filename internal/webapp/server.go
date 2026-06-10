@@ -4,21 +4,28 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
+	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
 	"time"
 
 	"containerway/internal/accessauth"
+	"containerway/internal/configdir"
 	"containerway/internal/fsutil"
 	"containerway/internal/hostfs"
 	"containerway/internal/localfs"
 	"containerway/internal/session"
 	"containerway/internal/webprefs"
+
+	"tailscale.com/tsnet"
 )
 
 //go:embed static/*
@@ -29,6 +36,16 @@ type Options struct {
 	Addr         string
 	OpenBrowser  bool
 	AutoShutdown bool
+
+	// Configurações do Tailscale / Headscale
+	TSAuthKey    string
+	TSHostname   string
+	TSSSHPort    int
+	TSControlURL string
+
+	// Configurações do Servidor Headscale (Admin)
+	HSURL        string
+	HSApiKey     string
 }
 
 // Run inicia o servidor HTTP do ContainerWay Web.
@@ -55,8 +72,76 @@ func Run(opts Options) error {
 			ReadHeaderTimeout: 10 * time.Second,
 			Handler:           nil,
 		},
+		opts: opts,
 	}
 	srv.httpServer.Handler = srv.routes()
+
+	// Inicialização da VPN Tailscale / Headscale
+	tsAuthKey := strings.TrimSpace(opts.TSAuthKey)
+	if tsAuthKey == "" {
+		tsAuthKey = strings.TrimSpace(os.Getenv("CONTAINERWAY_TS_AUTHKEY"))
+	}
+	if tsAuthKey != "" {
+		tsHostname := strings.TrimSpace(opts.TSHostname)
+		if tsHostname == "" {
+			tsHostname = strings.TrimSpace(os.Getenv("CONTAINERWAY_TS_HOSTNAME"))
+		}
+		if tsHostname == "" {
+			tsHostname = "containerway-client"
+		}
+		tsSSHPort := opts.TSSSHPort
+		if envSSHPort := os.Getenv("CONTAINERWAY_TS_SSH_PORT"); envSSHPort != "" {
+			if p, err := strconv.Atoi(envSSHPort); err == nil {
+				tsSSHPort = p
+			}
+		}
+		tsControlURL := strings.TrimSpace(opts.TSControlURL)
+		if tsControlURL == "" {
+			tsControlURL = strings.TrimSpace(os.Getenv("CONTAINERWAY_TS_CONTROL_URL"))
+		}
+
+		cfgDir, err := configdir.Root()
+		if err != nil {
+			log.Printf("Tailscale: erro ao obter diretório de configurações: %v. Usando diretório temporário.", err)
+		}
+		tsStateDir := ""
+		if cfgDir != "" {
+			tsStateDir = filepath.Join(cfgDir, "tailscale")
+			_ = os.MkdirAll(tsStateDir, 0o755)
+		}
+
+		tsSrv := &tsnet.Server{
+			Hostname:   tsHostname,
+			AuthKey:    tsAuthKey,
+			ControlURL: tsControlURL,
+			Dir:        tsStateDir,
+		}
+		defer tsSrv.Close()
+
+		// 1. Escutar tráfego HTTP na VPN
+		tsHTTPListener, err := tsSrv.Listen("tcp", ":8765")
+		if err != nil {
+			log.Printf("Tailscale: erro ao iniciar listener HTTP na VPN: %v", err)
+		} else {
+			log.Printf("Tailscale: Escutando na VPN na porta 8765. Nome do nó: %s", tsHostname)
+			go func() {
+				if err := srv.httpServer.Serve(tsHTTPListener); err != nil && err != http.ErrServerClosed {
+					log.Printf("Tailscale: erro ao servir HTTP na VPN: %v", err)
+				}
+			}()
+		}
+
+		// 2. Proxy SSH para a porta física local
+		if tsSSHPort > 0 {
+			tsSSHListener, err := tsSrv.Listen("tcp", fmt.Sprintf(":%d", tsSSHPort))
+			if err != nil {
+				log.Printf("Tailscale: erro ao iniciar listener SSH na VPN na porta %d: %v", tsSSHPort, err)
+			} else {
+				log.Printf("Tailscale: SSH Proxy ativo na porta VPN %d -> localhost (SSH físico)", tsSSHPort)
+				go handleSSHProxy(tsSSHListener)
+			}
+		}
+	}
 
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -91,11 +176,17 @@ func Run(opts Options) error {
 type Server struct {
 	httpServer *http.Server
 	store      sessionStore
+	opts       Options
 }
 
 // routes regista handlers da API e ficheiros estáticos.
 func (s *Server) routes() http.Handler {
 	mux := http.NewServeMux()
+
+	// Endpoints de Automação de Deploy
+	mux.HandleFunc("/api/deploy/generate", s.handleDeployGenerate)
+	mux.HandleFunc("/api/deploy/install.sh", s.handleDeployInstallScript)
+	mux.HandleFunc("/api/deploy/download", s.handleDeployDownload)
 	staticRoot, err := fs.Sub(staticEmbed, "static")
 	if err != nil {
 		panic(err)
@@ -512,4 +603,40 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+// handleSSHProxy aceita conexões de rede na VPN Tailscale e as redireciona para a porta SSH local (padrão 22).
+func handleSSHProxy(ln net.Listener) {
+	defer ln.Close()
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			log.Printf("Tailscale SSH Proxy: erro ao aceitar conexão: %v", err)
+			return
+		}
+		go func(c net.Conn) {
+			defer c.Close()
+			localPort := "22"
+			if lp := os.Getenv("CONTAINERWAY_LOCAL_SSH_PORT"); lp != "" {
+				localPort = lp
+			}
+			localConn, err := net.DialTimeout("tcp", "127.0.0.1:"+localPort, 10*time.Second)
+			if err != nil {
+				log.Printf("Tailscale SSH Proxy: erro ao conectar ao SSH local na porta %s: %v", localPort, err)
+				return
+			}
+			defer localConn.Close()
+
+			errChan := make(chan error, 2)
+			go func() {
+				_, err := io.Copy(localConn, c)
+				errChan <- err
+			}()
+			go func() {
+				_, err := io.Copy(c, localConn)
+				errChan <- err
+			}()
+			<-errChan
+		}(conn)
+	}
 }

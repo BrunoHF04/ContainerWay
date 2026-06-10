@@ -65,7 +65,7 @@ func triggerShutdown() {
 		return
 	}
 	log.Println("Nenhuma aba ativa detectada. Agendando encerramento do ContainerWay Web...")
-	shutdownTimer = time.AfterFunc(3*time.Second, func() {
+	shutdownTimer = time.AfterFunc(15*time.Second, func() {
 		tracker.mu.Lock()
 		tracker.cleanExpiredLocked()
 		count := len(tracker.tabs)

@@ -227,7 +227,7 @@ func (s *Server) handleDBDiscover(w http.ResponseWriter, r *http.Request) {
 
 	// 1. Escanear contêineres Docker
 	if b.Sess.Docker != nil {
-		containers, err := listDockerContainers(ctx, b.Sess.Docker, true, false)
+		containers, err := listDockerContainers(ctx, b.Sess.Docker, false, false)
 		if err == nil {
 			for _, c := range containers {
 				imgLower := strings.ToLower(c.Image)

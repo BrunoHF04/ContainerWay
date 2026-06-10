@@ -222,6 +222,7 @@
     else closeSettingsUserEditor();
     if (tab === "mail") loadSettingsMail();
     if (tab === "connections") loadSettingsConnections();
+    if (tab === "deploy") initDeployTab();
     if (tab === "session") refreshSettingsSSHStatus();
     if (tab === "interface") loadInterfaceForm();
     if (tab === "modules") loadModulesForm();
@@ -291,6 +292,7 @@
     if (tab === "users" && isAdmin) await loadSettingsUsers();
     if (tab === "mail" && isAdmin) await loadSettingsMail();
     if (tab === "connections") await loadSettingsConnections();
+    if (tab === "deploy") initDeployTab();
     if (tab === "session") refreshSettingsSSHStatus();
     if (tab === "interface") loadInterfaceForm();
     if (tab === "modules") loadModulesForm();
@@ -883,6 +885,57 @@
     }
   });
   $("#settings-refresh-diagnostics")?.addEventListener("click", () => loadDiagnostics());
+ 
+  // Lógica da aba Cadastrar Cliente (Deploy)
+  function initDeployTab() {
+    const form = $("#settings-deploy-form");
+    if (form) form.reset();
+    $("#deploy-result")?.classList.add("hidden");
+  }
+
+  $("#settings-deploy-form")?.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const nameInput = $("#deploy-client-name");
+    const name = nameInput.value.trim();
+    if (!name) return;
+
+    const submitBtn = ev.target.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.disabled = true;
+
+    try {
+      const res = await api("/api/deploy/generate", {
+        method: "POST",
+        body: JSON.stringify({ name }),
+      });
+
+      const codeEl = $("#deploy-command-code");
+      if (codeEl) codeEl.textContent = res.command;
+      $("#deploy-result")?.classList.remove("hidden");
+      CWUI.toast("Comando de instalação gerado com sucesso!", "success");
+    } catch (e) {
+      CWUI.toast(e.message, "error");
+    } finally {
+      if (submitBtn) submitBtn.disabled = false;
+    }
+  });
+
+  $("#btn-deploy-copy")?.addEventListener("click", () => {
+    const code = $("#deploy-command-code")?.textContent;
+    if (!code) return;
+    navigator.clipboard.writeText(code).then(() => {
+      CWUI.toast("Comando copiado para a área de transferência!", "success");
+    }).catch(() => {
+      CWUI.toast("Não foi possível copiar o comando", "error");
+    });
+  });
+
+  $("#btn-deploy-help")?.addEventListener("click", () => {
+    $("#deploy-help-dialog")?.showModal();
+  });
+
+  $("#btn-deploy-help-close")?.addEventListener("click", () => {
+    $("#deploy-help-dialog")?.close();
+  });
 
   document.addEventListener("DOMContentLoaded", () => {
     applyModulePrefsGlobally();

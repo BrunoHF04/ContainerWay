@@ -1502,6 +1502,121 @@ select.cw-select-native {
   50% { transform: translateY(-6px); }
 }
 
+/* Ant Animation Highway - Rodovia das Formigas */
+.hub-ant-highway {
+  position: absolute;
+  bottom: 6px;
+  left: 0;
+  width: 100%;
+  height: 48px;
+  pointer-events: none;
+  z-index: 20;
+  overflow: hidden;
+}
+
+/* Ant Walker Element - Formiga individual */
+.hub-ant {
+  position: absolute;
+  width: 44px;
+  height: 22px;
+  will-change: left;
+  pointer-events: none;
+  transition: transform 0.25s ease;
+}
+
+/* Ant Cargo Container Box - Contêiner carregado */
+.hub-ant-cargo {
+  position: absolute;
+  bottom: 13px; /* Sits perfectly on top of the side thorax */
+  left: 12px;   /* Center of gravity on the thorax */
+  width: 16px;
+  height: 16px;
+  transform-origin: bottom center;
+  will-change: transform;
+}
+
+.hub-ant.is-walking .hub-ant-cargo {
+  animation: ant-cargo-wobble 0.25s ease-in-out infinite alternate;
+}
+
+@keyframes ant-cargo-wobble {
+  0% { transform: translateY(0) rotate(-4deg); }
+  100% { transform: translateY(-1.5px) rotate(4deg); }
+}
+
+/* Ant SVG Elements */
+.hub-ant-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.hub-ant-antenna {
+  stroke: var(--text-secondary);
+  stroke-width: 1.2;
+  fill: none;
+  stroke-linecap: round;
+}
+
+.hub-ant-leg {
+  stroke: var(--text-secondary);
+  stroke-width: 1.5;
+  fill: none;
+  stroke-linecap: round;
+  transition: opacity 0.3s ease;
+}
+
+/* 2.5D visual effect: far legs are slightly darker/translucent */
+.leg-fl, .leg-ml, .leg-bl {
+  opacity: 0.55;
+}
+.leg-fr, .leg-mr, .leg-br {
+  opacity: 1;
+}
+
+.hub-ant-abdomen,
+.hub-ant-thorax,
+.hub-ant-head {
+  fill: var(--text-secondary);
+}
+
+/* Tripod Gait (leg-wiggling animations with side-view attachments) */
+.hub-ant.is-walking .leg-fl {
+  animation: ant-leg-wiggle-1 0.12s linear infinite alternate;
+  transform-origin: 23px 11px;
+}
+.hub-ant.is-walking .leg-ml {
+  animation: ant-leg-wiggle-2 0.12s linear infinite alternate;
+  transform-origin: 19px 11px;
+}
+.hub-ant.is-walking .leg-bl {
+  animation: ant-leg-wiggle-1 0.12s linear infinite alternate;
+  transform-origin: 15px 11px;
+}
+
+.hub-ant.is-walking .leg-fr {
+  animation: ant-leg-wiggle-2 0.12s linear infinite alternate;
+  transform-origin: 23px 11px;
+}
+.hub-ant.is-walking .leg-mr {
+  animation: ant-leg-wiggle-1 0.12s linear infinite alternate;
+  transform-origin: 19px 11px;
+}
+.hub-ant.is-walking .leg-br {
+  animation: ant-leg-wiggle-2 0.12s linear infinite alternate;
+  transform-origin: 15px 11px;
+}
+
+@keyframes ant-leg-wiggle-1 {
+  0% { transform: rotate(-15deg); }
+  100% { transform: rotate(15deg); }
+}
+
+@keyframes ant-leg-wiggle-2 {
+  0% { transform: rotate(15deg); }
+  100% { transform: rotate(-15deg); }
+}
+
 @container hub (max-width: 640px) {
   .hub-hero-row {
     gap: 0.4rem;
@@ -10602,3 +10717,38 @@ body:has(#app.app-desktop-mode) > .ambient {
   background: color-mix(in srgb, #22c55e 16%, #fff);
   color: #15803d;
 }
+
+/* --- Unified List and Table Row Entrance Animations --- */
+.docker-row,
+.docker-card,
+.docker-group,
+.svc-row:not(.svc-row-empty),
+.disks-row:not(.disks-row-empty):not(.disks-row-loading),
+.file-row,
+.data-list .data-row,
+.dbbackup-table tbody tr,
+.volbackup-table tbody tr,
+#settings-users-list .data-row,
+#settings-connections-list .data-row {
+  animation: listItemIn 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes listItemIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Staggered Delay for List Items (Cascading effect) */
+.docker-row:nth-child(1), .docker-card:nth-child(1), .docker-group:nth-child(1), .svc-row:nth-child(1), .disks-row:nth-child(1), .file-row:nth-child(1), .data-list .data-row:nth-child(1), .dbbackup-table tbody tr:nth-child(1), .volbackup-table tbody tr:nth-child(1), #settings-users-list .data-row:nth-child(1), #settings-connections-list .data-row:nth-child(1) { animation-delay: 0.02s; }
+.docker-row:nth-child(2), .docker-card:nth-child(2), .docker-group:nth-child(2), .svc-row:nth-child(2), .disks-row:nth-child(2), .file-row:nth-child(2), .data-list .data-row:nth-child(2), .dbbackup-table tbody tr:nth-child(2), .volbackup-table tbody tr:nth-child(2), #settings-users-list .data-row:nth-child(2), #settings-connections-list .data-row:nth-child(2) { animation-delay: 0.04s; }
+.docker-row:nth-child(3), .docker-card:nth-child(3), .docker-group:nth-child(3), .svc-row:nth-child(3), .disks-row:nth-child(3), .file-row:nth-child(3), .data-list .data-row:nth-child(3), .dbbackup-table tbody tr:nth-child(3), .volbackup-table tbody tr:nth-child(3), #settings-users-list .data-row:nth-child(3), #settings-connections-list .data-row:nth-child(3) { animation-delay: 0.06s; }
+.docker-row:nth-child(4), .docker-card:nth-child(4), .docker-group:nth-child(4), .svc-row:nth-child(4), .disks-row:nth-child(4), .file-row:nth-child(4), .data-list .data-row:nth-child(4), .dbbackup-table tbody tr:nth-child(4), .volbackup-table tbody tr:nth-child(4), #settings-users-list .data-row:nth-child(4), #settings-connections-list .data-row:nth-child(4) { animation-delay: 0.08s; }
+.docker-row:nth-child(5), .docker-card:nth-child(5), .docker-group:nth-child(5), .svc-row:nth-child(5), .disks-row:nth-child(5), .file-row:nth-child(5), .data-list .data-row:nth-child(5), .dbbackup-table tbody tr:nth-child(5), .volbackup-table tbody tr:nth-child(5), #settings-users-list .data-row:nth-child(5), #settings-connections-list .data-row:nth-child(5) { animation-delay: 0.10s; }
+.docker-row:nth-child(6), .docker-card:nth-child(6), .docker-group:nth-child(6), .svc-row:nth-child(6), .disks-row:nth-child(6), .file-row:nth-child(6), .data-list .data-row:nth-child(6), .dbbackup-table tbody tr:nth-child(6), .volbackup-table tbody tr:nth-child(6), #settings-users-list .data-row:nth-child(6), #settings-connections-list .data-row:nth-child(6) { animation-delay: 0.12s; }
+.docker-row:nth-child(n+7), .docker-card:nth-child(n+7), .docker-group:nth-child(n+7), .svc-row:nth-child(n+7), .disks-row:nth-child(n+7), .file-row:nth-child(n+7), .data-list .data-row:nth-child(n+7), .dbbackup-table tbody tr:nth-child(n+7), .volbackup-table tbody tr:nth-child(n+7), #settings-users-list .data-row:nth-child(n+7), #settings-connections-list .data-row:nth-child(n+7) { animation-delay: 0.14s; }
