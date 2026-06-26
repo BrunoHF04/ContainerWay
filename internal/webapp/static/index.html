@@ -1854,15 +1854,116 @@
                       </label>
                     </div>
 
-                    <div class="field-row">
+                    <div class="btn-row" style="margin-bottom: 15px;">
+                      <button type="button" class="btn btn-ghost btn-sm" id="btn-dbbackup-routine-test-db" data-i18n="dbbackup.routine.testdb">Testar Conexão com Banco</button>
+                    </div>
+
+                    <div class="field">
+                      <span data-i18n="dbbackup.routine.destType">Destino do Backup Agendado</span>
+                      <div class="radio-group">
+                        <label class="radio-row">
+                          <input type="radio" name="dbbackupRoutineDestType" value="local" checked />
+                          <span data-i18n="dbbackup.routine.destType.local">Salvar no Servidor (Linux)</span>
+                        </label>
+                        <label class="radio-row">
+                          <input type="radio" name="dbbackupRoutineDestType" value="smb" />
+                          <span data-i18n="dbbackup.routine.destType.smb">Compartilhamento Windows (SMB/CIFS)</span>
+                        </label>
+                        <label class="radio-row">
+                          <input type="radio" name="dbbackupRoutineDestType" value="ssh" />
+                          <span data-i18n="dbbackup.routine.destType.ssh">Servidor SSH (SFTP/SCP)</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div id="dbbackup-routine-local-container" class="field-row">
                       <label class="field">
                         <span data-i18n="dbbackup.routine.dest">Diretório de Destino no Servidor</span>
-                        <input type="text" id="dbbackup-routine-dest" required data-i18n="dbbackup.routine.dest.ph" data-i18n-mode="placeholder" placeholder="Ex: /var/backups" />
+                        <input type="text" id="dbbackup-routine-dest" data-i18n="dbbackup.routine.dest.ph" data-i18n-mode="placeholder" placeholder="Ex: /var/backups" />
                       </label>
                       <label class="field">
                         <span data-i18n="dbbackup.routine.retention">Retenção de Arquivos (dias)</span>
                         <input type="number" id="dbbackup-routine-retention" min="0" value="7" />
                       </label>
+                    </div>
+
+                    <div id="dbbackup-routine-smb-container" class="form-stack hidden" style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 15px;">
+                      <div class="field-row">
+                        <div class="field">
+                          <span data-i18n="dbbackup.routine.smb.host">IP / Host da Máquina Windows</span>
+                          <div style="display: flex; gap: 8px;">
+                            <input type="text" id="dbbackup-routine-smbhost" placeholder="Ex: 192.168.1.100" style="flex: 1;" />
+                            <button type="button" class="btn btn-ghost btn-sm" id="btn-dbbackup-routine-myip" data-i18n="dbbackup.routine.smb.myip">Usar meu PC</button>
+                          </div>
+                        </div>
+                        <label class="field">
+                          <span data-i18n="dbbackup.routine.smb.share">Nome do Compartilhamento</span>
+                          <input type="text" id="dbbackup-routine-smbshare" placeholder="Ex: Backups" />
+                        </label>
+                      </div>
+                      <div class="field-row">
+                        <label class="field">
+                          <span data-i18n="dbbackup.routine.smb.dir">Pasta / Subdiretório (opcional)</span>
+                          <input type="text" id="dbbackup-routine-smbdir" placeholder="Ex: postgres" />
+                        </label>
+                        <label class="field">
+                          <span data-i18n="dbbackup.routine.retention">Retenção de Arquivos (dias)</span>
+                          <input type="number" id="dbbackup-routine-smb-retention" min="0" value="7" />
+                        </label>
+                      </div>
+                      <div class="field-row">
+                        <label class="field">
+                          <span data-i18n="dbbackup.routine.smb.user">Usuário do Windows</span>
+                          <input type="text" id="dbbackup-routine-smbuser" placeholder="Ex: Administrator" />
+                        </label>
+                        <label class="field">
+                          <span data-i18n="dbbackup.routine.smb.pass">Senha do Windows</span>
+                          <input type="password" id="dbbackup-routine-smbpass" placeholder="Senha de acesso" />
+                        </label>
+                      </div>
+                      <div class="btn-row" style="margin-top: 10px; margin-bottom: 5px;">
+                        <button type="button" class="btn btn-ghost btn-sm" id="btn-dbbackup-routine-test-smb" data-i18n="dbbackup.routine.testsmb">Testar Conexão Windows (SMB)</button>
+                      </div>
+                    </div>
+
+                    <div id="dbbackup-routine-ssh-container" class="form-stack hidden" style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 15px;">
+                      <div class="field-row">
+                        <div class="field">
+                          <span data-i18n="dbbackup.routine.ssh.host">IP / Host SSH de Destino</span>
+                          <div style="display: flex; gap: 8px;">
+                            <input type="text" id="dbbackup-routine-sshhost" placeholder="Ex: 192.168.1.100" style="flex: 1;" />
+                            <button type="button" class="btn btn-ghost btn-sm" id="btn-dbbackup-routine-ssh-myip" data-i18n="dbbackup.routine.smb.myip">Usar meu PC</button>
+                            <button type="button" class="btn btn-ghost btn-sm" style="color: #60a5fa; border-color: rgba(96, 165, 250, 0.3);" id="btn-dbbackup-routine-setup-ssh" data-i18n="dbbackup.routine.setupLocalSSH">Habilitar SSH neste PC</button>
+                          </div>
+                        </div>
+                        <label class="field" style="max-width: 100px;">
+                          <span data-i18n="dbbackup.routine.ssh.port">Porta</span>
+                          <input type="text" id="dbbackup-routine-sshport" value="22" placeholder="22" />
+                        </label>
+                      </div>
+                      <div class="field-row">
+                        <label class="field">
+                          <span data-i18n="dbbackup.routine.ssh.dir">Pasta / Diretório de Destino</span>
+                          <input type="text" id="dbbackup-routine-sshdir" placeholder="Ex: /var/backups ou D:\Backups" />
+                        </label>
+                        <label class="field">
+                          <span data-i18n="dbbackup.routine.retention">Retenção de Arquivos (dias)</span>
+                          <input type="number" id="dbbackup-routine-ssh-retention" min="0" value="7" />
+                        </label>
+                      </div>
+                      <div class="field-row">
+                        <label class="field">
+                          <span data-i18n="dbbackup.routine.ssh.user">Usuário SSH</span>
+                          <input type="text" id="dbbackup-routine-sshuser" placeholder="Ex: backupuser" />
+                        </label>
+                        <label class="field">
+                          <span data-i18n="dbbackup.routine.ssh.pass">Senha SSH</span>
+                          <input type="password" id="dbbackup-routine-sshpass" placeholder="Senha SSH" />
+                        </label>
+                      </div>
+                      <div class="btn-row" style="margin-top: 10px; margin-bottom: 5px;">
+                        <button type="button" class="btn btn-ghost btn-sm" id="btn-dbbackup-routine-test-ssh" data-i18n="dbbackup.routine.testssh">Testar Conexão SSH</button>
+                      </div>
                     </div>
 
                     <div class="btn-row">

@@ -7,7 +7,10 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -41,6 +44,17 @@ type DBBackupRoutine struct {
 	BackupMode string `json:"backupMode"` // "full" ou "incremental"
 	LastRun    string `json:"lastRun"`    // Última execução (timestamp)
 	LastStatus string `json:"lastStatus"` // Último estado (success / error)
+	DestType   string `json:"destType"`   // "local", "smb" ou "ssh"
+	SMBHost    string `json:"smbHost"`
+	SMBShare   string `json:"smbShare"`
+	SMBUser    string `json:"smbUser"`
+	SMBPass    string `json:"smbPass"`
+	SMBDir     string `json:"smbDir"`
+	SSHHost    string `json:"sshHost"`
+	SSHPort    string `json:"sshPort"`
+	SSHUser    string `json:"sshUser"`
+	SSHPass    string `json:"sshPass"`
+	SSHDir     string `json:"sshDir"`
 }
 
 // resolveHomePath converte caminhos que começam com ~ para a pasta home remota real.
@@ -207,6 +221,295 @@ func (b *sshBundle) discoverLogicalDBs(ctx context.Context, engine, sourceType, 
 		dbs = append(dbs, l)
 	}
 	return dbs
+}
+
+// handleDBTestConnection tenta se conectar ao banco usando os parâmetros fornecidos e retorna erro se falhar.
+func (s *Server) handleDBTestConnection(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "método não permitido"})
+		return
+	}
+	_, b, ok := s.requireSSH(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		Engine string `json:"engine"`
+		Type   string `json:"type"`
+		Target string `json:"target"`
+		User   string `json:"user"`
+		Pass   string `json:"pass"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "dados da requisição inválidos"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	var cmd string
+	switch body.Engine {
+	case "postgres":
+		if body.Type == "docker" {
+			cmd = fmt.Sprintf("docker exec -i -e PGPASSWORD=%s %s psql -U %s -d template1 -c 'SELECT 1' 2>&1",
+				shellQuote(body.Pass), shellQuote(body.Target), shellQuote(body.User))
+		} else {
+			cmd = fmt.Sprintf("PGPASSWORD=%s psql -U %s -h localhost -d template1 -c 'SELECT 1' 2>&1",
+				shellQuote(body.Pass), shellQuote(body.User))
+		}
+	case "mysql", "mariadb":
+		var pFlag string
+		if body.Pass != "" {
+			pFlag = "-p" + body.Pass
+		}
+		if body.Type == "docker" {
+			cmd = fmt.Sprintf("docker exec -i %s mysql -u%s %s -e 'SELECT 1' 2>&1",
+				shellQuote(body.Target), shellQuote(body.User), pFlag)
+		} else {
+			cmd = fmt.Sprintf("mysql -u%s %s -h localhost -e 'SELECT 1' 2>&1",
+				shellQuote(body.User), pFlag)
+		}
+	case "sqlserver":
+		sql := "SELECT 1;"
+		if body.Type == "docker" {
+			cmd = fmt.Sprintf("docker exec -i %s /opt/mssql-tools/bin/sqlcmd -S localhost -U %s -P %s -Q %s 2>&1 || docker exec -i %s /opt/mssql-tools18/bin/sqlcmd -S localhost -U %s -P %s -Q %s -C 2>&1",
+				shellQuote(body.Target), shellQuote(body.User), shellQuote(body.Pass), shellQuote(sql),
+				shellQuote(body.Target), shellQuote(body.User), shellQuote(body.Pass), shellQuote(sql))
+		} else {
+			cmd = fmt.Sprintf("sqlcmd -S localhost -U sa -P %s -Q %s 2>&1 || sqlcmd -S localhost -U sa -P %s -Q %s -C 2>&1",
+				shellQuote(body.Pass), shellQuote(sql),
+				shellQuote(body.Pass), shellQuote(sql))
+		}
+	default:
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "motor de banco de dados inválido"})
+		return
+	}
+
+	stdout, stderr, err := b.runSSHCommand(ctx, cmd, "")
+	if err != nil {
+		msg := strings.TrimSpace(stderr)
+		if msg == "" {
+			msg = strings.TrimSpace(stdout)
+		}
+		if msg == "" {
+			msg = err.Error()
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"status":  "error",
+			"message": msg,
+		})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status": "success",
+	})
+}
+
+// handleDBTestSMB tenta se conectar ao compartilhamento Windows (SMB).
+func (s *Server) handleDBTestSMB(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "método não permitido"})
+		return
+	}
+	_, b, ok := s.requireSSH(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		SMBHost  string `json:"smbHost"`
+		SMBShare string `json:"smbShare"`
+		SMBUser  string `json:"smbUser"`
+		SMBPass  string `json:"smbPass"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "dados da requisição inválidos"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	// 1. Verificar se o smbclient está instalado
+	stdout, _, err := b.runSSHCommand(ctx, "which smbclient", "")
+	if err != nil || strings.TrimSpace(stdout) == "" {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"status": "error",
+			"message": "O utilitário 'smbclient' não está instalado no servidor Linux remoto. " +
+				"Por favor, instale-o executando 'sudo apt-get install smbclient' no terminal SSH do servidor.",
+		})
+		return
+	}
+
+	// 2. Testar conexão com o compartilhamento Windows
+	testCmd := fmt.Sprintf("smbclient %s -U %s -c 'ls' 2>&1",
+		shellQuote(fmt.Sprintf("//%s/%s", body.SMBHost, body.SMBShare)),
+		shellQuote(fmt.Sprintf("%s%%%s", body.SMBUser, body.SMBPass)),
+	)
+	stdout, stderr, err := b.runSSHCommand(ctx, testCmd, "")
+	if err != nil {
+		msg := strings.TrimSpace(stderr)
+		if msg == "" {
+			msg = strings.TrimSpace(stdout)
+		}
+		if msg == "" {
+			msg = err.Error()
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"status":  "error",
+			"message": msg,
+		})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status": "success",
+	})
+}
+
+// handleDBTestSSH tenta se conectar ao servidor SSH remoto usando sshpass e ssh.
+func (s *Server) handleDBTestSSH(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "método não permitido"})
+		return
+	}
+	_, b, ok := s.requireSSH(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		SSHHost string `json:"sshHost"`
+		SSHPort string `json:"sshPort"`
+		SSHUser string `json:"sshUser"`
+		SSHPass string `json:"sshPass"`
+		SSHDir  string `json:"sshDir"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "dados da requisição inválidos"})
+		return
+	}
+
+	if strings.TrimSpace(body.SSHPort) == "" {
+		body.SSHPort = "22"
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	// 1. Verificar se o sshpass está instalado
+	stdout, _, err := b.runSSHCommand(ctx, "which sshpass", "")
+	if err != nil || strings.TrimSpace(stdout) == "" {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"status": "error",
+			"message": "O utilitário 'sshpass' não está instalado no servidor Linux remoto. " +
+				"Por favor, instale-o executando 'sudo apt-get install sshpass' no terminal SSH do servidor.",
+		})
+		return
+	}
+
+	// 2. Testar conexão com o servidor SSH
+	testCmd := fmt.Sprintf("sshpass -p %s ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no -p %s %s@%s 'echo OK' 2>&1",
+		shellQuote(body.SSHPass),
+		shellQuote(body.SSHPort),
+		shellQuote(body.SSHUser),
+		shellQuote(body.SSHHost),
+	)
+	stdout, stderr, err := b.runSSHCommand(ctx, testCmd, "")
+	if err != nil {
+		msg := strings.TrimSpace(stderr)
+		if msg == "" {
+			msg = strings.TrimSpace(stdout)
+		}
+		if msg == "" {
+			msg = err.Error()
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"status":  "error",
+			"message": msg,
+		})
+		return
+	}
+
+	// 3. Testar criação/acesso do diretório se especificado
+	if body.SSHDir != "" {
+		mkdirCmd := fmt.Sprintf("sshpass -p %s ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no -p %s %s@%s %s 2>&1",
+			shellQuote(body.SSHPass),
+			shellQuote(body.SSHPort),
+			shellQuote(body.SSHUser),
+			shellQuote(body.SSHHost),
+			shellQuote(fmt.Sprintf("mkdir -p %s", body.SSHDir)),
+		)
+		stdoutMk, stderrMk, errMk := b.runSSHCommand(ctx, mkdirCmd, "")
+		if errMk != nil {
+			msg := strings.TrimSpace(stderrMk)
+			if msg == "" {
+				msg = strings.TrimSpace(stdoutMk)
+			}
+			if msg == "" {
+				msg = errMk.Error()
+			}
+			writeJSON(w, http.StatusOK, map[string]any{
+				"status":  "error",
+				"message": fmt.Sprintf("Conexão SSH bem-sucedida, mas falhou ao criar/acessar o diretório de destino: %s", msg),
+			})
+			return
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status": "success",
+	})
+}
+
+// handleEnableLocalSSH tenta habilitar e configurar o OpenSSH Server no Windows local.
+func (s *Server) handleEnableLocalSSH(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "método não permitido"})
+		return
+	}
+	
+	if runtime.GOOS != "windows" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Este recurso só está disponível se o servidor estiver rodando em ambiente Windows local."})
+		return
+	}
+
+	psScript := `Write-Host '[1/3] Instalando Servidor SSH OpenSSH no Windows...' -ForegroundColor Cyan; ` + "\r\n" +
+		`try { ` + "\r\n" +
+		`  Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0 -ErrorAction Stop; ` + "\r\n" +
+		`  Write-Host '[2/3] Iniciando o servico SSH...' -ForegroundColor Cyan; ` + "\r\n" +
+		`  Start-Service sshd -ErrorAction Stop; ` + "\r\n" +
+		`  Set-Service -Name sshd -StartupType Automatic -ErrorAction Stop; ` + "\r\n" +
+		`  Write-Host '[3/3] Configurando Firewall...' -ForegroundColor Cyan; ` + "\r\n" +
+		`  Get-NetFirewallRule -Name *OpenSSH-Server* | Enable-NetFirewallRule; ` + "\r\n" +
+		`  Write-Host 'Concluido! O Servidor SSH ja esta ativo no seu Windows.' -ForegroundColor Green; ` + "\r\n" +
+		`  Start-Sleep -Seconds 5; ` + "\r\n" +
+		`} catch { ` + "\r\n" +
+		`  Write-Host ("ERRO: " + $_.Exception.Message) -ForegroundColor Red; ` + "\r\n" +
+		`  Write-Host "Pressione ENTER para fechar..." -ForegroundColor Yellow; ` + "\r\n" +
+		`  Read-Host; ` + "\r\n" +
+		`}`
+
+	tempScript := filepath.Join(os.TempDir(), "cw_install_ssh.ps1")
+	err := os.WriteFile(tempScript, []byte(psScript), 0644)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("Falha ao criar script temporário: %v", err)})
+		return
+	}
+
+	cmd := exec.Command("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
+		fmt.Sprintf("Start-Process powershell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File \"%s\"' -Verb RunAs", tempScript))
+
+	err = cmd.Start()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("Falha ao abrir processo de instalação: %v", err)})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status": "success",
+		"message": "Instalação do OpenSSH Server iniciada no Windows. Por favor, autorize a permissão de Administrador (UAC) que aparecerá na sua tela.",
+	})
 }
 
 // handleDBDiscover detecta bancos de dados locais e em Docker no servidor.
@@ -709,6 +1012,17 @@ func (s *Server) readRoutineMetadata(ctx context.Context, b *sshBundle, id, cron
 				Dest       string `json:"dest"`
 				Retention  int    `json:"retention"`
 				BackupMode string `json:"backupMode"`
+				DestType   string `json:"destType"`
+				SMBHost    string `json:"smbHost"`
+				SMBShare   string `json:"smbShare"`
+				SMBUser    string `json:"smbUser"`
+				SMBPass    string `json:"smbPass"`
+				SMBDir     string `json:"smbDir"`
+				SSHHost    string `json:"sshHost"`
+				SSHPort    string `json:"sshPort"`
+				SSHUser    string `json:"sshUser"`
+				SSHPass    string `json:"sshPass"`
+				SSHDir     string `json:"sshDir"`
 			}
 			if json.Unmarshal([]byte(jsonStr), &meta) == nil {
 				routine.Engine = meta.Engine
@@ -719,6 +1033,17 @@ func (s *Server) readRoutineMetadata(ctx context.Context, b *sshBundle, id, cron
 				routine.Dest = meta.Dest
 				routine.Retention = meta.Retention
 				routine.BackupMode = meta.BackupMode
+				routine.DestType = meta.DestType
+				routine.SMBHost = meta.SMBHost
+				routine.SMBShare = meta.SMBShare
+				routine.SMBUser = meta.SMBUser
+				routine.SMBPass = meta.SMBPass
+				routine.SMBDir = meta.SMBDir
+				routine.SSHHost = meta.SSHHost
+				routine.SSHPort = meta.SSHPort
+				routine.SSHUser = meta.SSHUser
+				routine.SSHPass = meta.SSHPass
+				routine.SSHDir = meta.SSHDir
 			}
 		}
 	}
@@ -762,14 +1087,49 @@ func (s *Server) createRoutine(w http.ResponseWriter, r *http.Request, b *sshBun
 		Dest       string `json:"dest"`       // diretório destino remoto
 		Retention  int    `json:"retention"`  // dias retenção
 		BackupMode string `json:"backupMode"` // "full" ou "incremental"
+		DestType   string `json:"destType"`   // "local", "smb" ou "ssh"
+		SMBHost    string `json:"smbHost"`
+		SMBShare   string `json:"smbShare"`
+		SMBUser    string `json:"smbUser"`
+		SMBPass    string `json:"smbPass"`
+		SMBDir     string `json:"smbDir"`
+		SSHHost    string `json:"sshHost"`
+		SSHPort    string `json:"sshPort"`
+		SSHUser    string `json:"sshUser"`
+		SSHPass    string `json:"sshPass"`
+		SSHDir     string `json:"sshDir"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "dados da requisição inválidos"})
 		return
 	}
-	if strings.TrimSpace(body.Cron) == "" || strings.TrimSpace(body.Engine) == "" || strings.TrimSpace(body.Target) == "" || strings.TrimSpace(body.Dest) == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "campos obrigatórios ausentes"})
-		return
+	if body.DestType == "" {
+		body.DestType = "local"
+	}
+	if body.DestType == "smb" {
+		if strings.TrimSpace(body.Cron) == "" || strings.TrimSpace(body.Engine) == "" || strings.TrimSpace(body.Target) == "" || strings.TrimSpace(body.SMBHost) == "" || strings.TrimSpace(body.SMBShare) == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "campos obrigatórios ausentes para o destino Windows (SMB)"})
+			return
+		}
+		if body.Dest == "" {
+			body.Dest = "/tmp"
+		}
+	} else if body.DestType == "ssh" {
+		if strings.TrimSpace(body.Cron) == "" || strings.TrimSpace(body.Engine) == "" || strings.TrimSpace(body.Target) == "" || strings.TrimSpace(body.SSHHost) == "" || strings.TrimSpace(body.SSHUser) == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "campos obrigatórios ausentes para o destino SSH"})
+			return
+		}
+		if strings.TrimSpace(body.SSHPort) == "" {
+			body.SSHPort = "22"
+		}
+		if body.Dest == "" {
+			body.Dest = "/tmp"
+		}
+	} else {
+		if strings.TrimSpace(body.Cron) == "" || strings.TrimSpace(body.Engine) == "" || strings.TrimSpace(body.Target) == "" || strings.TrimSpace(body.Dest) == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "campos obrigatórios ausentes"})
+			return
+		}
 	}
 
 	if body.BackupMode == "" {
@@ -778,6 +1138,56 @@ func (s *Server) createRoutine(w http.ResponseWriter, r *http.Request, b *sshBun
 
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
+
+	if body.DestType == "smb" {
+		// 1. Verificar se o smbclient está instalado
+		stdout, _, err := b.runSSHCommand(ctx, "which smbclient", "")
+		if err != nil || strings.TrimSpace(stdout) == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{
+				"error": "O utilitário 'smbclient' não está instalado no servidor Linux remoto. " +
+					"Por favor, instale-o executando 'sudo apt-get install smbclient' no terminal SSH do servidor.",
+			})
+			return
+		}
+
+		// 2. Testar conexão com o compartilhamento Windows
+		testCmd := fmt.Sprintf("smbclient %s -U %s -c 'ls'",
+			shellQuote(fmt.Sprintf("//%s/%s", body.SMBHost, body.SMBShare)),
+			shellQuote(fmt.Sprintf("%s%%%s", body.SMBUser, body.SMBPass)),
+		)
+		_, testStderr, testErr := b.runSSHCommand(ctx, testCmd, "")
+		if testErr != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{
+				"error": fmt.Sprintf("Não foi possível conectar ao compartilhamento Windows: %s (stderr: %s)", testErr.Error(), testStderr),
+			})
+			return
+		}
+	} else if body.DestType == "ssh" {
+		// 1. Verificar se o sshpass está instalado
+		stdout, _, err := b.runSSHCommand(ctx, "which sshpass", "")
+		if err != nil || strings.TrimSpace(stdout) == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{
+				"error": "O utilitário 'sshpass' não está instalado no servidor Linux remoto. " +
+					"Por favor, instale-o executando 'sudo apt-get install sshpass' no terminal SSH do servidor.",
+			})
+			return
+		}
+
+		// 2. Testar conexão com o servidor SSH
+		testCmd := fmt.Sprintf("sshpass -p %s ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no -p %s %s@%s 'echo OK'",
+			shellQuote(body.SSHPass),
+			shellQuote(body.SSHPort),
+			shellQuote(body.SSHUser),
+			shellQuote(body.SSHHost),
+		)
+		_, testStderr, testErr := b.runSSHCommand(ctx, testCmd, "")
+		if testErr != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{
+				"error": fmt.Sprintf("Não foi possível conectar ao servidor SSH remoto: %s (stderr: %s)", testErr.Error(), testStderr),
+			})
+			return
+		}
+	}
 
 	id := fmt.Sprintf("db-backup-%d", time.Now().Unix())
 	scriptPath := fmt.Sprintf("~/.containerway/routines/backup_%s.sh", id)
@@ -788,7 +1198,11 @@ func (s *Server) createRoutine(w http.ResponseWriter, r *http.Request, b *sshBun
 	realScriptPath, _ := b.resolveHomePath(ctx, scriptPath)
 	realLogPath, _ := b.resolveHomePath(ctx, logPath)
 
-	scriptContent := s.generateBackupScript(body.Engine, body.Type, body.Target, body.DB, body.User, body.Pass, body.Dest, body.Retention, id, body.BackupMode)
+	scriptContent := s.generateBackupScript(
+		body.Engine, body.Type, body.Target, body.DB, body.User, body.Pass, body.Dest, body.Retention, id, body.BackupMode,
+		body.DestType, body.SMBHost, body.SMBShare, body.SMBUser, body.SMBPass, body.SMBDir,
+		body.SSHHost, body.SSHPort, body.SSHUser, body.SSHPass, body.SSHDir,
+	)
 
 	err := b.writeRemoteFile(ctx, realScriptPath, []byte(scriptContent), 0700)
 	if err != nil {
@@ -907,14 +1321,45 @@ func (s *Server) deleteRoutine(w http.ResponseWriter, r *http.Request, b *sshBun
 }
 
 // generateBackupScript constrói o script bash de backup.
-func (s *Server) generateBackupScript(engine, sourceType, target, db, user, pass, dest string, retention int, routineID string, backupMode string) string {
+func (s *Server) generateBackupScript(
+	engine, sourceType, target, db, user, pass, dest string, retention int, routineID string, backupMode string,
+	destType, smbHost, smbShare, smbUser, smbPass, smbDir string,
+	sshHost, sshPort, sshUser, sshPass, sshDir string,
+) string {
 	var sb strings.Builder
 	sb.WriteString("#!/bin/bash\n")
-	sb.WriteString(fmt.Sprintf("# CW-ROUTINE-METADATA: {\"id\":\"%s\",\"engine\":\"%s\",\"type\":\"%s\",\"target\":\"%s\",\"db\":\"%s\",\"user\":\"%s\",\"dest\":\"%s\",\"retention\":%d,\"backupMode\":\"%s\"}\n\n",
-		routineID, engine, sourceType, target, db, user, dest, retention, backupMode))
+
+	metaData := map[string]any{
+		"id":         routineID,
+		"engine":     engine,
+		"type":       sourceType,
+		"target":     target,
+		"db":         db,
+		"user":       user,
+		"dest":       dest,
+		"retention":  retention,
+		"backupMode": backupMode,
+		"destType":   destType,
+		"smbHost":    smbHost,
+		"smbShare":   smbShare,
+		"smbUser":    smbUser,
+		"smbPass":    smbPass,
+		"smbDir":     smbDir,
+		"sshHost":    sshHost,
+		"sshPort":    sshPort,
+		"sshUser":    sshUser,
+		"sshPass":    sshPass,
+		"sshDir":     sshDir,
+	}
+	metaBytes, _ := json.Marshal(metaData)
+	sb.WriteString(fmt.Sprintf("# CW-ROUTINE-METADATA: %s\n\n", string(metaBytes)))
 
 	sb.WriteString("# Configurações básicas\n")
-	sb.WriteString(fmt.Sprintf("BACKUP_DIR=%s\n", shellQuote(dest)))
+	if destType == "smb" || destType == "ssh" {
+		sb.WriteString(fmt.Sprintf("BACKUP_DIR=/tmp/cw_backup_temp_%s\n", routineID))
+	} else {
+		sb.WriteString(fmt.Sprintf("BACKUP_DIR=%s\n", shellQuote(dest)))
+	}
 	sb.WriteString("mkdir -p \"$BACKUP_DIR\"\n")
 	sb.WriteString("TIMESTAMP=$(date +\"%Y%m%d_%H%M%S\")\n\n")
 
@@ -1026,11 +1471,203 @@ func (s *Server) generateBackupScript(engine, sourceType, target, db, user, pass
 		sb.WriteString("fi\n\n")
 	}
 
-	sb.WriteString("echo \"[$(date)] Backup gravado com sucesso em: $BACKUP_DIR/\"\n")
+	if destType == "smb" {
+		sb.WriteString("echo \"[$(date)] Backup local gerado com sucesso. Enviando para o compartilhamento Windows (SMB/CIFS)...\"\n\n")
 
-	if retention > 0 {
-		sb.WriteString(fmt.Sprintf("\necho \"[$(date)] Executando limpeza de backups com mais de %d dias...\"\n", retention))
-		sb.WriteString(fmt.Sprintf("find \"$BACKUP_DIR\" -name \"backup_*\" -mtime +%d -delete 2>/dev/null\n", retention))
+		sb.WriteString("if ! command -v smbclient &> /dev/null; then\n")
+		sb.WriteString("  echo \"[$(date)] ERRO: smbclient não está instalado no servidor. Por favor, instale-o com: sudo apt-get install smbclient\"\n")
+		sb.WriteString("  rm -rf \"$BACKUP_DIR\"\n")
+		sb.WriteString("  exit 1\n")
+		sb.WriteString("fi\n\n")
+
+		if smbDir != "" {
+			sb.WriteString(fmt.Sprintf("smbclient %s -U %s -c %s >/dev/null 2>&1 || true\n",
+				shellQuote(fmt.Sprintf("//%s/%s", smbHost, smbShare)),
+				shellQuote(fmt.Sprintf("%s%%%s", smbUser, smbPass)),
+				shellQuote(fmt.Sprintf("mkdir \"%s\"", smbDir)),
+			))
+			sb.WriteString(fmt.Sprintf("smbclient %s -U %s -c %s > \"/tmp/smb_upload_%s.log\" 2>&1\n",
+				shellQuote(fmt.Sprintf("//%s/%s", smbHost, smbShare)),
+				shellQuote(fmt.Sprintf("%s%%%s", smbUser, smbPass)),
+				shellQuote(fmt.Sprintf("cd \"%s\"; put \"$BACKUP_DIR/%s\" \"%s\"", smbDir, filename, filename)),
+				routineID,
+			))
+		} else {
+			sb.WriteString(fmt.Sprintf("smbclient %s -U %s -c %s > \"/tmp/smb_upload_%s.log\" 2>&1\n",
+				shellQuote(fmt.Sprintf("//%s/%s", smbHost, smbShare)),
+				shellQuote(fmt.Sprintf("%s%%%s", smbUser, smbPass)),
+				shellQuote(fmt.Sprintf("put \"$BACKUP_DIR/%s\" \"%s\"", filename, filename)),
+				routineID,
+			))
+		}
+
+		sb.WriteString("EC_SMB=$?\n")
+		sb.WriteString("if [ $EC_SMB -ne 0 ]; then\n")
+		sb.WriteString("  echo \"[$(date)] ERRO: Falha ao enviar arquivo via smbclient (código $EC_SMB)\"\n")
+		sb.WriteString(fmt.Sprintf("  cat \"/tmp/smb_upload_%s.log\"\n", routineID))
+		sb.WriteString(fmt.Sprintf("  rm -f \"/tmp/smb_upload_%s.log\"\n", routineID))
+		sb.WriteString("  rm -rf \"$BACKUP_DIR\"\n")
+		sb.WriteString("  exit 1\n")
+		sb.WriteString("fi\n")
+		sb.WriteString(fmt.Sprintf("rm -f \"/tmp/smb_upload_%s.log\"\n", routineID))
+		sb.WriteString("echo \"[$(date)] Backup gravado com sucesso no compartilhamento Windows!\"\n\n")
+
+		if retention > 0 {
+			sb.WriteString(fmt.Sprintf("echo \"[$(date)] Executando limpeza de backups com mais de %d dias no compartilhamento Windows...\"\n", retention))
+			sb.WriteString(fmt.Sprintf("CUTOFF_SEC=$(( $(date +%%s) - 86400 * %d ))\n", retention))
+			sb.WriteString("CUTOFF_DATE=$(date -d \"@$CUTOFF_SEC\" +%Y%m%d 2>/dev/null || date -r \"$CUTOFF_SEC\" +%Y%m%d 2>/dev/null)\n")
+
+			if smbDir != "" {
+				sb.WriteString(fmt.Sprintf("smbclient %s -U %s -c %s > %s 2>/dev/null\n",
+					shellQuote(fmt.Sprintf("//%s/%s", smbHost, smbShare)),
+					shellQuote(fmt.Sprintf("%s%%%s", smbUser, smbPass)),
+					shellQuote(fmt.Sprintf("cd \"%s\"; ls", smbDir)),
+					shellQuote(fmt.Sprintf("/tmp/smblist_%s", routineID)),
+				))
+			} else {
+				sb.WriteString(fmt.Sprintf("smbclient %s -U %s -c %s > %s 2>/dev/null\n",
+					shellQuote(fmt.Sprintf("//%s/%s", smbHost, smbShare)),
+					shellQuote(fmt.Sprintf("%s%%%s", smbUser, smbPass)),
+					shellQuote("ls"),
+					shellQuote(fmt.Sprintf("/tmp/smblist_%s", routineID)),
+				))
+			}
+
+			sb.WriteString("DEL_CMDS=\"\"\n")
+			sb.WriteString(fmt.Sprintf("while read -r line; do\n"+
+				"  fn=$(echo \"$line\" | awk '{print $1}')\n"+
+				"  if [[ \"$fn\" =~ ^backup_.*_[0-9]{8}_[0-9]{6}.* ]]; then\n"+
+				"    file_date=$(echo \"$fn\" | grep -o -E '[0-9]{8}' | head -n 1)\n"+
+				"    if [ -n \"$file_date\" ] && [ \"$file_date\" -lt \"$CUTOFF_DATE\" ]; then\n"+
+				"      DEL_CMDS=\"${DEL_CMDS}del \\\"$fn\\\"; \"\n"+
+				"    fi\n"+
+				"  fi\n"+
+				"done < %s\n", shellQuote(fmt.Sprintf("/tmp/smblist_%s", routineID))))
+			sb.WriteString(fmt.Sprintf("rm -f %s\n", shellQuote(fmt.Sprintf("/tmp/smblist_%s", routineID))))
+
+			sb.WriteString("if [ -n \"$DEL_CMDS\" ]; then\n")
+			sb.WriteString("  echo \"[$(date)] Apagando backups antigos no SMB: $DEL_CMDS\"\n")
+			if smbDir != "" {
+				sb.WriteString(fmt.Sprintf("  smbclient %s -U %s -c \"cd %s; $DEL_CMDS\" >/dev/null 2>&1\n",
+					shellQuote(fmt.Sprintf("//%s/%s", smbHost, smbShare)),
+					shellQuote(fmt.Sprintf("%s%%%s", smbUser, smbPass)),
+					shellQuote(smbDir),
+				))
+			} else {
+				sb.WriteString(fmt.Sprintf("  smbclient %s -U %s -c \"$DEL_CMDS\" >/dev/null 2>&1\n",
+					shellQuote(fmt.Sprintf("//%s/%s", smbHost, smbShare)),
+					shellQuote(fmt.Sprintf("%s%%%s", smbUser, smbPass)),
+				))
+			}
+			sb.WriteString("fi\n")
+		}
+
+		sb.WriteString("rm -rf \"$BACKUP_DIR\"\n")
+	} else if destType == "ssh" {
+		sb.WriteString("echo \"[$(date)] Backup local gerado com sucesso. Enviando via SSH/SFTP (scp)...\"\n\n")
+
+		sb.WriteString("if ! command -v sshpass &> /dev/null; then\n")
+		sb.WriteString("  echo \"[$(date)] ERRO: sshpass não está instalado no servidor Linux. Por favor, instale-o com: sudo apt-get install sshpass\"\n")
+		sb.WriteString("  rm -rf \"$BACKUP_DIR\"\n")
+		sb.WriteString("  exit 1\n")
+		sb.WriteString("fi\n\n")
+
+		if sshDir != "" {
+			sb.WriteString(fmt.Sprintf("sshpass -p %s ssh -o StrictHostKeyChecking=no -p %s %s@%s %s >/dev/null 2>&1 || true\n",
+				shellQuote(sshPass),
+				shellQuote(sshPort),
+				shellQuote(sshUser),
+				shellQuote(sshHost),
+				shellQuote(fmt.Sprintf("mkdir -p %s", sshDir)),
+			))
+			sb.WriteString(fmt.Sprintf("sshpass -p %s scp -o StrictHostKeyChecking=no -P %s \"$BACKUP_DIR/%s\" %s@%s:%s/ > \"/tmp/ssh_upload_%s.log\" 2>&1\n",
+				shellQuote(sshPass),
+				shellQuote(sshPort),
+				filename,
+				shellQuote(sshUser),
+				shellQuote(sshHost),
+				shellQuote(sshDir),
+				routineID,
+			))
+		} else {
+			sb.WriteString(fmt.Sprintf("sshpass -p %s scp -o StrictHostKeyChecking=no -P %s \"$BACKUP_DIR/%s\" %s@%s: > \"/tmp/ssh_upload_%s.log\" 2>&1\n",
+				shellQuote(sshPass),
+				shellQuote(sshPort),
+				filename,
+				shellQuote(sshUser),
+				shellQuote(sshHost),
+				routineID,
+			))
+		}
+
+		sb.WriteString("EC_SSH=$?\n")
+		sb.WriteString("if [ $EC_SSH -ne 0 ]; then\n")
+		sb.WriteString("  echo \"[$(date)] ERRO: Falha ao enviar arquivo via scp (código $EC_SSH)\"\n")
+		sb.WriteString(fmt.Sprintf("  cat \"/tmp/ssh_upload_%s.log\"\n", routineID))
+		sb.WriteString(fmt.Sprintf("  rm -f \"/tmp/ssh_upload_%s.log\"\n", routineID))
+		sb.WriteString("  rm -rf \"$BACKUP_DIR\"\n")
+		sb.WriteString("  exit 1\n")
+		sb.WriteString("fi\n")
+		sb.WriteString(fmt.Sprintf("rm -f \"/tmp/ssh_upload_%s.log\"\n", routineID))
+		sb.WriteString("echo \"[$(date)] Backup gravado com sucesso no servidor SSH remoto!\"\n\n")
+
+		if retention > 0 {
+			sb.WriteString(fmt.Sprintf("echo \"[$(date)] Executando limpeza de backups com mais de %d dias no servidor SSH remoto...\"\n", retention))
+			sb.WriteString(fmt.Sprintf("CUTOFF_SEC=$(( $(date +%%s) - 86400 * %d ))\n", retention))
+			sb.WriteString("CUTOFF_DATE=$(date -d \"@$CUTOFF_SEC\" +%Y%m%d 2>/dev/null || date -r \"$CUTOFF_SEC\" +%Y%m%d 2>/dev/null)\n")
+
+			var listCmd string
+			if sshDir != "" {
+				listCmd = fmt.Sprintf("ls -1 %s", shellQuote(sshDir))
+			} else {
+				listCmd = "ls -1"
+			}
+
+			sb.WriteString(fmt.Sprintf("sshpass -p %s ssh -o StrictHostKeyChecking=no -p %s %s@%s %s > %s 2>/dev/null\n",
+				shellQuote(sshPass),
+				shellQuote(sshPort),
+				shellQuote(sshUser),
+				shellQuote(sshHost),
+				shellQuote(listCmd),
+				shellQuote(fmt.Sprintf("/tmp/sshlist_%s", routineID)),
+			))
+
+			var pathPrefix string
+			if sshDir != "" {
+				pathPrefix = sshDir + "/"
+			}
+
+			sb.WriteString(fmt.Sprintf("DEL_FILES=\"\"\n"+
+				"while read -r fn; do\n"+
+				"  if [[ \"$fn\" =~ ^backup_.*_[0-9]{8}_[0-9]{6}.* ]]; then\n"+
+				"    file_date=$(echo \"$fn\" | grep -o -E '[0-9]{8}' | head -n 1)\n"+
+				"    if [ -n \"$file_date\" ] && [ \"$file_date\" -lt \"$CUTOFF_DATE\" ]; then\n"+
+				"      DEL_FILES=\"$DEL_FILES %s$fn \"\n"+
+				"    fi\n"+
+				"  fi\n"+
+				"done < %s\n",
+				pathPrefix, shellQuote(fmt.Sprintf("/tmp/sshlist_%s", routineID))))
+			sb.WriteString(fmt.Sprintf("rm -f %s\n", shellQuote(fmt.Sprintf("/tmp/sshlist_%s", routineID))))
+
+			sb.WriteString("if [ -n \"$DEL_FILES\" ]; then\n")
+			sb.WriteString("  echo \"[$(date)] Apagando backups antigos no SSH: $DEL_FILES\"\n")
+			sb.WriteString(fmt.Sprintf("  sshpass -p %s ssh -o StrictHostKeyChecking=no -p %s %s@%s rm -f $DEL_FILES >/dev/null 2>&1\n",
+				shellQuote(sshPass),
+				shellQuote(sshPort),
+				shellQuote(sshUser),
+				shellQuote(sshHost),
+			))
+			sb.WriteString("fi\n")
+		}
+
+		sb.WriteString("rm -rf \"$BACKUP_DIR\"\n")
+	} else {
+		sb.WriteString("echo \"[$(date)] Backup gravado com sucesso em: $BACKUP_DIR/\"\n")
+
+		if retention > 0 {
+			sb.WriteString(fmt.Sprintf("\necho \"[$(date)] Executando limpeza de backups com mais de %d dias...\"\n", retention))
+			sb.WriteString(fmt.Sprintf("find \"$BACKUP_DIR\" -name \"backup_*\" -mtime +%d -delete 2>/dev/null\n", retention))
+		}
 	}
 
 	sb.WriteString("\necho \"[$(date)] Rotina de backup concluída com sucesso!\"\n")

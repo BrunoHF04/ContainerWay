@@ -202,6 +202,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("/api/ssh/test", s.handleSSHTest)
 	mux.HandleFunc("/api/ssh/disconnect", s.handleSSHDisconnect)
 	mux.HandleFunc("/api/ssh/status", s.handleSSHStatus)
+	mux.HandleFunc("/api/ssh/client-ip", s.handleSSHClientIP)
 	mux.HandleFunc("/api/ssh/sudo", s.handleSSHSudo)
 	mux.HandleFunc("/api/local/list", s.handleLocalList)
 	mux.HandleFunc("/api/remote/list", s.handleRemoteList)
@@ -246,6 +247,10 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("/api/backup/db/run", s.handleDBBackupRun)
 	mux.HandleFunc("/api/backup/db/routines", s.handleDBBackupRoutines)
 	mux.HandleFunc("/api/backup/db/restore", s.handleDBBackupRestore)
+	mux.HandleFunc("/api/backup/db/test-db", s.handleDBTestConnection)
+	mux.HandleFunc("/api/backup/db/test-smb", s.handleDBTestSMB)
+	mux.HandleFunc("/api/backup/db/test-ssh", s.handleDBTestSSH)
+	mux.HandleFunc("/api/ssh/setup-local", s.handleEnableLocalSSH)
 	mux.HandleFunc("/api/docker/images/remove", s.handleDockerImageRemove)
 	mux.HandleFunc("/api/docker/volumes/remove", s.handleDockerVolumeRemove)
 	mux.HandleFunc("/api/docker/networks", s.handleDockerNetworks)
@@ -461,6 +466,32 @@ func (s *Server) handleSSHStatus(w http.ResponseWriter, r *http.Request) {
 		resp["user"] = b.User
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// handleSSHClientIP retorna o IP da máquina que estabeleceu a conexão SSH.
+func (s *Server) handleSSHClientIP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "método não permitido"})
+		return
+	}
+	_, b, ok := s.requireSSH(w, r)
+	if !ok {
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	stdout, _, err := b.runSSHCommand(ctx, "echo $SSH_CONNECTION", "")
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	parts := strings.Fields(stdout)
+	ip := ""
+	if len(parts) > 0 {
+		ip = parts[0]
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"ip": ip})
 }
 
 // handleLocalList lista diretório no computador onde o servidor corre.

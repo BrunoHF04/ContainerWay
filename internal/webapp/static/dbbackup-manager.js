@@ -76,14 +76,29 @@
     $("#dbbackup-routine-time").value = "02:00";
     $("#dbbackup-routine-dayofweek").value = "0";
     $("#dbbackup-routine-dayofmonth").value = "1";
+    $("#dbbackup-routine-smbhost").value = "";
+    $("#dbbackup-routine-smbshare").value = "";
+    $("#dbbackup-routine-smbdir").value = "";
+    $("#dbbackup-routine-smb-retention").value = "7";
+    $("#dbbackup-routine-smbuser").value = "";
+    $("#dbbackup-routine-smbpass").value = "";
+    
+    $("#dbbackup-routine-sshhost").value = "";
+    $("#dbbackup-routine-sshport").value = "22";
+    $("#dbbackup-routine-sshdir").value = "";
+    $("#dbbackup-routine-ssh-retention").value = "7";
+    $("#dbbackup-routine-sshuser").value = "";
+    $("#dbbackup-routine-sshpass").value = "";
     
     // Reset radios
     $$('input[name="dbbackupDestType"]').forEach((r, idx) => r.checked = idx === 0);
     $$('input[name="dbrestoreSourceType"]').forEach((r, idx) => r.checked = idx === 0);
+    $$('input[name="dbbackupRoutineDestType"]').forEach((r, idx) => r.checked = idx === 0);
     
     syncDestVisibility("download");
     syncRestoreSourceVisibility("upload");
     syncCronVisibility("daily");
+    syncRoutineDestVisibility("local");
   }
 
   // Carrega bancos de dados detectados
@@ -203,6 +218,26 @@
     }
   }
 
+  // Controla campos visíveis baseados no destino da rotina
+  function syncRoutineDestVisibility(val) {
+    const localContainer = $("#dbbackup-routine-local-container");
+    const smbContainer = $("#dbbackup-routine-smb-container");
+    const sshContainer = $("#dbbackup-routine-ssh-container");
+    if (val === "local") {
+      localContainer?.classList.remove("hidden");
+      smbContainer?.classList.add("hidden");
+      sshContainer?.classList.add("hidden");
+    } else if (val === "smb") {
+      localContainer?.classList.add("hidden");
+      smbContainer?.classList.remove("hidden");
+      sshContainer?.classList.add("hidden");
+    } else if (val === "ssh") {
+      localContainer?.classList.add("hidden");
+      smbContainer?.classList.add("hidden");
+      sshContainer?.classList.remove("hidden");
+    }
+  }
+
   // Controla campos visíveis baseados no destino
   function syncDestVisibility(val) {
     const pathField = $("#dbbackup-backup-path-container");
@@ -296,11 +331,29 @@
 
       const modeLabel = r.backupMode === "incremental" ? "Incremental" : "Integral";
 
+      let destDisplay = escapeHtml(r.dest);
+      if (r.destType === "smb") {
+        let smbPath = `SMB: //${r.smbHost}/${r.smbShare}`;
+        if (r.smbDir) {
+          smbPath += `/${r.smbDir}`;
+        }
+        destDisplay = `<span style="color: #c084fc; font-weight: 600;">${escapeHtml(smbPath)}</span>`;
+      } else if (r.destType === "ssh") {
+        let sshPath = `SSH: ${r.sshUser}@${r.sshHost}`;
+        if (r.sshPort && r.sshPort !== "22") {
+          sshPath += `:${r.sshPort}`;
+        }
+        if (r.sshDir) {
+          sshPath += `/${r.sshDir}`;
+        }
+        destDisplay = `<span style="color: #60a5fa; font-weight: 600;">${escapeHtml(sshPath)}</span>`;
+      }
+
       row.innerHTML = `
         <td style="font-weight: 500; font-family: monospace; font-size: 0.8rem;">${escapeHtml(r.cron)}</td>
         <td style="font-weight: 600;"><span style="font-size: 1rem; margin-right: 5px;">🗄️</span>${escapeHtml(r.engine.toUpperCase())} / ${escapeHtml(r.type.toUpperCase())}<br/><small class="muted">${escapeHtml(modeLabel)}</small></td>
         <td style="word-break: break-all; font-family: monospace; font-size: 0.8rem;">${escapeHtml(dbLabel)}</td>
-        <td style="word-break: break-all; font-family: monospace; font-size: 0.75rem;">${escapeHtml(r.dest)}<br/><small class="muted">Retenção: ${retentionLabel}</small></td>
+        <td style="word-break: break-all; font-family: monospace; font-size: 0.75rem;">${destDisplay}<br/><small class="muted">Retenção: ${retentionLabel}</small></td>
         <td>
           <span style="font-family: monospace; font-size: 0.75rem;">${escapeHtml(r.lastRun)}</span><br/>
           ${statusBadge}
@@ -369,12 +422,33 @@
     $("#dbbackup-routine-pass").disabled = disabled;
     $("#dbbackup-routine-dest").disabled = disabled;
     $("#dbbackup-routine-retention").disabled = disabled;
+    $$('input[name="dbbackupRoutineDestType"]').forEach(r => r.disabled = disabled);
+    $("#dbbackup-routine-smbhost").disabled = disabled;
+    $("#btn-dbbackup-routine-myip").disabled = disabled;
+    $("#dbbackup-routine-smbshare").disabled = disabled;
+    $("#dbbackup-routine-smbdir").disabled = disabled;
+    $("#dbbackup-routine-smb-retention").disabled = disabled;
+    $("#dbbackup-routine-smbuser").disabled = disabled;
+    $("#dbbackup-routine-smbpass").disabled = disabled;
     $("#dbbackup-routine-cron").disabled = disabled;
     $("#dbbackup-routine-freq").disabled = disabled;
     $("#dbbackup-routine-time").disabled = disabled;
     $("#dbbackup-routine-dayofweek").disabled = disabled;
     $("#dbbackup-routine-dayofmonth").disabled = disabled;
     $("#btn-create-routine").disabled = disabled;
+    $("#btn-dbbackup-routine-test-db").disabled = disabled;
+    $("#btn-dbbackup-routine-test-smb").disabled = disabled;
+    
+    // SSH fields
+    if ($("#dbbackup-routine-sshhost")) $("#dbbackup-routine-sshhost").disabled = disabled;
+    if ($("#btn-dbbackup-routine-ssh-myip")) $("#btn-dbbackup-routine-ssh-myip").disabled = disabled;
+    if ($("#dbbackup-routine-sshport")) $("#dbbackup-routine-sshport").disabled = disabled;
+    if ($("#dbbackup-routine-sshdir")) $("#dbbackup-routine-sshdir").disabled = disabled;
+    if ($("#dbbackup-routine-ssh-retention")) $("#dbbackup-routine-ssh-retention").disabled = disabled;
+    if ($("#dbbackup-routine-sshuser")) $("#dbbackup-routine-sshuser").disabled = disabled;
+    if ($("#dbbackup-routine-sshpass")) $("#dbbackup-routine-sshpass").disabled = disabled;
+    if ($("#btn-dbbackup-routine-test-ssh")) $("#btn-dbbackup-routine-test-ssh").disabled = disabled;
+    if ($("#btn-dbbackup-routine-setup-ssh")) $("#btn-dbbackup-routine-setup-ssh").disabled = disabled;
   }
 
   // Configura Listeners de evento
@@ -416,6 +490,207 @@
     // Radio destType (restore)
     $$('input[name="dbrestoreSourceType"]').forEach(r => {
       r.addEventListener("change", (e) => syncRestoreSourceVisibility(e.target.value));
+    });
+
+    // Radio destType (rotina)
+    $$('input[name="dbbackupRoutineDestType"]').forEach(r => {
+      r.addEventListener("change", (e) => syncRoutineDestVisibility(e.target.value));
+    });
+
+    // Botão obter IP do PC local para SMB
+    $("#btn-dbbackup-routine-myip")?.addEventListener("click", async () => {
+      try {
+        const res = await api("/api/ssh/client-ip");
+        if (res && res.ip) {
+          $("#dbbackup-routine-smbhost").value = res.ip;
+          CWUI.toast("IP do PC local preenchido com sucesso!", "success");
+        } else {
+          CWUI.toast("Não foi possível detectar o IP do PC local automaticamente.", "warning");
+        }
+      } catch (err) {
+        CWUI.toast("Erro ao obter IP do PC local: " + err.message, "error");
+      }
+    });
+
+    $("#btn-dbbackup-routine-ssh-myip")?.addEventListener("click", async () => {
+      try {
+        const res = await api("/api/ssh/client-ip");
+        if (res && res.ip) {
+          $("#dbbackup-routine-sshhost").value = res.ip;
+          CWUI.toast("IP do PC local preenchido com sucesso!", "success");
+        } else {
+          CWUI.toast("Não foi possível detectar o IP do PC local automaticamente.", "warning");
+        }
+      } catch (err) {
+        CWUI.toast("Erro ao obter IP do PC local: " + err.message, "error");
+      }
+    });
+
+    $("#btn-dbbackup-routine-setup-ssh")?.addEventListener("click", async () => {
+      const consoleLogs = $("#dbbackup-logs");
+      consoleLogs.textContent = "";
+      toggleInputs(true);
+      appendLog("[Log] Solicitando instalação do Servidor SSH no Windows local...");
+
+      try {
+        const res = await api("/api/ssh/setup-local", { method: "POST" });
+        if (res.status === "success") {
+          appendLog(`[✓] ${res.message}`);
+          CWUI.toast(res.message, "success");
+        } else {
+          appendLog(`[ERRO] ${res.error}`);
+          CWUI.toast(res.error, "error");
+        }
+      } catch (err) {
+        appendLog(`[ERRO] ${err.message}`);
+        CWUI.toast(err.message, "error");
+      } finally {
+        toggleInputs(false);
+      }
+    });
+
+    // Botão testar conexão com banco
+    $("#btn-dbbackup-routine-test-db")?.addEventListener("click", async () => {
+      if (state.running || !state.selectedDB) return;
+      
+      const user = $("#dbbackup-routine-user").value.trim();
+      const pass = $("#dbbackup-routine-pass").value;
+
+      if (!user) {
+        CWUI.toast("Por favor, informe o usuário do banco para testar.", "error");
+        return;
+      }
+
+      const consoleLogs = $("#dbbackup-logs");
+      consoleLogs.textContent = "";
+      toggleInputs(true);
+      appendLog("[Log] Testando conexão com o banco de dados...");
+
+      try {
+        const res = await api("/api/backup/db/test-db", {
+          method: "POST",
+          body: JSON.stringify({
+            engine: state.selectedDB.engine,
+            type: state.selectedDB.sourceType,
+            target: state.selectedDB.targetId,
+            user: user,
+            pass: pass
+          })
+        });
+
+        if (res.status === "success") {
+          appendLog("[✓] Conexão com o banco de dados estabelecida com sucesso!");
+          CWUI.toast("Conexão com o banco de dados estabelecida com sucesso!", "success");
+        } else {
+          appendLog(`[ERRO] Falha na conexão com o banco de dados: ${res.message}`);
+          CWUI.toast("Falha na conexão com o banco de dados.", "error");
+        }
+      } catch (err) {
+        appendLog(`[ERRO] ${err.message}`);
+        CWUI.toast(err.message, "error");
+      } finally {
+        toggleInputs(false);
+      }
+    });
+
+    // Botão testar conexão com o compartilhamento Windows (SMB)
+    $("#btn-dbbackup-routine-test-smb")?.addEventListener("click", async () => {
+      if (state.running || !state.selectedDB) return;
+
+      const smbHost = $("#dbbackup-routine-smbhost").value.trim();
+      const smbShare = $("#dbbackup-routine-smbshare").value.trim();
+      const smbUser = $("#dbbackup-routine-smbuser").value.trim();
+      const smbPass = $("#dbbackup-routine-smbpass").value;
+
+      if (!smbHost) {
+        CWUI.toast("Por favor, informe o IP / Host da máquina Windows.", "error");
+        return;
+      }
+      if (!smbShare) {
+        CWUI.toast("Por favor, informe o nome do compartilhamento Windows.", "error");
+        return;
+      }
+
+      const consoleLogs = $("#dbbackup-logs");
+      consoleLogs.textContent = "";
+      toggleInputs(true);
+      appendLog("[Log] Testando conexão com compartilhamento Windows (SMB)...");
+
+      try {
+        const res = await api("/api/backup/db/test-smb", {
+          method: "POST",
+          body: JSON.stringify({
+            smbHost: smbHost,
+            smbShare: smbShare,
+            smbUser: smbUser,
+            smbPass: smbPass
+          })
+        });
+
+        if (res.status === "success") {
+          appendLog("[✓] Conexão com o compartilhamento Windows estabelecida com sucesso!");
+          CWUI.toast("Conexão com o compartilhamento Windows estabelecida com sucesso!", "success");
+        } else {
+          appendLog(`[ERRO] Falha na conexão com o compartilhamento Windows: ${res.message}`);
+          CWUI.toast("Falha na conexão com o compartilhamento Windows.", "error");
+        }
+      } catch (err) {
+        appendLog(`[ERRO] ${err.message}`);
+        CWUI.toast(err.message, "error");
+      } finally {
+        toggleInputs(false);
+      }
+    });
+
+    // Botão testar conexão SSH/SFTP
+    $("#btn-dbbackup-routine-test-ssh")?.addEventListener("click", async () => {
+      if (state.running || !state.selectedDB) return;
+
+      const sshHost = $("#dbbackup-routine-sshhost").value.trim();
+      const sshPort = $("#dbbackup-routine-sshport").value.trim() || "22";
+      const sshDir = $("#dbbackup-routine-sshdir").value.trim();
+      const sshUser = $("#dbbackup-routine-sshuser").value.trim();
+      const sshPass = $("#dbbackup-routine-sshpass").value;
+
+      if (!sshHost) {
+        CWUI.toast("Por favor, informe o IP / Host SSH de destino.", "error");
+        return;
+      }
+      if (!sshUser) {
+        CWUI.toast("Por favor, informe o usuário SSH.", "error");
+        return;
+      }
+
+      const consoleLogs = $("#dbbackup-logs");
+      consoleLogs.textContent = "";
+      toggleInputs(true);
+      appendLog("[Log] Testando conexão com servidor SSH remoto...");
+
+      try {
+        const res = await api("/api/backup/db/test-ssh", {
+          method: "POST",
+          body: JSON.stringify({
+            sshHost: sshHost,
+            sshPort: sshPort,
+            sshDir: sshDir,
+            sshUser: sshUser,
+            sshPass: sshPass
+          })
+        });
+
+        if (res.status === "success") {
+          appendLog("[✓] Conexão SSH estabelecida e validada com sucesso!");
+          CWUI.toast("Conexão SSH estabelecida e validada com sucesso!", "success");
+        } else {
+          appendLog(`[ERRO] Falha na conexão com o servidor SSH: ${res.message}`);
+          CWUI.toast("Falha na conexão com o servidor SSH.", "error");
+        }
+      } catch (err) {
+        appendLog(`[ERRO] ${err.message}`);
+        CWUI.toast(err.message, "error");
+      } finally {
+        toggleInputs(false);
+      }
     });
 
     // Frequência cron
@@ -598,8 +873,25 @@
       const dbName = $("#dbbackup-routine-dbName").value.trim();
       const user = $("#dbbackup-routine-user").value.trim();
       const pass = $("#dbbackup-routine-pass").value;
+      
+      const destType = $('input[name="dbbackupRoutineDestType"]:checked').value;
       const dest = $("#dbbackup-routine-dest").value.trim();
       const retentionVal = parseInt($("#dbbackup-routine-retention").value, 10);
+      
+      const smbHost = $("#dbbackup-routine-smbhost").value.trim();
+      const smbShare = $("#dbbackup-routine-smbshare").value.trim();
+      const smbDir = $("#dbbackup-routine-smbdir").value.trim();
+      const smbRetentionVal = parseInt($("#dbbackup-routine-smb-retention").value, 10);
+      const smbUser = $("#dbbackup-routine-smbuser").value.trim();
+      const smbPass = $("#dbbackup-routine-smbpass").value;
+
+      const sshHost = $("#dbbackup-routine-sshhost").value.trim();
+      const sshPort = $("#dbbackup-routine-sshport").value.trim() || "22";
+      const sshDir = $("#dbbackup-routine-sshdir").value.trim();
+      const sshRetentionVal = parseInt($("#dbbackup-routine-ssh-retention").value, 10);
+      const sshUser = $("#dbbackup-routine-sshuser").value.trim();
+      const sshPass = $("#dbbackup-routine-sshpass").value;
+
       const freq = $("#dbbackup-routine-freq").value;
       const backupMode = $("#dbbackup-routine-type").value;
       let cronExpr = "";
@@ -642,9 +934,29 @@
         CWUI.toast("Por favor, informe o usuário do banco.", "error");
         return;
       }
-      if (!dest) {
-        CWUI.toast("Por favor, informe a pasta de destino no servidor.", "error");
-        return;
+      if (destType === "local") {
+        if (!dest) {
+          CWUI.toast("Por favor, informe a pasta de destino no servidor.", "error");
+          return;
+        }
+      } else if (destType === "smb") {
+        if (!smbHost) {
+          CWUI.toast("Por favor, informe o IP / Host da máquina Windows.", "error");
+          return;
+        }
+        if (!smbShare) {
+          CWUI.toast("Por favor, informe o nome do compartilhamento Windows.", "error");
+          return;
+        }
+      } else if (destType === "ssh") {
+        if (!sshHost) {
+          CWUI.toast("Por favor, informe o IP / Host SSH de destino.", "error");
+          return;
+        }
+        if (!sshUser) {
+          CWUI.toast("Por favor, informe o usuário SSH.", "error");
+          return;
+        }
       }
       if (!cronExpr) {
         CWUI.toast("Por favor, informe uma expressão cron válida.", "error");
@@ -667,17 +979,36 @@
             db: dbName,
             user: user,
             pass: pass,
-            dest: dest,
-            retention: isNaN(retentionVal) ? 0 : retentionVal,
-            backupMode: backupMode
+            dest: destType === "local" ? dest : "",
+            retention: destType === "local" ? (isNaN(retentionVal) ? 0 : retentionVal) : (destType === "smb" ? (isNaN(smbRetentionVal) ? 0 : smbRetentionVal) : (isNaN(sshRetentionVal) ? 0 : sshRetentionVal)),
+            backupMode: backupMode,
+            destType: destType,
+            smbHost: destType === "smb" ? smbHost : "",
+            smbShare: destType === "smb" ? smbShare : "",
+            smbDir: destType === "smb" ? smbDir : "",
+            smbUser: destType === "smb" ? smbUser : "",
+            smbPass: destType === "smb" ? smbPass : "",
+            sshHost: destType === "ssh" ? sshHost : "",
+            sshPort: destType === "ssh" ? sshPort : "",
+            sshDir: destType === "ssh" ? sshDir : "",
+            sshUser: destType === "ssh" ? sshUser : "",
+            sshPass: destType === "ssh" ? sshPass : ""
           })
         });
 
         appendLog(`[✓] Rotina de backup "${res.id}" configurada com sucesso no crontab!`);
         appendLog(`[Info] Expressão Cron: ${cronExpr}`);
         appendLog(`[Info] Modo: ${backupMode}`);
-        appendLog(`[Info] Pasta Destino: ${dest}`);
-        appendLog(`[Info] Retenção: ${retentionVal > 0 ? retentionVal + ' dias' : 'sem limite'}`);
+        if (destType === "local") {
+          appendLog(`[Info] Pasta Destino: ${dest}`);
+          appendLog(`[Info] Retenção: ${retentionVal > 0 ? retentionVal + ' dias' : 'sem limite'}`);
+        } else if (destType === "smb") {
+          appendLog(`[Info] Destino Windows (SMB): //${smbHost}/${smbShare}${smbDir ? '/' + smbDir : ''}`);
+          appendLog(`[Info] Retenção: ${smbRetentionVal > 0 ? smbRetentionVal + ' dias' : 'sem limite'}`);
+        } else if (destType === "ssh") {
+          appendLog(`[Info] Destino SSH: ${sshUser}@${sshHost}:${sshPort}${sshDir ? '/' + sshDir : ''}`);
+          appendLog(`[Info] Retenção: ${sshRetentionVal > 0 ? sshRetentionVal + ' dias' : 'sem limite'}`);
+        }
         CWUI.toast(tr("dbbackup.toast.routineSuccess"), "success");
         
         // Vai para a aba de rotinas para ver
