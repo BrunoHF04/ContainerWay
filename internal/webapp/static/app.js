@@ -38,7 +38,7 @@ function syncMascotIcons(theme) {
   for (const img of document.querySelectorAll(".logo, .splash-logo")) {
     img.src = src;
   }
-  for (const img of document.querySelectorAll(".login-mascot, .hub-mascot-img")) {
+  for (const img of document.querySelectorAll(".hub-mascot-img")) {
     img.src = hero;
   }
 }
@@ -143,19 +143,112 @@ function bindThemeButtons() {
 }
 bindThemeButtons();
 
+function initLoginMascotVideo() {
+  const canvas = document.getElementById("login-mascot-canvas");
+  if (!canvas) return;
+
+  const video = document.createElement("video");
+  video.src = "/formiga.mp4";
+  video.loop = true;
+  video.muted = true;
+  video.autoplay = true;
+  video.playsInline = true;
+
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+  const setDimensions = () => {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+  };
+
+  if (video.readyState >= 1) {
+    setDimensions();
+  } else {
+    video.addEventListener("loadedmetadata", setDimensions);
+  }
+
+  function step() {
+    if (video.paused || video.ended) {
+      requestAnimationFrame(step);
+      return;
+    }
+
+    if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+      setDimensions();
+    }
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    try {
+      const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = frame.data;
+      const length = data.length;
+
+      for (let i = 0; i < length; i += 4) {
+        const r = data[i + 0];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        const avg = (r + g + b) / 3;
+        const maxDiff = Math.max(r, g, b) - Math.min(r, g, b);
+
+        // Blue container body or glowing eyes
+        const isBlue = (b > r + 10 && b > g + 2);
+
+        let alphaRatio = 1;
+
+        if (isBlue) {
+          alphaRatio = 1; // Solid blue container & eyes
+        } else if (avg > 238 && b > 70) {
+          alphaRatio = 1; // Protect crisp white DOCKER text & whale logo on container
+        } else if (avg > 105 && maxDiff < 18) {
+          // Universal studio background wall & floor keying (removes all patches behind neck & under belly)
+          if (avg < 125) {
+            alphaRatio = 1 - (avg - 105) / 20; // Smooth anti-aliased edge
+          } else {
+            alphaRatio = 0; // Completely transparent studio background & floor light
+          }
+        }
+
+        data[i + 3] = Math.floor(data[i + 3] * alphaRatio);
+      }
+      ctx.putImageData(frame, 0, 0);
+    } catch (e) {
+      console.warn("Chroma key failed (likely CORS/taint):", e);
+    }
+
+    requestAnimationFrame(step);
+  }
+
+  video.addEventListener("play", () => {
+    requestAnimationFrame(step);
+  });
+
+  video.play().catch(() => {
+    const resumeVideo = () => {
+      video.play();
+      document.removeEventListener("pointerdown", resumeVideo);
+      document.removeEventListener("keydown", resumeVideo);
+    };
+    document.addEventListener("pointerdown", resumeVideo);
+    document.addEventListener("keydown", resumeVideo);
+  });
+}
+initLoginMascotVideo();
+
+
 const MODULES = [
-  { id: "explorer", icon: "📁", accent: "cyan", title: "Gerenciador de arquivos", desc: "Painel duplo local/remoto, enviar e receber arquivos.", kw: "arquivos sftp transferência" },
-  { id: "docker", icon: "🐳", accent: "indigo", title: "Contêineres Docker", desc: "Lista, métricas, logs, consola e ciclo de vida.", kw: "docker container" },
-  { id: "volbackup", icon: "📦", accent: "indigo", title: "Backup de Volumes", desc: "Localize volumes Docker, faça backups (local/SSH) e restaure volumes.", kw: "backup restore volume docker salvar carregar sftp" },
-  { id: "dbbackup", icon: "🗄️", accent: "indigo", title: "Backup de Bancos", desc: "Identifique bancos de dados no servidor e faça backups integrais ou agende rotinas.", kw: "backup banco dados database postgres mysql mariadb sqlserver integral incremental rotina" },
-  { id: "composeopt", icon: "📋", accent: "indigo", title: "Otimizador YAML", desc: "Compose e Swarm: localiza YAML, compara hardware e sugere CPU, RAM e JVM.", kw: "compose swarm stack yaml docker otimizar memoria cpu java" },
-  { id: "disks", icon: "💾", accent: "emerald", title: "Discos e armazenamento", desc: "lsblk, uso de pastas, LVM e ampliação.", kw: "disco lsblk armazenamento lvm ncdu treesize" },
-  { id: "services", icon: "⚡", accent: "teal", title: "Serviços", desc: "systemd: estado agora, iniciar/parar e início automático ao ligar o servidor.", kw: "serviço systemd systemctl nginx apache boot enable" },
-  { id: "terminal", icon: "⌨️", accent: "amber", title: "Terminal SSH", desc: "Consola remota interativa.", kw: "terminal ssh shell" },
-  { id: "automations", icon: "⚙️", accent: "violet", title: "Central de automações", desc: "Regras e histórico por host.", kw: "automação regras" },
-  { id: "deploy", icon: "🚀", accent: "violet", title: "Cadastrar Cliente", desc: "Gere o comando de instalação para conectar o cliente à VPN.", kw: "vpn deploy cadastrar instalar cliente headscale", adminOnly: true },
-  { id: "settings", icon: "🔧", accent: "rose", title: "Configurações", desc: "Conta, interface, SSH, módulos e administração.", kw: "configurações admin", adminOnly: true },
-  { id: "desktop", icon: "🖥️", accent: "sky", title: "Ambiente Linux", desc: "Desktop com janelas: arquivos, sistema (rede/disco), Docker e terminal.", kw: "linux desktop ubuntu gui gráfico leigo iniciante ambiente janelas rede armazenamento" },
+  { id: "explorer", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hub-icon"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`, accent: "cyan", title: "Gerenciador de arquivos", desc: "Painel duplo local/remoto, enviar e receber arquivos.", kw: "arquivos sftp transferência" },
+  { id: "docker", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hub-icon"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>`, accent: "indigo", title: "Contêineres Docker", desc: "Lista, métricas, logs, consola e ciclo de vida.", kw: "docker container" },
+  { id: "volbackup", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hub-icon"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>`, accent: "indigo", title: "Backup de Volumes", desc: "Localize volumes Docker, faça backups (local/SSH) e restaure volumes.", kw: "backup restore volume docker salvar carregar sftp" },
+  { id: "dbbackup", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hub-icon"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>`, accent: "indigo", title: "Backup de Bancos", desc: "Identifique bancos de dados no servidor e faça backups integrais ou agende rotinas.", kw: "backup banco dados database postgres mysql mariadb sqlserver integral incremental rotina" },
+  { id: "composeopt", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hub-icon"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>`, accent: "indigo", title: "Otimizador YAML", desc: "Compose e Swarm: localiza YAML, compara hardware e sugere CPU, RAM e JVM.", kw: "compose swarm stack yaml docker otimizar memoria cpu java" },
+  { id: "disks", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hub-icon"><rect x="2" y="2" width="20" height="20" rx="2" ry="2"/><path d="M12 18h.01"/><path d="M8 6h8v6H8z"/></svg>`, accent: "emerald", title: "Discos e armazenamento", desc: "lsblk, uso de pastas, LVM e ampliação.", kw: "disco lsblk armazenamento lvm ncdu treesize" },
+  { id: "services", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hub-icon"><rect x="4" y="4" width="16" height="16" rx="2" /><rect x="9" y="9" width="6" height="6" /><line x1="9" y1="1" x2="9" y2="4" /><line x1="15" y1="1" x2="15" y2="4" /><line x1="9" y1="20" x2="9" y2="23" /><line x1="15" y1="20" x2="15" y2="23" /><line x1="20" y1="9" x2="23" y2="9" /><line x1="20" y1="15" x2="23" y2="15" /><line x1="1" y1="9" x2="4" y2="9" /><line x1="1" y1="15" x2="4" y2="15" /></svg>`, accent: "teal", title: "Serviços", desc: "systemd: estado agora, iniciar/parar e início automático ao ligar o servidor.", kw: "serviço systemd systemctl nginx apache boot enable" },
+  { id: "terminal", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hub-icon"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>`, accent: "amber", title: "Terminal SSH", desc: "Consola remota interativa.", kw: "terminal ssh shell" },
+  { id: "automations", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hub-icon"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 15V9a4 4 0 0 0-4-4H9"/><path d="M6 9v6"/></svg>`, accent: "violet", title: "Central de automações", desc: "Regras e histórico por host.", kw: "automação regras" },
+  { id: "deploy", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hub-icon"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4.5"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>`, accent: "violet", title: "Cadastrar Cliente", desc: "Gere o comando de instalação para conectar o cliente à VPN.", kw: "vpn deploy cadastrar instalar cliente headscale", adminOnly: true },
+  { id: "settings", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hub-icon"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`, accent: "rose", title: "Configurações", desc: "Conta, interface, SSH, módulos e administração.", kw: "configurações admin", adminOnly: true },
+  { id: "desktop", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hub-icon"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`, accent: "sky", title: "Ambiente Linux", desc: "Desktop com janelas: arquivos, sistema (rede/disco), Docker e terminal.", kw: "linux desktop ubuntu gui gráfico leigo iniciante ambiente janelas rede armazenamento" },
 ];
 
 function closeAllAppDialogs() {
@@ -374,6 +467,9 @@ function bindHubMascotMagnet() {
   if (!wrap || !scene) return;
   hubMascotMagnetBound = true;
 
+  const leftPupil = scene.querySelector(".left-pupil");
+  const rightPupil = scene.querySelector(".right-pupil");
+
   const strength = 32;
   let targetX = 0;
   let targetY = 0;
@@ -388,6 +484,14 @@ function bindHubMascotMagnet() {
     const rotX = -currentY * 0.28;
     scene.style.transform =
       `translate3d(${currentX.toFixed(2)}px, ${currentY.toFixed(2)}px, 0) rotateX(${rotX.toFixed(2)}deg) rotateY(${rotY.toFixed(2)}deg)`;
+    
+    if (leftPupil && rightPupil) {
+      const pupilX = currentX * 0.12;
+      const pupilY = currentY * 0.12;
+      leftPupil.style.transform = `rotate(-15deg) translate(${pupilX.toFixed(2)}px, ${pupilY.toFixed(2)}px)`;
+      rightPupil.style.transform = `rotate(15deg) translate(${pupilX.toFixed(2)}px, ${pupilY.toFixed(2)}px)`;
+    }
+
     const done = Math.abs(targetX - currentX) < 0.15 && Math.abs(targetY - currentY) < 0.15;
     if (!done || targetX !== 0 || targetY !== 0) {
       raf = requestAnimationFrame(tick);
@@ -419,7 +523,19 @@ function bindHubMascotMagnet() {
     targetX = 0;
     targetY = 0;
     wrap.classList.remove("is-active");
+    if (leftPupil && rightPupil) {
+      leftPupil.style.transform = "";
+      rightPupil.style.transform = "";
+    }
     queue();
+  });
+
+  wrap.addEventListener("click", () => {
+    if (wrap.classList.contains("is-clicked")) return;
+    wrap.classList.add("is-clicked");
+    setTimeout(() => {
+      wrap.classList.remove("is-clicked");
+    }, 800);
   });
 }
 
@@ -522,6 +638,20 @@ class HubAntColony {
     this.animationFrame = null;
     this.spawnTimer = null;
     this.lastTime = 0;
+    this.mouseX = -1000;
+    this.mouseY = -1000;
+    
+    this.onMouseMove = (e) => {
+      if (!this.active || !this.container) return;
+      const rect = this.container.getBoundingClientRect();
+      this.mouseX = e.clientX - rect.left;
+      this.mouseY = e.clientY - rect.top;
+    };
+    
+    this.onMouseLeave = () => {
+      this.mouseX = -1000;
+      this.mouseY = -1000;
+    };
   }
 
   init() {
@@ -544,10 +674,16 @@ class HubAntColony {
     this.lastTime = performance.now();
     this.loop();
     this.scheduleSpawning();
+    
+    window.addEventListener("mousemove", this.onMouseMove);
+    this.container?.addEventListener("mouseleave", this.onMouseLeave);
   }
 
   stop() {
     this.active = false;
+    window.removeEventListener("mousemove", this.onMouseMove);
+    this.container?.removeEventListener("mouseleave", this.onMouseLeave);
+    
     if (this.animationFrame) {
       cancelAnimationFrame(this.animationFrame);
       this.animationFrame = null;
@@ -560,6 +696,8 @@ class HubAntColony {
       this.container.innerHTML = "";
     }
     this.ants = [];
+    this.mouseX = -1000;
+    this.mouseY = -1000;
   }
 
   scheduleSpawning() {
@@ -590,34 +728,41 @@ class HubAntColony {
     const theme = CARGO_THEMES[Math.floor(Math.random() * CARGO_THEMES.length)];
     
     antEl.innerHTML = `
-      <div class="hub-ant-cargo" style="--cargo-top: ${theme.top}; --cargo-left: ${theme.left}; --cargo-right: ${theme.right}">
-        <svg viewBox="0 0 16 16" width="100%" height="100%">
-          <path d="M 8 2 L 14 5 L 8 8 L 2 5 Z" fill="var(--cargo-top)" />
-          <path d="M 2 5 L 8 8 L 8 14 L 2 11 Z" fill="var(--cargo-left)" />
-          <path d="M 8 8 L 14 5 L 14 11 L 8 14 Z" fill="var(--cargo-right)" />
+      <div class="hub-ant-inner">
+        <div class="hub-ant-cargo" style="--cargo-top: ${theme.top}; --cargo-left: ${theme.left}; --cargo-right: ${theme.right}">
+          <svg viewBox="0 0 16 16" width="100%" height="100%">
+            <path d="M 8 2 L 14 5 L 8 8 L 2 5 Z" fill="var(--cargo-top)" />
+            <path d="M 2 5 L 8 8 L 8 14 L 2 11 Z" fill="var(--cargo-left)" />
+            <path d="M 8 8 L 14 5 L 14 11 L 8 14 Z" fill="var(--cargo-right)" />
+          </svg>
+        </div>
+        <svg class="hub-ant-svg" viewBox="0 0 40 22">
+          <!-- Shadow under the ant -->
+          <ellipse class="hub-ant-shadow" cx="19" cy="19.5" rx="14" ry="2.2" fill="url(#ant-shadow-grad)" />
+
+          <!-- Antennae pointing forward/up -->
+          <path class="hub-ant-antenna antenna-left" d="M 31 9.5 Q 34 5.5 36.5 6.5" />
+          <path class="hub-ant-antenna antenna-right" d="M 31 10.5 Q 33 6.5 35 8" />
+          
+          <!-- Far legs (fl, ml, bl) -->
+          <path class="hub-ant-leg leg-fl" d="M 23 11 Q 25 15 27 19" />
+          <path class="hub-ant-leg leg-ml" d="M 19 11 Q 19 15 18 19" />
+          <path class="hub-ant-leg leg-bl" d="M 15 11 Q 12 15 9 19" />
+          
+          <!-- Near legs (fr, mr, br) -->
+          <path class="hub-ant-leg leg-fr" d="M 23 11 Q 25 15 27 19" />
+          <path class="hub-ant-leg leg-mr" d="M 19 11 Q 19 15 18 19" />
+          <path class="hub-ant-leg leg-br" d="M 15 11 Q 12 15 9 19" />
+          
+          <!-- Body parts in side profile (3D look via radial gradients) -->
+          <ellipse class="hub-ant-abdomen" cx="10" cy="10" rx="6.5" ry="5.5" fill="url(#ant-body-grad)" />
+          <ellipse class="hub-ant-thorax" cx="20" cy="11" rx="4.8" ry="3.3" fill="url(#ant-body-grad)" />
+          <ellipse class="hub-ant-head" cx="28" cy="11" rx="3.8" ry="3.8" fill="url(#ant-body-grad)" />
+
+          <!-- Tiny glowing eye -->
+          <circle class="hub-ant-eye" cx="29.2" cy="9.8" r="1.1" fill="url(#ant-eye-grad)" />
         </svg>
       </div>
-      <svg class="hub-ant-svg" viewBox="0 0 40 20">
-        <!-- Antennae pointing forward/up -->
-        <path class="hub-ant-antenna" d="M 31 9 Q 34 5 36 6" />
-        <path class="hub-ant-antenna" d="M 31 10 Q 33 6 35 8" />
-        
-        <!-- Legs pointing down from body connections -->
-        <!-- Far legs (fl, ml, bl) -->
-        <path class="hub-ant-leg leg-fl" d="M 23 11 Q 25 15 27 19" />
-        <path class="hub-ant-leg leg-ml" d="M 19 11 Q 19 15 18 19" />
-        <path class="hub-ant-leg leg-bl" d="M 15 11 Q 12 15 9 19" />
-        
-        <!-- Near legs (fr, mr, br) -->
-        <path class="hub-ant-leg leg-fr" d="M 23 11 Q 25 15 27 19" />
-        <path class="hub-ant-leg leg-mr" d="M 19 11 Q 19 15 18 19" />
-        <path class="hub-ant-leg leg-br" d="M 15 11 Q 12 15 9 19" />
-        
-        <!-- Body parts in side profile -->
-        <ellipse class="hub-ant-abdomen" cx="10" cy="10" rx="6" ry="5" />
-        <ellipse class="hub-ant-thorax" cx="20" cy="11" rx="4.5" ry="3" />
-        <ellipse class="hub-ant-head" cx="28" cy="11" rx="3.5" ry="3.5" />
-      </svg>
     `;
     
     antEl.style.left = `${startX}px`;
@@ -636,6 +781,21 @@ class HubAntColony {
       stopDuration: 0,
       stateTime: 0,
     };
+    
+    antEl.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (antEl.classList.contains("is-clicked")) return;
+      antEl.classList.add("is-clicked");
+      ant.isWalking = false;
+      antEl.classList.remove("is-walking");
+      
+      setTimeout(() => {
+        antEl.classList.remove("is-clicked");
+        ant.isWalking = true;
+        antEl.classList.add("is-walking");
+        ant.stateTime = 0;
+      }, 600);
+    });
     
     this.ants.push(ant);
   }
@@ -656,6 +816,17 @@ class HubAntColony {
       let targetY = ant.baseY;
       let minSameDirDist = Infinity;
       let speedScale = 1.0;
+      
+      const dxMouse = this.mouseX - ant.x;
+      const dyMouse = this.mouseY - ant.y;
+      const distMouse = Math.hypot(dxMouse, dyMouse);
+      const isMouseClose = distMouse < 90;
+      
+      if (isMouseClose && !ant.el.classList.contains("is-clicked")) {
+        ant.el.classList.add("is-alerted");
+      } else {
+        ant.el.classList.remove("is-alerted");
+      }
       
       for (let j = 0; j < this.ants.length; j++) {
         if (i === j) continue;
@@ -701,7 +872,8 @@ class HubAntColony {
       ant.el.style.top = `${ant.y}px`;
       
       if (ant.isWalking) {
-        const currentSpeed = ant.speed * speedScale;
+        const alertMultiplier = isMouseClose ? 2.5 : 1.0;
+        const currentSpeed = ant.speed * speedScale * alertMultiplier;
         ant.x += ant.dir * currentSpeed * dt;
         ant.el.style.left = `${ant.x}px`;
         
@@ -711,8 +883,8 @@ class HubAntColony {
           ant.el.classList.add("is-walking");
         }
         
-        // Random pause only if not stuck in traffic
-        if (speedScale > 0.8 && ant.x > 120 && ant.x < width - 120 && ant.stateTime > 3 && Math.random() < 0.006) {
+        // Random pause only if not stuck in traffic and not alerted
+        if (!isMouseClose && speedScale > 0.8 && ant.x > 120 && ant.x < width - 120 && ant.stateTime > 3 && Math.random() < 0.006) {
           ant.isWalking = false;
           ant.stateTime = 0;
           ant.stopDuration = 1 + Math.random() * 1.5;

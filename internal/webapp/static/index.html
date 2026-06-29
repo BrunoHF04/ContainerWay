@@ -17,6 +17,46 @@
   <div id="theme-veil" class="theme-veil" aria-hidden="true"></div>
 
   <div class="ambient" aria-hidden="true">
+    <!-- SVG Defs for 3D styling of Mascot Head and Crawler Ants -->
+    <svg style="position: absolute; width: 0; height: 0; overflow: hidden;" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <!-- Gradients for Mascot Head -->
+        <radialGradient id="head-depth-grad" cx="50%" cy="35%" r="55%" fx="35%" fy="25%">
+          <stop offset="0%" stop-color="#475569" />
+          <stop offset="65%" stop-color="#1e293b" />
+          <stop offset="100%" stop-color="#090d16" />
+        </radialGradient>
+        <radialGradient id="head-eye-grad" cx="35%" cy="30%" r="70%">
+          <stop offset="0%" stop-color="#ffffff" />
+          <stop offset="15%" stop-color="var(--accent, #38bdf8)" />
+          <stop offset="65%" stop-color="color-mix(in srgb, var(--accent, #38bdf8) 50%, #000)" />
+          <stop offset="100%" stop-color="#021526" />
+        </radialGradient>
+        <linearGradient id="head-antenna-grad" x1="0" y1="1" x2="0" y2="0">
+          <stop offset="0%" stop-color="#475569" />
+          <stop offset="100%" stop-color="#1e293b" />
+        </linearGradient>
+        <linearGradient id="mandible-grad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#64748b" />
+          <stop offset="100%" stop-color="#0f172a" />
+        </linearGradient>
+        
+        <!-- Gradients for Crawler Ants -->
+        <radialGradient id="ant-body-grad" cx="40%" cy="30%" r="60%">
+          <stop offset="0%" stop-color="#64748b" />
+          <stop offset="70%" stop-color="#1e293b" />
+          <stop offset="100%" stop-color="#090d16" />
+        </radialGradient>
+        <radialGradient id="ant-eye-grad" cx="30%" cy="30%" r="70%">
+          <stop offset="0%" stop-color="var(--accent, #38bdf8)" />
+          <stop offset="100%" stop-color="#090d16" />
+        </radialGradient>
+        <radialGradient id="ant-shadow-grad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="rgba(0, 0, 0, 0.65)" />
+          <stop offset="100%" stop-color="rgba(0, 0, 0, 0)" />
+        </radialGradient>
+      </defs>
+    </svg>
     <div class="orb orb-1"></div>
     <div class="orb orb-2"></div>
     <div class="orb orb-3"></div>
@@ -75,7 +115,7 @@
               <div class="mascot-orbit mascot-orbit-1" aria-hidden="true"></div>
               <div class="mascot-orbit mascot-orbit-2" aria-hidden="true"></div>
               <div class="mascot-glow" aria-hidden="true"></div>
-              <img class="login-mascot" src="/mascot-hero.png" width="320" height="320" alt="Mascote ContainerWay" decoding="async" />
+              <canvas class="login-mascot" id="login-mascot-canvas"></canvas>
               <span class="mascot-cube mascot-cube-1" aria-hidden="true"></span>
               <span class="mascot-cube mascot-cube-2" aria-hidden="true"></span>
               <span class="mascot-cube mascot-cube-3" aria-hidden="true"></span>
@@ -163,6 +203,25 @@
               <div class="hub-mascot-scene">
                 <div class="hub-mascot-glow" aria-hidden="true"></div>
                 <div class="hub-mascot-body">
+                  <svg class="hub-mascot-svg" viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+                    <g class="mascot-antenna left-antenna">
+                      <path class="mascot-antenna-stem" d="M 42 27 C 32 10, 20 8, 12 18" stroke="url(#head-antenna-grad)" stroke-width="2.5" fill="none" stroke-linecap="round" />
+                      <circle cx="42" cy="27" r="3" fill="#475569" />
+                      <circle cx="12" cy="18" r="3" fill="var(--accent, #38bdf8)" class="mascot-antenna-tip" />
+                    </g>
+                    <g class="mascot-antenna right-antenna">
+                      <path class="mascot-antenna-stem" d="M 58 27 C 68 10, 80 8, 88 18" stroke="url(#head-antenna-grad)" stroke-width="2.5" fill="none" stroke-linecap="round" />
+                      <circle cx="58" cy="27" r="3" fill="#475569" />
+                      <circle cx="88" cy="18" r="3" fill="var(--accent, #38bdf8)" class="mascot-antenna-tip" />
+                    </g>
+                    <path class="mascot-mandible left-mandible" d="M 44 80 C 37 86, 40 97, 49 94 C 46 89, 45 84, 45 80 Z" fill="url(#mandible-grad)" />
+                    <path class="mascot-mandible right-mandible" d="M 56 80 C 63 86, 60 97, 51 94 C 54 89, 55 84, 55 80 Z" fill="url(#mandible-grad)" />
+                    <path class="mascot-head-capsule" d="M 50 20 C 31 20, 22 38, 24 60 C 26 78, 38 88, 50 88 C 62 88, 74 78, 76 60 C 78 38, 69 20, 50 20 Z" fill="url(#head-depth-grad)" />
+                    <ellipse class="mascot-eye-base left-eye-base" cx="27" cy="53" rx="9" ry="16" transform="rotate(-15 27 53)" fill="#090d16" stroke="#1e293b" stroke-width="0.5" />
+                    <ellipse class="mascot-eye-pupil left-pupil" cx="27" cy="53" rx="6" ry="11" transform="rotate(-15 27 53)" fill="url(#head-eye-grad)" />
+                    <ellipse class="mascot-eye-base right-eye-base" cx="73" cy="53" rx="9" ry="16" transform="rotate(15 73 53)" fill="#090d16" stroke="#1e293b" stroke-width="0.5" />
+                    <ellipse class="mascot-eye-pupil right-pupil" cx="73" cy="53" rx="6" ry="11" transform="rotate(15 73 53)" fill="url(#head-eye-grad)" />
+                  </svg>
                 </div>
               </div>
             </div>
